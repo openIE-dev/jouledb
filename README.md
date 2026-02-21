@@ -5,7 +5,7 @@
 <h1 align="center">JouleDB</h1>
 
 <p align="center">
-  <strong>The world's first energy-aware database</strong> — powered by Hyperdimensional Computing (HDC), hardware-adaptive, with real-time J/query telemetry.
+  <strong>The world's first energy-aware database</strong> — powered by Hyperdimensional Computing, hardware-adaptive, with real-time J/query telemetry.
 </p>
 
 <p align="center">
@@ -15,338 +15,218 @@
 ---
 
 ```
-                ┌─────────────────────────────────────┐
-                │         JSON Document Ingest        │
-                └──────────────────┬──────────────────┘
-                                   │
-       ┌───────────────────────────┼───────────────────────────┐
-       │                           │                           │
-       ▼                           ▼                           ▼
-┌──────────────┐           ┌──────────────┐           ┌──────────────┐
-│  HDC Hologram │           │  B-Tree Index │           │   Columnar   │
-│  (Similarity) │           │ (Point/Range) │           │ (Analytics)  │
-└──────────────┘           └──────────────┘           └──────────────┘
-       │                           │                           │
-       └───────────────────────────┼───────────────────────────┘
-                                   │
-                          ┌────────▼────────┐
-                          │  Energy Monitor │
-                          │   (J/query)     │
-                          └─────────────────┘
+       ┌──────────────────────────────────────────────────────┐
+       │                 jouledb run <engine>                  │
+       │          postgres · mysql · redis · mongodb           │
+       └──────────────────────┬───────────────────────────────┘
+                              │
+       ┌──────────────────────▼───────────────────────────────┐
+       │                   jouled daemon                       │
+       │       Health Monitor · Energy Dashboard (:7000)       │
+       │            Unix Socket IPC · Auto-Restart             │
+       └──────────────────────┬───────────────────────────────┘
+                              │
+       ┌──────────────────────▼───────────────────────────────┐
+       │                  JouleDB Engine                       │
+       │                                                       │
+       │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌───────────┐ │
+       │  │ HashMap  │ │ B-Tree  │ │ HDC Holo │ │ Columnar  │ │
+       │  │  O(1)    │ │  Range  │ │  O(1)    │ │  Arrow    │ │
+       │  └─────────┘ └─────────┘ └──────────┘ └───────────┘ │
+       │                                                       │
+       │  ┌──────────────────────────────────────────────────┐ │
+       │  │ Energy Monitor · Platform Sensors · J/query      │ │
+       │  └──────────────────────────────────────────────────┘ │
+       └──────────────────────────────────────────────────────┘
 ```
 
-JouleDB is a hybrid OLTP/OLAP/semantic database written in **Rust** (Edition 2024). It encodes every record into five concurrent data structures at write time, adapts execution based on hardware power/thermal state, and tracks energy consumption per query in joules.
+JouleDB is a hybrid OLTP/OLAP/semantic database written in **Rust** (Edition 2024, 60+ crate workspace). It encodes every record into five concurrent data structures at write time, adapts execution based on hardware power/thermal state, and tracks energy consumption per query in joules.
 
-## Key Features
+**3,786 tests. Zero failures. 3-node Raft cluster. 11 adversarial stress test suites.**
 
-- **Energy-aware execution** — Real-time power monitoring, thermal throttling, per-query joule tracking, hardware-adaptive query plans
-- **Hyperdimensional Computing** — HDC-encoded vectors for O(1) similarity search, 512-bit binary hypervectors with XOR binding
-- **Multi-paradigm queries** — SQL, Cypher (graph), GraphQL, CQL (Cassandra), time-series (InfluxQL/PromQL)
-- **Columnar analytics** — Arrow-based vectorized execution with zone-map pruning
-- **5 transports** — HTTP REST, TCP binary protocol, WebSocket, WebTransport (HTTP/3 + QUIC), PostgreSQL wire protocol
-- **4 client SDKs** — Rust (native), Python (PyO3), JavaScript/TypeScript (WASM), C (SQLite-style FFI)
-- **Real-time subscriptions** — Pattern-based change notifications with HDC-based pre-filtering
-- **21 domain verticals** — Finance, healthcare, gaming, geospatial, IoT, genomics, and more
-- **Production-grade** — MVCC, RBAC, TLS encryption, 100+ Prometheus metrics, Kubernetes health checks, OpenTelemetry traces
+## Install
+
+```bash
+curl -fsSL https://jouledb.org/install.sh | sh
+```
+
+Or download binaries from [Releases](https://github.com/openIE-dev/jouledb/releases).
 
 ## Quick Start
 
-### From Source
-
 ```bash
-git clone https://github.com/openIE-dev/jouledb.git
-cd jouledb
-cargo build --release
+# Start the persistent daemon
+jouledb-cli daemon start
+# → Dashboard: http://127.0.0.1:7000
 
-# Start the server (HTTP on :8080, TCP on :9000)
-./target/release/joule-db-server
-```
+# Run any database with energy telemetry
+jouledb-cli run postgres
+jouledb-cli run redis --port 6380
+jouledb-cli run mysql
 
-### Docker
+# Or run JouleDB natively
+jouledb-cli server start --foreground
+jouledb-cli query execute "SELECT * FROM users WHERE age > 25"
+jouledb-cli shell
 
-```bash
-docker build -t jouledb .
-docker run -p 8080:8080 -p 9000:9000 -v ./data:/app/data jouledb
-```
-
-### CLI
-
-```bash
-cargo install --path joule-cli
-
-# Server management
-jouledb server start --foreground
-jouledb server status
-jouledb server stop
-
-# Query
-jouledb query execute "SELECT * FROM users WHERE age > 25"
-
-# Interactive shell
-jouledb shell
-```
-
-### PostgreSQL Wire Protocol
-
-Connect with any PostgreSQL-compatible client:
-
-```bash
+# Connect with psql (PostgreSQL wire protocol)
 psql -h localhost -p 5433 -U joule
+
+# Auto-start on login (macOS launchd / Linux systemd)
+jouledb-cli daemon install
 ```
 
-## Architecture
+## Universal Database Energy Layer
+
+Run **any database** with Joule energy telemetry. One command. Automatic energy sidecar. No code changes.
+
+```bash
+$ jouledb-cli run postgres
+
+  PostgreSQL  5432  native
+  Energy   http://127.0.0.1:15432/energy
+  Data     ./postgres-data-a1b2c3d4
+
+  Apple M4 Max  92W  GPU + Neural Engine
+
+$ curl localhost:15432/energy
+{
+  "engine": "postgres",
+  "power_watts": 8.2,
+  "total_energy_joules": 1247.5
+}
+```
+
+Supported engines: **PostgreSQL**, **MySQL**, **Redis**, **MongoDB**, **SQLite**, and **JouleDB** itself.
+
+## Persistent Daemon
+
+A background daemon manages all database instances — Docker Desktop parity for databases.
+
+- **Instance management** — start, stop, list across sessions via Unix socket IPC
+- **Health monitor** — automatic health checks every 10s, auto-restart on crash (max 3)
+- **Energy dashboard** — unified HTTP dashboard on port 7000 (JSON API + Prometheus + HTML)
+- **Orphan recovery** — detects dead PIDs on startup, marks as failed
+- **OS service** — `jouledb-cli daemon install` generates macOS launchd or Linux systemd service files
+
+```bash
+jouledb-cli daemon start       # Start daemon
+jouledb-cli daemon status      # Show uptime, instances, energy
+jouledb-cli daemon stop        # Graceful shutdown
+jouledb-cli daemon install     # Auto-start on login
+```
+
+## Key Features
 
 ### Five Concurrent Data Structures
 
-Every ingested record is encoded into **five** structures at write time. The query engine picks the optimal structure for each operation automatically.
+Every ingested record is encoded into five structures at write time. The query engine picks the optimal structure automatically.
 
-| Structure | Purpose | Query Type |
-|-----------|---------|------------|
+| Structure | Purpose | Performance |
+|-----------|---------|-------------|
 | HashMap | Record store | O(1) point lookups |
-| B-Tree | Numeric/range index | Range scans, ORDER BY |
-| String Index | Text search | Equality, prefix |
+| B-Tree | Range index | Range scans, ORDER BY |
+| String Index | Text search | Equality, prefix, full-text |
 | HDC Hologram | Semantic similarity | O(1) approximate matching |
-| Columnar (Arrow) | Analytics | Aggregations, OLAP |
+| Columnar (Arrow) | Analytics | 2,678x vs row scan |
 
-**Write latency**: ~3-5μs per record. **Analytics speedup**: up to 2,678x vs row scan.
+**Write latency**: ~3-5μs per record.
 
-### Query Languages
+### Energy-Aware Execution
 
-| Language | Use Case |
-|----------|----------|
-| SQL | Relational queries |
-| Cypher | Graph traversal |
-| GraphQL | API queries |
-| CQL | Wide-column (Cassandra) |
-| InfluxQL / PromQL | Time-series analytics |
+- **Platform sensors** — macOS IOKit, Linux sysfs, or TDP-based estimation
+- **Per-query joule tracking** — every query reports energy consumed
+- **Thermal-adaptive** — four states (Nominal, Fair, Serious, Critical) drive automatic throttling
+- **Hardware advisor** — adjusts execution based on thermal state, memory pressure, power budget
+- **Energy budgets** — enforce per-query limits (`max_joules = 0.001`)
 
-### Transports
+### Distributed Replication (HRP)
 
-| Transport | Port | Use Case |
-|-----------|------|----------|
-| HTTP REST | 8080 | General API access |
-| TCP Binary | 9000 | High-throughput (16-byte header) |
-| WebSocket | 8080 | Browser-compatible, real-time |
-| WebTransport | — | Lowest-latency (HTTP/3 + QUIC) |
-| PostgreSQL Wire | 5433 | psql-compatible, prepared statements |
+Holographic Replication Protocol — Raft consensus with superpowers:
 
-## Energy Profiler
+- **Event-driven replication** — Notify-based, not polling
+- **Mutation deltas** — INSERT/CREATE/DROP captured as binary deltas, followers bypass SQL parsing
+- **Write tokens** — HMAC-SHA256 with HKDF epoch key derivation, replay prevention
+- **Erasure coding** — Reed-Solomon GF(2^8), 2 data + 1 parity shard
+- **Energy-aware routing** — route reads to lowest-energy peer
+- **Binary wire protocol** — HRP v2 envelope with CRC32
+- **TLS/mTLS** — encrypted inter-node communication
 
-JouleDB is the first database to track energy consumption per query.
+| Metric | Baseline | HRP | Change |
+|--------|----------|-----|--------|
+| DDL latency | 117ms | 59.5ms | **-49%** |
+| INSERT avg | 116ms | 67.8ms | **-42%** |
+| Parallel writes | 37.6 w/s | 76.3 w/s | **+103%** |
+| Replication lag | 348ms | 216ms | **-38%** |
+| Cluster reads | 228 r/s | 309 r/s | **+35%** |
 
-1. **Platform sensors** read power draw from hardware (macOS IOKit, Linux sysfs, or TDP-based estimation)
-2. **Per-query tracking** measures joules consumed by each operation
-3. **Hardware advisor** adjusts execution based on thermal state, memory pressure, and power budget
-4. **Energy budgets** enforce per-query energy limits (e.g., `max_joules = 0.001`)
+*Measured on 3-node Apple Silicon Thunderbolt cluster (M4 Max + 2x M3 Ultra)*
 
-### Thermal States
+### Runtime Isolation
 
-| State | Action |
-|-------|--------|
-| `Nominal` | Full performance |
-| `Fair` | Monitor |
-| `Serious` | Reduce parallelism |
-| `Critical` | Minimum operations |
+Run databases in native, VM, or WASM sandboxes:
 
 ```bash
-# Energy status
-curl http://localhost:8080/api/v1/energy
+jouledb-cli server start --mode native    # Direct process (default)
+jouledb-cli server start --mode vm        # VM-isolated via InvisibleVM
+jouledb-cli server start --mode wasm      # WASM sandbox
 ```
 
-```json
-{
-  "power_watts": 12.4,
-  "thermal_state": "Nominal",
-  "cpu_temp_celsius": 62.3,
-  "queries_tracked": 14892,
-  "total_energy_joules": 847.23,
-  "avg_joules_per_query": 0.0569,
-  "advisor": {
-    "recommendation": "full_performance",
-    "throttle_level": 0
-  }
-}
-```
+### Multi-Paradigm
 
-## API Reference
+| Feature | Details |
+|---------|---------|
+| **7 Query Languages** | SQL, Cypher, GraphQL, CQL, InfluxQL/PromQL, SigQL, Feature Store |
+| **5 Transports** | HTTP REST, TCP binary (16-byte header), WebSocket, WebTransport (HTTP/3 + QUIC), PostgreSQL wire |
+| **15 Client SDKs + ODBC** | Rust, Python, JS/TS, C FFI, Go, Java (+ JDBC), C#/.NET, Swift, Kotlin, Ruby, PHP, Zig, Dart/Flutter, Elixir, no_std Rust, ODBC |
+| **21 Domain Modules** | Finance, healthcare, cybersecurity, genomics, IoT, supply chain, adtech, legal, energy, telecom, and more |
+| **Cloud Services** | API gateway, control plane, billing, provisioner with persistence |
 
-### HTTP REST
+### Production-Grade
 
-```bash
-# Health (Kubernetes-compatible)
-curl http://localhost:8080/health
-curl http://localhost:8080/health/live
-curl http://localhost:8080/health/ready
-
-# Key-value operations
-curl -X POST http://localhost:8080/api/v1/keys/user:1 \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Alice", "age": 30}'
-
-curl http://localhost:8080/api/v1/keys/user:1
-curl -X DELETE http://localhost:8080/api/v1/keys/user:1
-
-# Prometheus metrics
-curl http://localhost:8080/metrics
-```
-
-### Real-Time Subscriptions
-
-Subscribe to key changes using glob patterns over TCP, WebSocket, or WebTransport:
-
-```json
-{"type": "subscribe", "id": 1, "pattern": "users:*"}
-{"type": "notification", "subscription_id": 42, "operation": "insert",
- "key": "users:1", "value": "{\"name\":\"Alice\"}"}
-```
-
-At 50+ active subscriptions, JouleDB automatically activates HDC-based pre-filtering.
-
-## Client SDKs
-
-### Rust
-
-```rust
-use joule_db_client::Client;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::connect("127.0.0.1", 9000).await?;
-
-    client.put("user:1", b"Alice", None).await?;
-    let value = client.get("user:1").await?;
-
-    let result = client.query("SELECT * FROM users WHERE age > 25", &[]).await?;
-    let tx = client.begin().await?;
-    tx.execute("INSERT INTO orders (id, total) VALUES (1, 99.99)", &[]).await?;
-    tx.commit().await?;
-    Ok(())
-}
-```
-
-### Python
-
-```python
-from jouledb import Client
-
-async def main():
-    client = await Client.connect("127.0.0.1", 9000)
-    await client.put("user:1", b"Alice")
-    result = await client.query("SELECT * FROM users WHERE age > 25")
-    await client.close()
-```
-
-### JavaScript / TypeScript (WASM)
-
-```typescript
-import { JouleDB } from '@jouledb/joule-db-js';
-
-const db = await JouleDB.open({ backend: 'indexeddb' });       // Embedded
-const db = await JouleDB.connect('http://localhost:8080');      // Remote
-
-await db.put('user:1', '{"name": "Alice"}');
-const result = await db.query<User>('SELECT * FROM users WHERE age > 25');
-
-const subId = await db.subscribe('users:*', (event) => {
-    console.log(`${event.operation}: ${event.key}`);
-});
-```
-
-### C (FFI)
-
-```c
-#include "joule_db.h"
-
-JouleDb *db;
-joule_db_open("mydb.jdb", &db);
-
-JouleStmt *stmt;
-joule_db_prepare(db, "SELECT * FROM users WHERE id = ?", &stmt);
-joule_db_bind_int(stmt, 1, 42);
-
-while (joule_db_step(stmt) == JOULE_ROW) {
-    const char *name = joule_db_column_text(stmt, 1);
-}
-
-joule_db_finalize(stmt);
-joule_db_close(db);
-```
-
-## Domain-Specific HDC Modules
-
-21 pre-built domain encoders that map industry-specific data types into hyperdimensional vectors:
-
-| Domain | Crate | Use Cases |
-|--------|-------|-----------|
-| Finance | `joule-db-market-link` | Order books, trading strategies, risk |
-| Healthcare | `joule-db-health-link` | Patient similarity, diagnosis patterns |
-| Cybersecurity | `joule-db-cyber-link` | Threat detection, network anomalies |
-| Gaming | `joule-db-gaming-link` | Matchmaking, cheat detection |
-| Geospatial | `joule-db-spatial-link` | POI search, geofencing |
-| IoT | `joule-db-iot-link` | Sensor fusion, anomaly detection |
-| Genomics | `joule-db-genomics-link` | Sequence similarity, variant analysis |
-| Supply Chain | `joule-db-supply-link` | Route optimization, demand forecasting |
-| AdTech | `joule-db-adtech-link` | Audience targeting, campaign similarity |
-| Legal | `joule-db-legal-link` | Case similarity, contract analysis |
-| Energy | `joule-db-energy-link` | Grid optimization, consumption patterns |
-| Telecom | `joule-db-telecom-link` | Network planning, traffic patterns |
-| Insurance | `joule-db-insurance-link` | Claim similarity, fraud detection |
-| Education | `joule-db-edu-link` | Learning paths, skill assessment |
-| Agriculture | `joule-db-agri-link` | Yield prediction, disease detection |
-| Automotive | `joule-db-auto-link` | Vehicle diagnostics, fleet management |
-| Media | `joule-db-media-link` | Content recommendation |
-| Retail | `joule-db-retail-link` | Product similarity, demand patterns |
-| Graph | `joule-db-graph-link` | Relationship encoding, path similarity |
-| Temporal | `joule-db-temporal-link` | Time-series patterns, event sequences |
-| Multimodal | `joule-db-multimodal-link` | Cross-modal similarity |
+- **Auth**: RBAC, SCRAM-SHA-256, TLS/mTLS (rustls)
+- **MVCC**: Snapshot isolation transactions
+- **Observability**: 100+ Prometheus metrics, OpenTelemetry traces, Grafana dashboards
+- **Kubernetes**: Health, liveness, readiness probes
+- **Security**: Fuzz testing, injection testing, dependency scanning, SAST, secrets detection
+- **Testing**: 3,786 tests, 11 adversarial stress test suites (413 stress tests)
 
 ## Benchmarks
+
+| Operation | Performance |
+|-----------|------------|
+| Holographic KV get @ 1M keys | ~200K ops/sec (O(1)) |
+| Columnar SUM over 1M rows | < 1ms |
+| Analytics vs row scan | 2,678x speedup |
+| Zone-map pruning | 10x speedup |
+| HRP parallel writes | +103% throughput |
 
 ```bash
 cargo bench -p joule-db-benches --bench novel
 ```
 
-| Operation | Performance |
-|-----------|------------|
-| Holographic KV get @ 100K keys | ~200K ops/sec |
-| Holographic KV get @ 1M keys | ~200K ops/sec (O(1)) |
-| Columnar SUM over 1M rows | < 1ms |
-| Analytics vs row scan | 2,678x speedup |
-| Zone-map pruning | 10x speedup |
+## API
 
-## Project Structure
+```bash
+# Energy status
+curl http://localhost:8080/api/v1/energy
 
+# Health (Kubernetes-compatible)
+curl http://localhost:8080/health
+
+# Key-value
+curl -X POST http://localhost:8080/api/v1/keys/user:1 \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Alice", "age": 30}'
+
+# Prometheus metrics
+curl http://localhost:8080/metrics
+
+# Daemon energy dashboard
+curl http://localhost:7000/api/energy
+curl http://localhost:7000/api/instances
+curl http://localhost:7000/metrics
 ```
-jouledb/
-  joule-db-core/         # Storage engine, B-tree, MVCC, encryption, VFS
-  joule-db-hdc/          # Hyperdimensional computing primitives
-  joule-db-query/        # Multi-paradigm query engine (SQL, Cypher, GraphQL, CQL)
-  joule-db-server/       # HTTP/TCP/WS/WebTransport server, auth, metrics
-  joule-db-energy/       # Energy profiler, hardware advisor, thermal monitoring
-  joule-db-gpu/          # GPU-accelerated operations
-  joule-db-edge/         # Edge computing / IoT runtime
-  joule-db-amorphic/     # Amorphic streaming data store
-  joule-db-langgraph/    # LangGraph AI agent integration
-  joule-cli/             # CLI administration tool
-  joule-db-c/            # C FFI bindings (SQLite-style API)
-  joule-db-js/           # JavaScript/TypeScript SDK (WASM)
-  joule-db-domains/      # 21 domain-specific HDC modules
-  joule-cloud/           # Cloud services (API gateway, billing, provisioner)
-  clients/
-    joule-db-client/     # Rust client SDK
-    joule-db-python/     # Python SDK (PyO3)
-    joule-quickstart/    # Quickstart examples
-  benches/               # Performance benchmarks
-  sigql/                 # SigQL query language
-```
-
-## Monitoring
-
-- **Health**: `GET /health`, `/health/live`, `/health/ready` (Kubernetes-compatible)
-- **Metrics**: `GET /metrics` (Prometheus, 100+ metrics)
-- **Dashboard**: `GET /api/metrics` (JSON), `/api/metrics/history`, `/api/metrics/slow-queries`
-- **Energy**: `GET /api/v1/energy` (power, thermal, per-query joules)
-- **Observability**: OpenTelemetry traces, structured logging via `tracing`
 
 ## About
 
