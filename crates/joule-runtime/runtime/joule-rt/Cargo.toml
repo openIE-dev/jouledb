@@ -1,0 +1,17 @@
+[package]
+name = "joule-rt"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+joule-common = { path = "../../../joule-compiler/joule-common" }
+libc = "0.2"
+
+[lints]
+workspace = true

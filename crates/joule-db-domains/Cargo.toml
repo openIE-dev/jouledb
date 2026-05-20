@@ -1,0 +1,46 @@
+[package]
+name = "joule-db-domains"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Domain-specific HDC encoding modules for JouleDB"
+
+[dependencies]
+joule-db-hdc = { workspace = true, features = ["predictive"] }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+uuid = { workspace = true, features = ["v4"], optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[features]
+default = []
+adtech = ["dep:uuid"]
+agri = []
+auto = []
+cyber = ["dep:uuid"]
+edu = []
+energy = []
+gaming = []
+genomics = []
+graph = []
+health = []
+insurance = []
+iot = []
+legal = []
+market = ["dep:uuid"]
+media = []
+multimodal = []
+retail = []
+spatial = []
+supply = []
+telecom = []
+temporal = []
+all = ["adtech", "agri", "auto", "cyber", "edu", "energy", "gaming", "genomics", "graph", "health", "insurance", "iot", "legal", "market", "media", "multimodal", "retail", "spatial", "supply", "telecom", "temporal"]
+
+[lints]
+workspace = true

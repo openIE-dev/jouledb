@@ -1,0 +1,27 @@
+[package]
+name = "joule-db-crdt"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Conflict-free replicated data types for JouleDB edge sync and disconnected ops"
+keywords = ["crdt", "distributed", "sync", "edge"]
+categories = ["database-implementations", "data-structures"]
+
+[features]
+default = ["lww", "orset", "counter"]
+lww = []
+orset = []
+counter = []
+rga = []
+all = ["lww", "orset", "counter", "rga"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

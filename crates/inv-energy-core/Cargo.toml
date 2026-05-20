@@ -1,0 +1,12 @@
+[package]
+name = "inv-energy-core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared energy accounting traits for the Invisible/JouleDB energy chain"
+
+[dependencies]
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

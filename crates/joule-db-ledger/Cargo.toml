@@ -1,0 +1,45 @@
+[package]
+name = "joule-db-ledger"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Blockchain-anchored energy receipt layer for JouleDB"
+
+[dependencies]
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Async
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
+
+# Crypto
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# HTTP server (verification endpoint)
+axum = { workspace = true, optional = true }
+
+[features]
+default = []
+http = ["dep:axum"]
+ethereum = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+tempfile = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+axum = { workspace = true }
+
+[lints]
+workspace = true

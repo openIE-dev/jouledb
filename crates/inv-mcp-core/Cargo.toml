@@ -1,0 +1,13 @@
+[package]
+name = "inv-mcp-core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared MCP (Model Context Protocol) tool handler traits for cross-layer dispatch"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+
+[lints]
+workspace = true

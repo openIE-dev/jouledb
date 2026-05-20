@@ -1,0 +1,85 @@
+[package]
+name = "sigql"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Signal Query Language - Query physical reality like a database"
+license.workspace = true
+repository = "https://github.com/aurasense/sigql"
+keywords = ["signal-processing", "dsp", "query-language", "time-series", "neuroscience"]
+categories = ["science", "embedded", "wasm", "database"]
+
+[lib]
+name = "sigql"
+path = "src/lib.rs"
+
+[[example]]
+name = "neuroplay_query"
+path = "examples/neuroplay_query.rs"
+
+[features]
+default = ["std", "simd"]
+std = ["rustfft", "hound", "csv"]
+simd = ["std"]
+wasm = ["wasm-bindgen"]
+cuda = []
+# no_std support for embedded
+no_std = []
+# Database storage connector
+storage = ["joule-db-core", "bincode", "serde"]
+
+[dependencies]
+# Parser (7.x API - the code uses function-style combinators)
+nom = { workspace = true }
+
+# Numeric / DSP
+nalgebra = { workspace = true }
+num-complex = { workspace = true }
+num-traits = { workspace = true }
+
+# FFT - the core of signal processing
+rustfft = { workspace = true, optional = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true, optional = true }
+
+# Time handling
+chrono = { workspace = true, features = ["std", "clock"] }
+
+# Small string optimization
+smol_str = { workspace = true }
+
+# Safe transmutes for DSP buffers
+bytemuck = { workspace = true }
+
+# File I/O
+hound = { version = "3.5", optional = true }  # WAV files
+csv = { version = "1.4", optional = true }     # CSV files
+
+# WASM support
+wasm-bindgen = { workspace = true, optional = true }
+
+# Parallel processing
+rayon = { workspace = true, optional = true }
+
+# Database storage integration
+joule-db-core = { workspace = true, optional = true }
+bincode = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+tempfile = { workspace = true }
+approx = "0.5"
+
+# Benchmarks will be added when implementations are complete
+# [[bench]]
+# name = "fft_benchmark"
+# harness = false
+
+[lints]
+workspace = true

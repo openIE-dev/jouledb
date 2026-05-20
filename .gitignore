@@ -1,0 +1,7 @@
+/target
+**/*.wdb
+**/backups/
+*.bak
+*.tmp
+.DS_Store
+Cargo.lock

@@ -1,0 +1,10 @@
+[package]
+name = "inv-hdc-core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared hyperdimensional computing traits for cross-layer HDC pipeline"
+
+[dependencies]
+
+[lints]
+workspace = true

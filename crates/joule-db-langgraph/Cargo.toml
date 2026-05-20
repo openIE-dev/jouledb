@@ -1,0 +1,34 @@
+[package]
+name = "joule-db-langgraph"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "LangGraph integration for JouleDB - checkpoint and message stores with semantic search"
+
+[features]
+default = []
+durable = ["joule-db-amorphic/durable"]
+
+[dependencies]
+joule-db-amorphic = { workspace = true }
+joule-db-hdc = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# UUID for unique identifiers
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

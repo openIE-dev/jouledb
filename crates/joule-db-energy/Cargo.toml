@@ -1,0 +1,27 @@
+[package]
+name = "joule-db-energy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Energy profiling and hardware-aware execution for JouleDB"
+
+[dependencies]
+jpb-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+chrono = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+sysinfo = { workspace = true }
+battery = { workspace = true }
+inv-energy-core = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+io-kit-sys = "0.4"
+libc = { workspace = true }
+
+[lints]
+workspace = true

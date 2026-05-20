@@ -1,0 +1,51 @@
+[package]
+name = "joule-db-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Platform-agnostic core database engine for JouleDB"
+keywords = ["database", "embedded", "btree", "storage"]
+categories = ["database-implementations", "data-structures"]
+
+[features]
+default = []
+# Enable async support
+async = []
+# Enable tokio-based async utilities (retry, timeout)
+async-tokio = ["tokio"]
+# Serde-derived Serialize/Deserialize on core types
+serde = []
+# Group-commit batching for write-ahead log
+group-commit = []
+
+[dependencies]
+# Serialization (required for catalog)
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Encryption (replacing custom AES-256-GCM implementation)
+aes-gcm = { workspace = true }
+
+# Secure random for nonce generation
+rand = { workspace = true }
+
+# Concurrent hash map for lock-free node cache
+dashmap = { workspace = true }
+
+# Optional: tokio for async utilities
+tokio = { workspace = true, optional = true }
+
+# Memory-mapped I/O for zero-copy extent reads
+memmap2 = { workspace = true }
+
+# Note: This crate should remain mostly platform-agnostic.
+# Tokio is optional and only used for resilience utilities.
+
+[dev-dependencies]
+# Testing only
+tempfile = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

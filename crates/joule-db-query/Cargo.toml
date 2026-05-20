@@ -1,0 +1,58 @@
+[package]
+name = "joule-db-query"
+version = "0.1.0"
+edition.workspace = true
+description = "Query language parsers and execution for JouleDB"
+license.workspace = true
+repository = "https://github.com/joule-db/joule-db"
+keywords = ["database", "query", "sql", "graphql", "cypher"]
+categories = ["database", "parser-implementations"]
+
+[dependencies]
+joule-db-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+md-5 = "0.10"
+
+# HDC domain encoding (optional — enables HDC_ENCODE, HDC_SIMILARITY, etc. SQL functions)
+joule-db-hdc = { workspace = true, features = ["hyperdimensional"], optional = true }
+joule-db-domains = { workspace = true, features = ["all"], optional = true }
+
+# Arrow for vectorized columnar execution
+arrow = { version = "58", optional = true }
+
+# DataFusion for SQL query planning and columnar execution
+datafusion = { version = "48", optional = true, default-features = false }
+
+# Parallel execution
+rayon = { workspace = true, optional = true }
+num_cpus = "1.17"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[features]
+default = ["sql", "cypher", "cql", "graphql", "datalog", "sparql", "gremlin", "timeseries", "storage-executor", "parallel"]
+sql = []
+cypher = []
+cql = []
+graphql = []
+datalog = []
+sparql = []
+gremlin = []
+timeseries = []
+arrow-execution = ["arrow"]
+datafusion-backend = ["datafusion", "arrow"]
+storage-executor = ["sql"]
+parallel = ["rayon"]
+amorphic = ["sql"]
+hdc = ["dep:joule-db-hdc", "dep:joule-db-domains"]
+analytical = []
+
+[lints]
+workspace = true

@@ -1,0 +1,73 @@
+[package]
+name = "joule-db-amorphic"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Amorphic Database - Just-in-time structure materialization via HDC"
+
+[features]
+default = []
+durable = ["dep:joule-db-local"]
+flowr = []  # Marker feature; real executor injected at app layer
+
+[dependencies]
+joule-db-hdc = { workspace = true, features = ["holographic", "hyperdimensional", "sdm", "manifold"] }
+joule-db-gpu = { workspace = true }
+joule-db-local = { workspace = true, optional = true }
+joule-db-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true }
+memmap2 = { workspace = true }
+pollster = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+# inv-ai-codegraph cannot be a direct dependency (cyclic).
+# The flowr_executor module defines traits; the app layer wires the real executor.
+
+[dev-dependencies]
+criterion = { workspace = true }
+pollster = { workspace = true }
+tempfile = { workspace = true }
+joule-db-query = { workspace = true }
+
+[[bench]]
+name = "amorphic_bench"
+harness = false
+
+[[bench]]
+name = "competitive_bench"
+harness = false
+
+[[bench]]
+name = "stress_test"
+harness = false
+
+[[bench]]
+name = "ann_benchmark"
+harness = false
+
+[[bench]]
+name = "ycsb_benchmark"
+harness = false
+
+[[bench]]
+name = "tpch_benchmark"
+harness = false
+
+[[bench]]
+name = "ldbc_benchmark"
+harness = false
+
+[[bench]]
+name = "content_infra_bench"
+harness = false
+
+[[bench]]
+name = "multimodel_bench"
+harness = false
+
+[lints]
+workspace = true

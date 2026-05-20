@@ -1,0 +1,37 @@
+[package]
+name = "joule-db-gpu"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "GPU compute backend for JouleDB using wgpu"
+keywords = ["database", "gpu", "wgpu", "compute", "webgpu"]
+categories = ["database-implementations", "graphics", "science"]
+
+[features]
+default = []
+# Enable async operations
+async = ["tokio"]
+
+[dependencies]
+joule-db-core = { workspace = true }
+
+# GPU compute
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+
+# Async runtime (optional)
+tokio = { workspace = true, optional = true }
+
+# Logging
+log = { workspace = true }
+
+# Parallel CPU fallback
+rayon = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+pollster = { workspace = true }  # For blocking on async in tests
+
+[lints]
+workspace = true

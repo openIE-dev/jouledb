@@ -1,0 +1,22 @@
+[package]
+name = "inv-identity"
+description = "Decentralized identity: DID documents (did:webvh), W3C Verifiable Credentials 2.0, IETF RATS attestation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+inv-core = { path = "../inv-vm-core", package = "inv-vm-core" }
+inv-pqcrypto = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]

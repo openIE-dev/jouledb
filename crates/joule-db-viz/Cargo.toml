@@ -1,0 +1,30 @@
+[package]
+name = "joule-db-viz"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Visualization hints and rendering for JouleDB query results"
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = ["infer", "vega", "text-summary", "accessibility"]
+infer = []
+vega = []
+text-summary = []
+accessibility = []
+sonification = []
+gpu = []
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

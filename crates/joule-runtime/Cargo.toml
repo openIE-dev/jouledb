@@ -1,0 +1,49 @@
+[package]
+name = "joule-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Universal database energy layer — native, VM, and WASM isolation modes"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+
+# Energy core — always needed for accelerator detection + energy accounting
+joule-db-energy = { workspace = true }
+inv-energy = { workspace = true }
+
+# Cryptographic attestation (HMAC-SHA256 signed energy receipts)
+sha2 = { workspace = true }
+hmac = { workspace = true }
+
+# Energy sidecar HTTP server dependencies (optional, default on)
+axum = { workspace = true, optional = true, features = ["tokio", "json", "http1"] }
+reqwest = { workspace = true, optional = true, features = ["json"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+tempfile = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+proptest = { workspace = true }
+
+[features]
+default = ["energy-sidecar"]
+energy-sidecar = ["axum", "reqwest"]
+vm-isolation = []
+wasm-isolation = []
+full-isolation = ["vm-isolation", "wasm-isolation"]
+
+[lints]
+workspace = true

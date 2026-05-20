@@ -1,0 +1,29 @@
+[package]
+name = "joule-db-client"
+version = "0.1.0"
+edition.workspace = true
+description = "Rust client SDK for JouleDB — the energy-aware multi-model database"
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+repository = "https://github.com/openIE-dev/jouledb"
+homepage = "https://jouledb.org"
+keywords = ["jouledb", "database", "client", "driver", "energy-aware"]
+categories = ["database", "network-programming"]
+
+[dependencies]
+tokio = { workspace = true, features = ["net", "io-util", "sync", "time", "rt"] }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[features]
+default = []
+pool = []
+tls = []
+
+[lints]
+workspace = true

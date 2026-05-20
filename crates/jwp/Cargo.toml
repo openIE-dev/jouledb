@@ -1,0 +1,31 @@
+[package]
+name        = "jwp"
+version     = "0.1.0"
+description = "Joule Wire Protocol (JWP) — energy-aware binary framing protocol"
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+
+[features]
+default = ["tcp"]
+tcp  = []
+quic = ["dep:quinn"]
+
+[dependencies]
+tokio        = { workspace = true }
+tokio-util   = { workspace = true }
+bytes        = { workspace = true }
+ciborium     = { workspace = true }
+blake3       = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+zstd         = { workspace = true }
+lz4_flex     = { workspace = true }
+futures-util = { workspace = true, features = ["sink"] }
+quinn        = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

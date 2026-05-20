@@ -1,0 +1,38 @@
+[package]
+name = "inv-energy"
+description = "Energy measurement, budgeting, and carbon-aware scheduling for Invisible Infrastructure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+nvml = ["nvml-wrapper"]
+scraper-backends = ["scraper"]
+
+[dependencies]
+inv-core = { path = "../inv-vm-core", package = "inv-vm-core" }
+inv-energy-core = { workspace = true }
+inv-telemetry = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+libc = { workspace = true }
+sysinfo = { workspace = true }
+reqwest = { workspace = true }
+quick-xml = { workspace = true }
+async-trait = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+nvml-wrapper = { workspace = true, optional = true }
+scraper = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+proptest   = { workspace = true }

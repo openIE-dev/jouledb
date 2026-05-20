@@ -1,0 +1,54 @@
+[package]
+name = "jouledb-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "JouleDB — energy-aware database CLI (public). Native engine + universal energy layer for postgres / mysql / redis / mongodb / sqlite."
+
+[[bin]]
+name = "jouledb-cli"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework
+clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+
+# HTTP client for cloud API
+reqwest = { workspace = true, features = ["json"] }
+
+# Interactive shell
+rustyline = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Table formatting
+comfy-table = "7"
+
+# Colors / styling
+colored = { workspace = true }
+indicatif = { workspace = true }
+console = "0.15"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Utilities
+dirs = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# JouleDB engine + runtime
+joule-db-client = { workspace = true }
+joule-runtime   = { workspace = true }
+joule-db-energy = { workspace = true }
+joule-web       = { workspace = true }
+

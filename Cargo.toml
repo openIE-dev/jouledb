@@ -1,0 +1,529 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/bin/jouledb-cli",
+    "crates/inv-auth",
+    "crates/inv-crypto",
+    "crates/inv-energy",
+    "crates/inv-energy-core",
+    "crates/inv-hdc-core",
+    "crates/inv-identity",
+    "crates/inv-mcp-core",
+    "crates/inv-pqcrypto",
+    "crates/inv-telemetry",
+    "crates/inv-vm-core",
+    "crates/joule-db-amorphic",
+    "crates/joule-db-branch",
+    "crates/joule-db-client",
+    "crates/joule-db-core",
+    "crates/joule-db-crdt",
+    "crates/joule-db-domains",
+    "crates/joule-db-energy",
+    "crates/joule-db-features",
+    "crates/joule-db-gpu",
+    "crates/joule-db-hdc",
+    "crates/joule-db-langgraph",
+    "crates/joule-db-ledger",
+    "crates/joule-db-local",
+    "crates/joule-db-query",
+    "crates/joule-db-server",
+    "crates/joule-db-ternary",
+    "crates/joule-db-viz",
+    "crates/joule-energy",
+    "crates/joule-runtime",
+    "crates/joule-web",
+    "crates/jpb-core",
+    "crates/jwp",
+    "crates/sigql",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2024"
+rust-version = "1.94.1"
+authors      = ["David Charlot <david@joulesperbit.com>"]
+license      = "BSL-1.1"
+repository   = "https://github.com/joulesperbit/jouledb"
+
+[workspace.dependencies]
+# ── Capability Registry (Reality Code Engine) ────────────────
+
+# ── CAD-future (LUT-first AI-native CAD) ──────────────────────
+# Registered for `workspace = true` resolution in cad-future's
+# internal cross-references. Same algebra, different deployment.
+
+# ── Workspace crates (Verity) ─────────────────────────────────
+jpb-core            = { path = "crates/jpb-core" }
+jwp                 = { path = "crates/jwp" }
+
+# ── Workspace crates (JouleDB) ────────────────────────────────
+joule-db-core       = { path = "crates/joule-db-core" }
+joule-db-local      = { path = "crates/joule-db-local" }
+joule-db-server     = { path = "crates/joule-db-server" }
+joule-db-query      = { path = "crates/joule-db-query" }
+joule-db-features   = { path = "crates/joule-db-features" }
+joule-db-hdc        = { path = "crates/joule-db-hdc" }
+joule-db-gpu        = { path = "crates/joule-db-gpu" }
+joule-db-branch     = { path = "crates/joule-db-branch" }
+joule-db-crdt       = { path = "crates/joule-db-crdt" }
+joule-db-amorphic   = { path = "crates/joule-db-amorphic" }
+joule-db-energy     = { path = "crates/joule-db-energy" }
+joule-db-ternary    = { path = "crates/joule-db-ternary" }
+joule-db-viz        = { path = "crates/joule-db-viz" }
+joule-db-ledger     = { path = "crates/joule-db-ledger" }
+joule-runtime       = { path = "crates/joule-runtime" }
+joule-db-domains    = { path = "crates/joule-db-domains" }
+joule-db-langgraph  = { path = "crates/joule-db-langgraph" }
+joule-db-client     = { path = "crates/joule-db-client" }
+sigql               = { path = "crates/sigql" }
+
+# ── Workspace crates (Productivity) ──────────────────────────
+joule-energy          = { path = "crates/joule-energy" }
+joule-web             = { path = "crates/joule-web" }
+
+# ── Verity Training (ML framework) ────────────────────────────
+
+# ── AskDavidC internal crates ─────────────────────────────────
+
+# ── Scholar (scholar.askdavidc.ai — globally accessible library) ──
+
+# ── Invisible shared primitives ──────────────────────────────
+inv-energy-core = { path = "crates/inv-energy-core" }
+inv-hdc-core    = { path = "crates/inv-hdc-core" }
+inv-mcp-core    = { path = "crates/inv-mcp-core" }
+
+# ── Invisible Framework (absorbed) ───────────────────────────
+# Keys match the `[lib] name` so `dep = { workspace = true }` works in sub-crates.
+
+# ── Invisible Browser (absorbed) ────────────────────────────
+
+# ── Async runtime ──────────────────────────────────────────
+tokio = { version = "1", features = [
+    "rt-multi-thread", "macros", "sync", "io-util",
+    "fs", "signal", "time", "net", "process",
+] }
+tokio-stream      = "0.1"
+tokio-util        = { version = "0.7", features = ["codec"] }
+tokio-tungstenite = { version = "0.29", features = ["connect", "rustls-tls-webpki-roots"] }
+tungstenite       = "0.29"
+futures           = "0.3"
+futures-core      = "0.3"
+futures-util      = "0.3"
+
+# ── gRPC ───────────────────────────────────────────────────
+tonic       = { version = "0.14", features = ["tls-ring", "transport", "channel", "server"] }
+prost       = "0.14"
+prost-types = "0.14"
+tonic-prost = "0.14"
+tonic-build = "0.14"
+tonic-prost-build = "0.14"
+
+# ── QUIC / WebTransport ───────────────────────────────────
+quinn   = "0.11"
+rustls  = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen   = "0.14"
+bytes   = "1"
+
+# ── HTTP / Web ─────────────────────────────────────────────
+axum       = { version = "0.8", features = ["macros", "ws", "multipart"] }
+axum-extra = { version = "0.12", features = ["typed-header"] }
+tower      = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = [
+    "cors", "trace", "compression-gzip", "request-id", "timeout", "fs", "set-header",
+] }
+hyper      = { version = "1.4", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+reqwest = { version = "0.13", features = [
+    "json", "query", "form", "cookies", "stream", "gzip", "blocking",
+] }
+ureq = "3"
+
+# ── Serialization ──────────────────────────────────────────
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yml  = "0.0.12"
+ciborium   = "0.2"
+bincode    = { version = "2", features = ["serde"] }
+
+# Graph traversal — needed by cad-future's physical-graph crate.
+petgraph   = { version = "0.8", features = ["serde-1"] }
+
+# ── CLI ────────────────────────────────────────────────────
+clap = { version = "4", features = ["derive"] }
+
+# ── Hashing / Encoding ────────────────────────────────────
+blake3  = "1"
+bs58    = "0.5"
+sha2    = "0.10"
+hmac    = "0.12"
+base64  = "0.22"
+hex     = "0.4"
+
+# ── Cryptography ───────────────────────────────────────────
+p256       = { version = "0.13", features = ["ecdsa", "ecdh"] }
+pem        = "3"
+ecdsa      = { version = "0.16", features = ["signing", "verifying"] }
+aes-gcm    = "0.10"
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+openmls = { version = "0.6", features = ["openmls_rust_crypto"] }
+openmls_rust_crypto = "0.3"
+openmls_basic_credential = "0.3"
+openmls_traits = "0.3"
+tls_codec = { version = "0.4", features = ["derive"] }
+
+# ── Unicode ────────────────────────────────────────────────
+unicode-normalization = "0.1"
+unicode-segmentation  = "1"
+
+# ── GPU / Accelerator ──────────────────────────────────────
+metal   = "0.33"
+
+# ── macOS / Apple frameworks ──────────────────────────────
+core-foundation     = "0.10"
+core-foundation-sys = "0.8"
+
+# ── Image ─────────────────────────────────────────────────
+image = "0.25"
+
+# ── Storage ────────────────────────────────────────────────
+memmap2 = "0.9"
+fs2     = "0.4"
+
+# ── Full-text search ──────────────────────────────────────
+tantivy = "0.25"
+
+# ── Distributed cache ─────────────────────────────────────
+deadpool-redis = { version = "0.23", features = ["rt_tokio_1", "serde"] }
+redis          = { version = "1", features = ["tokio-comp", "connection-manager"] }
+
+# ── Compression ───────────────────────────────────────────
+zstd     = "0.13"
+lz4_flex = "0.13"
+flate2   = "1"
+snap     = "1"
+
+# ── Concurrency / Data structures ─────────────────────────
+dashmap     = "6"
+parking_lot = "0.12"
+rayon       = "1"
+once_cell   = "1.21"
+indexmap     = { version = "2.13", features = ["serde"] }
+ahash       = "0.8"
+hashbrown   = "0.16"
+
+# ── Probabilistic ─────────────────────────────────────────
+fastbloom = "0.17"
+roaring   = "0.11"
+
+# ── Metrics ────────────────────────────────────────────────
+prometheus = "0.14"
+
+# ── Error handling ─────────────────────────────────────────
+thiserror = "2"
+anyhow    = "1"
+
+# Small-vector optimisation (used by joule-compiler crates).
+smallvec   = "1"
+insta      = "1"
+# Used by joule-typeck and joule-lexer (Joule compiler closure).
+rustc-hash = "2"
+logos      = "0.13"
+
+# ── Tracing / Logging ─────────────────────────────────────
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+log                = "0.4"
+
+# ── Time / IDs ─────────────────────────────────────────────
+chrono = { version = "0.4", features = ["serde"] }
+ulid   = "1"
+uuid   = { version = "1", features = ["v4", "v5", "v7", "serde", "js"] }
+
+# ── Rate limiting ──────────────────────────────────────────
+governor = "0.10"
+
+# ── Validation ─────────────────────────────────────────────
+validator = { version = "0.20", features = ["derive"] }
+
+# ── System / FFI ───────────────────────────────────────────
+libc    = "0.2"
+sysinfo = "0.38"
+battery = "0.7"
+
+# ── Embedded systems (firmware) ────────────────────────────
+byteorder         = "1"
+heapless          = "0.8"
+embedded-hal      = "1"
+embedded-hal-async = "1"
+embedded-io       = "0.6"
+embedded-io-async = "0.6"
+
+# ── URL handling ───────────────────────────────────────────
+url         = "2"
+urlencoding = "2"
+
+# ── XML parsing ────────────────────────────────────────────
+quick-xml = "0.39"
+
+# ── HTML parsing ───────────────────────────────────────────
+scraper = "0.26"
+
+# ── Robots.txt ─────────────────────────────────────────────
+texting_robots = "0.2"
+
+# ── Regex ──────────────────────────────────────────────────
+regex = "1"
+
+# ── Random ─────────────────────────────────────────────────
+rand = "0.10"
+
+# ── TOML config ────────────────────────────────────────────
+toml = "1"
+
+# ── Templating ─────────────────────────────────────────────
+askama = "0.15"
+
+# ── CLI output ─────────────────────────────────────────────
+colored   = "3"
+indicatif = "0.18"
+tabled    = "0.20"
+crossterm = "0.29"
+ratatui   = "0.30"
+rustyline = { version = "17", features = ["derive"] }
+termimad  = "0.34"
+syntect   = { version = "5", default-features = false, features = ["default-syntaxes", "default-themes", "parsing", "html", "regex-fancy"] }
+
+# ── WebAuthn / FIDO2 (LATTICE) ─────────────────────────────
+webauthn-rs       = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+webauthn-rs-proto = "0.5"
+
+# ── Auth (LATTICE) ─────────────────────────────────────────
+jsonwebtoken  = "10"
+argon2        = { version = "0.5", features = ["std"] }
+password-hash = { version = "0.5", features = ["rand_core"] }
+
+# ── Email (LATTICE) ────────────────────────────────────────
+lettre = { version = "0.11", default-features = false, features = [
+    "tokio1-rustls-tls", "builder", "smtp-transport",
+] }
+
+# ── Network types ──────────────────────────────────────────
+ipnet      = { version = "2", features = ["serde"] }
+dotenvy    = "0.15"
+
+# ── WASM ───────────────────────────────────────────────────
+wasm-bindgen              = "0.2"
+wasm-bindgen-futures      = "0.4"
+js-sys                    = "0.3"
+web-sys                   = { version = "0.3", features = [] }
+console_error_panic_hook  = "0.1"
+console_log               = "1"
+
+# ── GPU ────────────────────────────────────────────────────
+wgpu     = "29.0"
+bytemuck = { version = "1.25", features = ["derive"] }
+pollster = "0.4"
+
+# ── Numeric / DSP (SigQL) ─────────────────────────────────
+nom         = "8"
+nalgebra    = { version = "0.34", default-features = false, features = ["std"] }
+num-complex = { version = "0.4", default-features = false, features = ["std", "serde"] }
+num-traits  = { version = "0.2", default-features = false, features = ["std"] }
+rustfft     = "6.4"
+smol_str    = "0.3"
+
+# ── AskDavidC additional deps ─────────────────────────────
+tower-cookies = "0.11"
+webrtc        = "0.17"
+glam          = "0.32"
+dirs          = "6.0"
+web-time      = "1"
+
+# ── Physics (rapier3d, the Holodeck's physics engine) ─────
+# Default features give dim3 + f32 + parry. rapier3d 0.29 compiles
+# cleanly for wasm32 without a special feature flag.
+rapier3d = "0.29"
+
+# ── Invisible Framework deps ─────────────────────────────
+sha1         = "0.10"
+slotmap      = "1"
+winit        = "0.30"
+tray-icon    = "0.22"
+bitflags     = "2"
+env_logger   = "0.11"
+fastrand     = "2"
+arboard      = "3"
+rfd          = "0.17"
+display-info = "0.5"
+ort          = { version = "=2.0.0-rc.11", default-features = false }
+ndarray      = "0.17"
+subtle       = "2"
+zeroize      = { version = "1", features = ["derive"] }
+
+# ── CRDT ───────────────────────────────────────────────────
+loro = "1"
+
+# ── Binary / ELF / PE parsing ────────────────────────────────
+goblin   = "0.10"
+iced-x86 = { version = "1", default-features = false, features = ["std", "decoder", "instr_info", "intel"] }
+capstone = "0.12"
+wasmparser = "0.237"
+perf-event2 = "0.7"
+
+# ── Cranelift compiler backend ────────────────────────────────
+cranelift-codegen   = "0.129"
+cranelift-frontend  = "0.129"
+cranelift-module    = "0.129"
+cranelift-jit       = "0.129"
+cranelift-object    = "0.129"
+cranelift-native    = "0.129"
+target-lexicon      = "0.13"
+wasm-encoder        = "0.245"
+
+# ── Misc ───────────────────────────────────────────────────
+aligned  = "0.4"
+config   = "0.15"
+async-trait = "0.1"
+hostname = "0.4"
+half     = { version = "2", features = ["serde"] }
+
+# ── Testing ────────────────────────────────────────────────
+tempfile  = "3"
+proptest  = "1"
+criterion = { version = "0.8", features = ["html_reports"] }
+tokio-test = "0.4"
+
+# ── Infrastructure internal crates ─────────────────────────
+inv-auth          = { path = "crates/inv-auth" }
+inv-crypto        = { path = "crates/inv-crypto" }
+inv-energy        = { path = "crates/inv-energy" }
+inv-identity      = { path = "crates/inv-identity" }
+inv-pqcrypto      = { path = "crates/inv-pqcrypto" }
+inv-telemetry     = { path = "crates/inv-telemetry" }
+
+# ── Infrastructure external deps ───────────────────────────
+alloy           = { version = "1.8", default-features = false, features = ["provider-http", "signer-local", "sol-types", "contract", "rpc-types", "reqwest"] }
+aws-config      = { version = "1", features = ["behavior-version-latest"] }
+aws-lc-rs       = "1"
+aws-sdk-ec2     = "1"
+aws-sdk-s3      = { version = "1", features = ["behavior-version-latest"] }
+aws-types       = "1"
+
+# ── RDF parsing (scholar-source-wikidata) ───────────────────
+rio_api    = "0.8"
+rio_turtle = "0.8"
+azure_core      = "0.33"
+azure_identity  = "0.33"
+base32          = "0.5"
+burn            = { version = "0.21.0-pre.2", default-features = false, features = ["std", "autodiff", "ndarray"] }
+csv             = "1"
+candle-core             = "0.9"
+candle-nn               = "0.9"
+candle-transformers     = "0.9"
+tokenizers              = { version = "0.22", default-features = false, features = ["onig"] }
+safetensors     = "0.4"
+curve25519-dalek = { version = "4", features = ["serde", "rand_core"] }
+ed25519-dalek   = { version = "2", features = ["serde", "rand_core"] }
+faer            = "0.24"
+fips204         = "0.4"
+frost-ed25519   = "2.1"
+gcp_auth        = "0.12"
+hcl-rs          = "0.19"
+hickory-resolver = "0.25"
+k8s-openapi     = { version = "0.27", features = ["latest"] }
+kube            = { version = "3", features = ["runtime", "derive", "client", "rustls-tls", "aws-lc-rs"], default-features = false }
+ml-kem          = "0.2"
+num-bigint      = { version = "0.4", features = ["serde"] }
+num-integer     = "0.1"
+nvml-wrapper    = "0.12"
+openraft        = { version = "0.9", features = ["serde", "storage-v2"] }
+pin-project-lite = "0.2"
+polars          = { version = "0.53", default-features = false, features = ["lazy", "csv", "parquet", "json", "describe", "dtype-struct", "dtype-datetime"] }
+rocksdb         = "0.24"
+rsa             = "0.9"
+rustls-pemfile  = "2"
+schemars        = "1"
+tokio-rustls    = { version = "0.26", default-features = false, features = ["aws-lc-rs"] }
+tract-core      = "0.23.0-dev.2"
+tract-hir       = "0.23.0-dev.2"
+tract-onnx      = "0.23.0-dev.2"
+wasmtime        = "43"
+webpki-roots    = "0.26"
+wtransport      = { version = "0.7", features = ["dangerous-configuration"] }
+x25519-dalek    = { version = "2", features = ["static_secrets"] }
+x509-parser     = "0.18"
+
+# ── Tree-sitter (code analysis) ───────────────────────────
+tree-sitter          = "0.26"
+tree-sitter-language = "0.1"
+tree-sitter-rust     = "0.24"
+tree-sitter-python   = "0.25"
+tree-sitter-go       = "0.25"
+tree-sitter-javascript = "0.25"
+tree-sitter-typescript = "0.23"
+tree-sitter-java     = "0.23"
+tree-sitter-c        = "0.24"
+tree-sitter-cpp      = "0.23"
+tree-sitter-c-sharp  = "0.23"
+tree-sitter-scala    = "0.25"
+tree-sitter-swift    = "0.7"
+tree-sitter-dart     = "0.1"
+tree-sitter-ruby     = "0.23"
+tree-sitter-haskell  = "0.23"
+tree-sitter-elixir   = "0.3"
+tree-sitter-php      = "0.24"
+tree-sitter-lua      = "0.5"
+tree-sitter-bash     = "0.25"
+tree-sitter-ocaml    = "0.24"
+tree-sitter-fsharp   = "0.2"
+tree-sitter-clojure-orchard = "0.2"
+tree-sitter-zig      = "1"
+tree-sitter-julia    = "0.23"
+tree-sitter-r        = "1"
+tree-sitter-fortran  = "0.5"
+tree-sitter-perl-next = "0.1"
+tree-sitter-erlang   = "0.15"
+tree-sitter-ada      = "0.1"
+tree-sitter-d        = "0.8"
+tree-sitter-groovy   = "0.1"
+octorus-tree-sitter-moonbit = "0.1"
+
+[workspace.lints.rust]
+dead_code           = "allow"
+unused_variables    = "allow"
+unused_imports      = "allow"
+unused_mut          = "allow"
+private_interfaces  = "allow"
+unused_must_use     = "allow"
+unused_comparisons  = "allow"
+unreachable_code    = "allow"
+
+[workspace.lints.clippy]
+unwrap_used    = "warn"
+expect_used    = "warn"
+panic          = "warn"
+todo           = "warn"
+unimplemented  = "warn"
+
+[profile.release]
+opt-level    = 3
+lto          = "fat"
+codegen-units = 1
+strip        = "symbols"
+panic        = "abort"
+
+[profile.dev]
+opt-level = 0
+debug     = true
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release-with-debug]
+inherits     = "release"
+debug        = true
+strip        = "none"
+
+[profile.bench]
+inherits     = "release"

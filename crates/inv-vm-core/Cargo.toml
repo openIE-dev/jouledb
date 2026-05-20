@@ -1,0 +1,25 @@
+[package]
+name = "inv-vm-core"
+description = "Shared types, traits, and error handling for Invisible Infrastructure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "inv_core"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sha2 = { workspace = true }
+base32 = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }

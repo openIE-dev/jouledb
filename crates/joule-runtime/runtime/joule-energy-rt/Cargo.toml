@@ -1,0 +1,35 @@
+[package]
+name = "joule-energy-rt"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Cross-platform energy measurement. Linux RAPL, macOS Apple Silicon, Windows EMI."
+repository = "https://github.com/openIE-dev/joule-lang"
+documentation = "https://docs.rs/joule-energy-rt"
+keywords = ["energy", "power", "rapl", "sustainability", "green-software"]
+categories = ["hardware-support", "science", "development-tools::profiling"]
+
+[dependencies]
+thiserror.workspace = true
+libloading = { workspace = true, optional = true }
+
+[features]
+default = []
+accelerators = ["dep:libloading"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Linux-specific dependencies for RAPL
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS-specific dependencies for IOKit
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+libc = "0.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Windows-specific dependencies for EMI
+
+[lints]
+workspace = true

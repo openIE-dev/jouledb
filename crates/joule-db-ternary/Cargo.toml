@@ -1,0 +1,13 @@
+[package]
+name = "joule-db-ternary"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Packed ternary encoding for HDC hypervectors and columnar storage"
+
+[dependencies]
+serde = { workspace = true }
+
+[lints]
+workspace = true

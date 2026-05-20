@@ -1,0 +1,82 @@
+[package]
+name = "joule-db-hdc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Hyperdimensional Computing (HDC) library: binary hypervectors, holographic memory, vector symbolic architecture"
+
+[dependencies]
+# Core
+joule-db-core = { workspace = true }
+joule-db-ternary = { workspace = true }
+
+# invisible-os shared HDC traits
+inv-hdc-core = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# High-performance data structures
+hashbrown = { workspace = true }  # Swiss Tables - 4x faster HashMap
+wyhash = "0.6"                    # Fastest non-cryptographic hash
+
+# Random number generation (for quantum-inspired algorithms)
+rand = { workspace = true }
+
+# GPU compute dispatch
+bytemuck = { workspace = true }
+
+# Math/numerics (no external deps for core algorithms)
+# We implement our own complex numbers, vectors, etc.
+
+[dev-dependencies]
+# Testing and benchmarking
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "capacity_curve"
+harness = false
+
+[features]
+default = ["sdm", "holographic", "hyperdimensional"]
+
+# Product HDC components
+sdm = []                    # Sparse Distributed Memory
+holographic = []            # Holographic Associative Memory
+hyperdimensional = []       # 10K-dim vector operations (VSA)
+predictive = []             # Markov/N-gram query prediction
+
+# Parallel computation
+parallel = []
+
+# All product features
+all = ["sdm", "holographic", "hyperdimensional", "predictive"]
+
+# Extended HDC components
+neurosymbolic = []
+spiking = []
+invertible = []
+thermodynamic = []
+manifold = []
+learned = []
+pqc = []                        # Post-Quantum Cryptography (NIST FIPS 203/204/205 + HQC)
+experimental-pqc = ["pqc"]      # Legacy alias — use "pqc" instead
+experimental-radix-spline = []
+quantum-inspired = []
+tensor-network = []
+variational = []
+
+# Composite features
+hdc-research = ["learned", "manifold", "spiking", "thermodynamic",
+                 "holographic", "hyperdimensional", "sdm", "predictive"]
+quantum = ["quantum-inspired", "tensor-network", "variational"]
+full = ["all", "hdc-research", "neurosymbolic", "invertible",
+        "quantum", "pqc", "experimental-radix-spline"]
+
+[lints]
+workspace = true

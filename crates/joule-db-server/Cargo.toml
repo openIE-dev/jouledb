@@ -1,0 +1,159 @@
+[package]
+name = "joule-db-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Server implementation for JouleDB with networking and replication"
+
+[[bin]]
+name = "jouledb"
+path = "src/main.rs"
+
+[features]
+default = ["http", "websocket", "viz", "jwp"]
+http = []
+websocket = []
+replication = []
+tls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pemfile", "dep:hyper-util"]
+webtransport = ["dep:wtransport"]  # WebTransport (HTTP/3 + QUIC) server
+jwp = ["dep:jwp"]  # JWP (Joule Wire Protocol) energy-aware transport
+wasm-triggers = ["wasmtime"]  # Enable Wasm trigger execution
+viz = ["dep:joule-db-viz"]  # Visualization hint inference
+adaptive-pool = []  # Adaptive connection pool sizing
+[dependencies]
+joule-db-core = { workspace = true, features = ["async-tokio"] }
+joule-db-local = { workspace = true }
+joule-db-query = { workspace = true, features = ["sql", "cypher", "cql", "graphql", "storage-executor", "hdc"] }
+joule-db-amorphic = { workspace = true, features = ["durable"] }
+joule-db-branch = { workspace = true }
+joule-db-crdt = { workspace = true }
+joule-db-viz = { workspace = true, optional = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+futures = { workspace = true }
+
+# HTTP server
+axum = { workspace = true, features = ["ws"] }
+tower = { workspace = true, features = ["limit"] }
+tower-http = { workspace = true, features = ["cors", "compression-gzip"] }
+hyper = { workspace = true, features = ["full"] }
+hyper-util = { workspace = true, features = ["tokio", "http1", "server-auto"], optional = true }
+
+# WebSocket
+tokio-tungstenite = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+crc32fast = "1"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# TLS (optional)
+rustls = { workspace = true, optional = true }
+tokio-rustls = { version = "0.26", optional = true }
+rustls-pemfile = { version = "2", optional = true }
+
+# Utilities
+uuid = { workspace = true, features = ["v4"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rand = { workspace = true }
+
+# Async utilities
+async-trait = { workspace = true }
+
+# Authentication
+inv-auth = { workspace = true }
+jsonwebtoken = { workspace = true, features = ["rust_crypto"] }
+regex = { workspace = true }
+
+# Cryptography (for audit hashing, SCRAM-SHA-256, HRP write tokens)
+sha2 = { workspace = true }
+hmac = { workspace = true }
+pbkdf2 = "0.12"
+hkdf = "0.12"
+md-5 = "0.10"
+hex = { workspace = true }
+base64 = { workspace = true }
+
+# Erasure coding (HRP Phase 4 — large snapshot transfers)
+reed-solomon-erasure = "6"
+
+# Time handling
+chrono = { workspace = true }
+
+# HTTP client (for webhooks)
+reqwest = { workspace = true, features = ["json"] }
+
+# Wasm runtime (optional, for trigger execution)
+wasmtime = { version = "42", optional = true }
+joule-db-hdc = { workspace = true, features = ["hyperdimensional", "manifold"] }
+
+# WebTransport (HTTP/3 + QUIC, optional)
+wtransport = { version = "0.6", optional = true }
+
+# JWP (Joule Wire Protocol) — energy-aware binary transport (optional)
+jwp = { workspace = true, optional = true }
+
+# LangGraph checkpoint/message stores
+joule-db-langgraph = { workspace = true }
+
+# Signal Query Language (SigQL) — signal-processing queries
+sigql = { workspace = true }
+
+# Feature modules (timeseries, graph, vector, fulltext, embeddings, columnar)
+joule-db-features = { workspace = true }
+
+# Compression (for backup compression)
+flate2 = { workspace = true }
+zstd = { workspace = true }
+lz4_flex = { workspace = true }
+snap = { workspace = true }
+
+# Platform-specific (process memory, disk space health checks)
+libc = { workspace = true }
+
+# Energy profiling (always-on — hardware auto-detection)
+joule-db-energy = { workspace = true }
+
+# Energy receipt ledger (blockchain-anchored attestation)
+joule-db-ledger = { workspace = true, features = ["http"] }
+
+# invisible-os shared primitives
+inv-mcp-core = { workspace = true }
+
+# CLI argument parsing
+clap = { workspace = true, features = ["derive", "env"] }
+
+# Random number generation (for retry jitter) - already included above
+
+[dev-dependencies]
+reqwest = { workspace = true, features = ["json"] }
+tokio-test = "0.4"
+tempfile = { workspace = true }
+http-body-util = "0.1"
+tower = { workspace = true, features = ["util"] }
+proptest = { workspace = true }
+rcgen = { workspace = true }
+criterion = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+joule-db-amorphic = { workspace = true, features = ["durable"] }
+joule-db-query = { workspace = true, features = ["sql", "cypher", "cql", "graphql", "storage-executor", "hdc"] }
+smol_str = { workspace = true }
+jwp = { workspace = true }
+tokio-util = { workspace = true, features = ["codec"] }
+futures-util = { workspace = true, features = ["sink"] }
+ciborium = { workspace = true }
+
+[[bench]]
+name = "multimodel"
+harness = false
+
+[lints]
+workspace = true
