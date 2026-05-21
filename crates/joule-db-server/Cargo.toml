@@ -92,7 +92,7 @@ chrono = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 
 # Wasm runtime (optional, for trigger execution)
-wasmtime = { version = "42", optional = true }
+wasmtime = { version = "43.0.2", optional = true }   # >=43.0.2 patches CVE-2026-44216 (GHSA-p8xm-42r7-89xg)
 joule-db-hdc = { workspace = true, features = ["hyperdimensional", "manifold"] }
 
 # WebTransport (HTTP/3 + QUIC, optional)
