@@ -2,7 +2,7 @@
 
 **An energy-metered database engine. Every operation — store, query, HDC bind, cascade tier dispatch — is measured in joules, and the receipt is cryptographically anchorable.**
 
-JouleDB is the reference instance of a single proposition: *the right unit of account for database + AI work is the verifiable joule, and a deterministic spine with the model at the leaves is how you minimize it.* It is not a competitor to a lakehouse or a warehouse — it is a different axis.
+JouleDB takes one position: *the right unit of account for database + AI work is the verifiable joule, and a deterministic spine with the model at the leaves is how you minimize it.* It is not a competitor to a lakehouse or a warehouse — it is a different axis.
 
 > Source-available under the **Business Source License 1.1** (converts to Apache-2.0 on the Change Date — see `LICENSE`). This is a **capability showcase**, published to demonstrate the architecture, not a managed service.
 
@@ -34,7 +34,7 @@ For the full, unsugared assessment see `docs/WHITEPAPER-JOULEDB-2026-05.md` §5�
 
 ## Why it exists
 
-In 2026 the database+AI field converged on one move — collapse OLTP/OLAP/AI into one governed substrate, put an agent on top — and re-derived two of JouleDB's design points independently: copy-on-write versioned storage with instant branching, and deterministic complexity-routing in front of the model. Those arrivals were measured in **dollars**. JouleDB was built on the same structure because the unit of account is the **verifiable joule** — a metric that, as of mid-2026, does not otherwise exist in the database market.
+In 2026 the database+AI field converged on one move — collapse OLTP/OLAP/AI into one governed substrate, put an agent on top — and re-derived two of JouleDB's design points independently: copy-on-write versioned storage with instant branching, and deterministic complexity-routing in front of the model. Those arrivals were measured in **dollars**. JouleDB was built on the same structure because the unit of account is the **verifiable joule**.
 
 ## Quickstart
 

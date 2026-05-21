@@ -4,7 +4,7 @@
 **Source:** [`crates/joule-db-query/src/sparql.rs`](../../crates/joule-db-query/src/sparql.rs) (1,019 LOC)
 **Executor:** [`crates/joule-db-server/src/sparql_executor.rs`](../../crates/joule-db-server/src/sparql_executor.rs)
 
-SPARQL 1.1 over JouleDB. Triple patterns map directly to the amorphic HDC knowledge core, which means SPARQL queries get **approximate-match** semantics for free — useful for fuzzy knowledge-graph traversal that no other triple store supports out of the box.
+SPARQL 1.1 over JouleDB. Triple patterns map directly to the amorphic HDC knowledge core, which means SPARQL queries can use **approximate-match** semantics — useful for fuzzy knowledge-graph traversal alongside the exact-match path.
 
 ## 1. Supported
 
