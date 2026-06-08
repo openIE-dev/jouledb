@@ -58,10 +58,10 @@ jobs:
           fi
 
       - name: Checkout public release surface
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout private source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: openIE-dev/joulesperbit
           token: ${{ secrets.JOULESPERBIT_READ_TOKEN }}
@@ -131,7 +131,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
