@@ -1,0 +1,28 @@
+[package]
+name = "jouledb"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Energy-metered database — HDC primitives, joules per query. Stub installer; `cargo binstall jouledb` fetches the real binary."
+license = "BSL-1.1"
+repository = "https://github.com/openIE-dev/jouledb"
+homepage = "https://openie-dev.github.io/jouledb"
+documentation = "https://openie-dev.github.io/jouledb"
+readme = "../../README.md"
+keywords = ["energy", "database", "hdc", "rust", "cli"]
+categories = ["command-line-utilities", "database"]
+
+# Standalone package — not in jouledb's workspace
+[workspace]
+
+[[bin]]
+name = "jouledb"
+path = "src/main.rs"
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/jouledb-{ version }-{ target }.{ archive-suffix }"
+pkg-fmt = "tgz"
+bin-dir = "jouledb-{ version }-{ target }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
