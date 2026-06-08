@@ -1,0 +1,1 @@
+{"rustc":17467972547956852243,"features":"[]","declared_features":"[]","target":7632384291660207918,"profile":6675295047989516842,"path":4942398508502643691,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/jouledb-3e3cebe8bd0a520d/dep-bin-jouledb","checksum":false}}],"rustflags":["-C","target-cpu=native"],"config":8247474407144887393,"compile_kind":0}
