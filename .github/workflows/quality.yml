@@ -1,0 +1,81 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC — pick up new advisories
+  workflow_dispatch:
+
+jobs:
+  stub-checks:
+    name: Stub checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Find stub directory
+        id: stub
+        run: |
+          DIR=$(find stubs -mindepth 1 -maxdepth 1 -type d | head -1)
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+
+      - name: cargo fmt
+        if: steps.stub.outputs.dir
+        working-directory: ${{ steps.stub.outputs.dir }}
+        run: cargo fmt -- --check
+
+      - name: cargo clippy
+        if: steps.stub.outputs.dir
+        working-directory: ${{ steps.stub.outputs.dir }}
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo build
+        if: steps.stub.outputs.dir
+        working-directory: ${{ steps.stub.outputs.dir }}
+        run: cargo build --release
+
+  audit:
+    name: cargo-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find stub directory
+        id: stub
+        run: |
+          DIR=$(find stubs -mindepth 1 -maxdepth 1 -type d | head -1)
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+      - name: Audit
+        if: steps.stub.outputs.dir
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: ${{ steps.stub.outputs.dir }}
+
+  license-consistency:
+    name: License consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check license trio is present
+        run: |
+          set -e
+          test -f LICENSE
+          grep -q "Business Source License 1.1" LICENSE
+          test -f examples/LICENSE
+          grep -q "Apache License" examples/LICENSE
+          echo "license trio (BSL-1.1 root, Apache-2.0 examples) intact"
+      - name: Check stub Cargo.toml license-file
+        run: |
+          set -e
+          for cargo in stubs/*/Cargo.toml; do
+            grep -q '^license-file = "LICENSE"' "$cargo" || (echo "$cargo missing license-file"; exit 1)
+            test -f "$(dirname "$cargo")/LICENSE"
+          done
+          echo "stub license-file references valid"

@@ -2,6 +2,13 @@
 
 **An energy-metered database engine. Every operation — store, query, HDC bind, cascade tier dispatch — is measured in joules, and the receipt is cryptographically anchorable.**
 
+[![Release](https://github.com/openIE-dev/jouledb/actions/workflows/release.yml/badge.svg)](https://github.com/openIE-dev/jouledb/actions/workflows/release.yml)
+[![Quality](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml/badge.svg)](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml)
+[![Docs](https://github.com/openIE-dev/jouledb/actions/workflows/docs.yml/badge.svg)](https://openie-dev.github.io/jouledb)
+[![crates.io](https://img.shields.io/crates/v/jouledb.svg)](https://crates.io/crates/jouledb)
+[![License](https://img.shields.io/badge/license-BSL--1.1-blue.svg)](./LICENSE)
+
+
 JouleDB takes one position: *the right unit of account for database + AI work is the verifiable joule, and a deterministic spine with the model at the leaves is how you minimize it.* It is not a competitor to a lakehouse or a warehouse — it is a different axis.
 
 > Source-available under the **Business Source License 1.1** (converts to Apache-2.0 on the Change Date — see `LICENSE`). This is a **capability showcase**, published to demonstrate the architecture, not a managed service.
