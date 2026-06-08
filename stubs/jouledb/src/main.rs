@@ -15,7 +15,8 @@ fn main() {
     let version = env!("CARGO_PKG_VERSION");
     let repo = env!("CARGO_PKG_REPOSITORY");
 
-    eprintln!("\
+    eprintln!(
+        "\
 {name} v{version}
 
 This is the stub installer. To install the real binary fast, use:
@@ -28,6 +29,7 @@ Or download a prebuilt binary directly from:
 
 If you really want to compile from source, the source mirror is linked
 from {repo}.
-");
+"
+    );
     std::process::exit(2);
 }
