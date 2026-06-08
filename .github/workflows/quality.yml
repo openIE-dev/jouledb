@@ -51,6 +51,11 @@ jobs:
         run: |
           DIR=$(find stubs -mindepth 1 -maxdepth 1 -type d | head -1)
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+      - name: Generate Cargo.lock
+        if: steps.stub.outputs.dir
+        working-directory: ${{ steps.stub.outputs.dir }}
+        run: cargo generate-lockfile
+
       - name: Audit
         if: steps.stub.outputs.dir
         uses: rustsec/audit-check@v2.0.0
