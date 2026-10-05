@@ -20,7 +20,7 @@ path = "examples/neuroplay_query.rs"
 
 [features]
 default = ["std", "simd"]
-std = ["rustfft", "hound", "csv"]
+std = ["rustfft", "hound", "csv", "dep:chrono"]
 simd = ["std"]
 wasm = ["wasm-bindgen"]
 cuda = []
@@ -48,7 +48,7 @@ thiserror = { workspace = true }
 serde = { workspace = true, optional = true }
 
 # Time handling
-chrono = { workspace = true, features = ["std", "clock"] }
+chrono = { workspace = true, optional = true, features = ["std", "clock"] }
 
 # Small string optimization
 smol_str = { workspace = true }

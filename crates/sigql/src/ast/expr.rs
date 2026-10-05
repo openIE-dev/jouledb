@@ -2,6 +2,9 @@
 //!
 //! The recursive expression structure that represents signal operations.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use smol_str::SmolStr;
 
 use crate::types::{FrequencyBand, Hertz, SampleRate, Seconds};

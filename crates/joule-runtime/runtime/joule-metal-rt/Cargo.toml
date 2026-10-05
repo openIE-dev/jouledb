@@ -13,7 +13,6 @@ categories = ["graphics", "hardware-support"]
 crate-type = ["rlib"]
 
 [dependencies]
-joule-common = { path = "../../../joule-compiler/joule-common" }
 thiserror.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]

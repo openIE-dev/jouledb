@@ -5,6 +5,9 @@
 //! - CUDA PTX (NVIDIA GPU kernels)
 //! - SIMD (CPU vectorized code using SSE4.2, AVX2, NEON)
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::plan::{
     ElementWiseOp, ExecutionPlan, FirCoeffs, IirCoeffs, PlanStep, ReduceOp, RegisterId,
 };
@@ -48,7 +51,7 @@ pub enum SimdFeature {
 impl SimdFeature {
     /// Detect the best available SIMD feature for the current CPU
     pub fn detect() -> Self {
-        #[cfg(target_arch = "x86_64")]
+        #[cfg(all(feature = "std", target_arch = "x86_64"))]
         {
             if is_x86_feature_detected!("avx512f") {
                 return SimdFeature::Avx512;
@@ -60,9 +63,13 @@ impl SimdFeature {
                 return SimdFeature::Sse42;
             }
         }
-        #[cfg(target_arch = "aarch64")]
+        #[cfg(all(feature = "std", target_arch = "aarch64"))]
         {
             // NEON is always available on AArch64
+            return SimdFeature::Neon;
+        }
+        #[cfg(all(not(feature = "std"), target_arch = "aarch64"))]
+        {
             return SimdFeature::Neon;
         }
         SimdFeature::Scalar
@@ -1086,49 +1093,51 @@ fn generate_simd(plan: &ExecutionPlan) -> Result<GeneratedCode, CompileError> {
 
 /// Select an appropriate SIMD execute function based on the plan
 fn select_simd_execute_fn(plan: &ExecutionPlan) -> Option<fn(&[f64], &mut [f64])> {
-    use super::simd_runtime::SimdRuntime;
+    #[cfg(not(feature = "simd"))]
+    {
+        let _ = plan;
+        return None;
+    }
+    #[cfg(feature = "simd")]
+    {
+        use super::simd_runtime::SimdRuntime;
 
-    // Analyze plan to determine the primary operation
-    // For simple single-operation plans, return a specific function
-    // For complex plans, return None (use interpreter or runtime dispatch)
-
-    if plan.steps.len() == 2 {
-        // Simple plans: Load + Store or Load + ElementWise + Store
-        if let Some(step) = plan
-            .steps
-            .iter()
-            .find(|s| matches!(s, PlanStep::ElementWise { .. }))
-        {
-            if let PlanStep::ElementWise { op, .. } = step {
-                let runtime = SimdRuntime::new();
-                return match op {
-                    ElementWiseOp::Abs => {
-                        Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Abs))
-                    }
-                    ElementWiseOp::Square => {
-                        Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Square))
-                    }
-                    ElementWiseOp::Sqrt => {
-                        Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Sqrt))
-                    }
-                    ElementWiseOp::Negate => {
-                        Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Negate))
-                    }
-                    ElementWiseOp::Log => {
-                        Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Log))
-                    }
-                    ElementWiseOp::Exp => {
-                        Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Exp))
-                    }
-                    _ => None,
-                };
+        // Analyze plan to determine the primary operation
+        if plan.steps.len() == 2 {
+            if let Some(step) = plan
+                .steps
+                .iter()
+                .find(|s| matches!(s, PlanStep::ElementWise { .. }))
+            {
+                if let PlanStep::ElementWise { op, .. } = step {
+                    let runtime = SimdRuntime::new();
+                    return match op {
+                        ElementWiseOp::Abs => {
+                            Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Abs))
+                        }
+                        ElementWiseOp::Square => {
+                            Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Square))
+                        }
+                        ElementWiseOp::Sqrt => {
+                            Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Sqrt))
+                        }
+                        ElementWiseOp::Negate => {
+                            Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Negate))
+                        }
+                        ElementWiseOp::Log => {
+                            Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Log))
+                        }
+                        ElementWiseOp::Exp => {
+                            Some(runtime.get_execute_fn(super::simd_runtime::SimdOp::Exp))
+                        }
+                        _ => None,
+                    };
+                }
             }
         }
-    }
 
-    // For complex plans, return a generic copy function that at least does something
-    // The actual execution would use the interpreter or runtime dispatch
-    Some(simd_copy_passthrough)
+        Some(simd_copy_passthrough)
+    }
 }
 
 /// Simple passthrough function that copies input to output

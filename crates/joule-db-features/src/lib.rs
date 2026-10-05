@@ -19,6 +19,9 @@ pub mod simd;
 /// Persistence layer for durable storage of feature data structures.
 pub mod persistence;
 
+/// `joule_db_core::Engine` adapted to [`persistence::StorageEngine`].
+pub mod core_engine;
+
 #[cfg(feature = "timeseries")]
 pub mod timeseries;
 
@@ -66,3 +69,5 @@ pub use persistence::{
     PersistedEdge, PersistedNode, PersistedPosting, PersistedVector, PersistenceError,
     StorageEngine, TimeSeriesPersistence, VectorPersistence,
 };
+
+pub use core_engine::CoreEngineStore;

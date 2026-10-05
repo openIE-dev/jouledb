@@ -4,13 +4,19 @@
 //! enabling AI agents (Claude, GPT, etc.) to interact with JouleDB
 //! via standard MCP JSON-RPC messages.
 
+use crate::mcp_bridge::DatabaseToolHandler;
 use axum::Json;
 use axum::extract::State;
 use axum::response::sse::{Event, Sse};
+use axum::routing::{get, post};
+use axum::Router;
 use futures::stream::Stream;
+use inv_mcp_core::ToolCallRequest;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::broadcast;
 
@@ -98,13 +104,37 @@ pub struct McpResourceDef {
 #[derive(Clone)]
 pub struct McpSseState {
     pub sender: broadcast::Sender<String>,
+    /// Optional bridge to DatabaseToolHandler for tools/call dispatch.
+    pub tool_handler: Option<Arc<DatabaseToolHandler>>,
 }
 
 impl McpSseState {
     pub fn new() -> Self {
         let (sender, _) = broadcast::channel(128);
-        Self { sender }
+        Self {
+            sender,
+            tool_handler: None,
+        }
     }
+
+    pub fn with_handler(handler: Arc<DatabaseToolHandler>) -> Self {
+        let (sender, _) = broadcast::channel(128);
+        Self {
+            sender,
+            tool_handler: Some(handler),
+        }
+    }
+}
+
+/// Build the MCP HTTP/SSE route group (mounted at /mcp/*).
+pub fn mcp_routes(state: McpSseState) -> Router {
+    Router::new()
+        .route("/mcp/sse", get(mcp_sse_handler))
+        .route("/mcp/stream", get(mcp_sse_handler))
+        .route("/mcp/messages", post(mcp_message_handler))
+        .route("/mcp/request", post(mcp_message_handler))
+        .route("/mcp", post(mcp_message_handler))
+        .with_state(state)
 }
 
 // ============================================================================
@@ -159,7 +189,7 @@ pub async fn mcp_message_handler(
     State(state): State<McpSseState>,
     Json(request): Json<McpRequest>,
 ) -> Json<McpResponse> {
-    let response = handle_mcp_request(&request);
+    let response = handle_mcp_request(&request, state.tool_handler.as_deref());
 
     // Also broadcast the response over SSE
     if let Ok(json) = serde_json::to_string(&response) {
@@ -173,12 +203,16 @@ pub async fn mcp_message_handler(
 // MCP request dispatcher
 // ============================================================================
 
-fn handle_mcp_request(request: &McpRequest) -> McpResponse {
+fn handle_mcp_request(
+    request: &McpRequest,
+    tool_handler: Option<&DatabaseToolHandler>,
+) -> McpResponse {
     match request.method.as_str() {
         "initialize" => handle_initialize(request),
         "tools/list" => handle_tools_list(request),
         "resources/list" => handle_resources_list(request),
-        "tools/call" => handle_tools_call(request),
+        "resources/read" => handle_resources_read(request, tool_handler),
+        "tools/call" => handle_tools_call(request, tool_handler),
         "ping" => McpResponse::success(request.id.clone(), serde_json::json!({})),
         _ => McpResponse::error(
             request.id.clone(),
@@ -224,6 +258,12 @@ fn handle_resources_list(request: &McpRequest) -> McpResponse {
             description: "Current energy consumption and budget state".to_string(),
             mime_type: "application/json".to_string(),
         },
+        McpResourceDef {
+            uri: "jouledb://timeseries".to_string(),
+            name: "Time Series Metrics".to_string(),
+            description: "Metrics stored in the joule-db-features TimeSeriesStore (TSLIST)".to_string(),
+            mime_type: "application/json".to_string(),
+        },
     ];
     McpResponse::success(
         request.id.clone(),
@@ -231,22 +271,113 @@ fn handle_resources_list(request: &McpRequest) -> McpResponse {
     )
 }
 
-fn handle_tools_call(request: &McpRequest) -> McpResponse {
+
+fn handle_resources_read(
+    request: &McpRequest,
+    tool_handler: Option<&DatabaseToolHandler>,
+) -> McpResponse {
+    let uri = request
+        .params
+        .get("uri")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if uri.is_empty() {
+        return McpResponse::error(
+            request.id.clone(),
+            -32602,
+            "resources/read requires params.uri".into(),
+        );
+    }
+    let Some(handler) = tool_handler else {
+        return McpResponse::error(
+            request.id.clone(),
+            -32603,
+            "MCP tool handler not configured (DatabaseToolHandler missing)".into(),
+        );
+    };
+    let tool_resp = handler.read_resource(uri);
+    if let Some(err) = tool_resp.error {
+        return McpResponse::error(request.id.clone(), err.code as i64, err.message);
+    }
+    let body = tool_resp.result.unwrap_or(serde_json::Value::Null);
+    let text = serde_json::to_string(&body).unwrap_or_else(|_| body.to_string());
+    McpResponse::success(
+        request.id.clone(),
+        serde_json::json!({
+            "contents": [{
+                "uri": uri,
+                "mimeType": "application/json",
+                "text": text
+            }]
+        }),
+    )
+}
+
+fn handle_tools_call(
+    request: &McpRequest,
+    tool_handler: Option<&DatabaseToolHandler>,
+) -> McpResponse {
     let tool_name = request
         .params
         .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    // For now, return a placeholder — actual tool execution is wired through mcp_bridge.rs
+    let arguments = request
+        .params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    let args_map: HashMap<String, serde_json::Value> = match arguments {
+        serde_json::Value::Object(map) => map.into_iter().collect(),
+        _ => HashMap::new(),
+    };
+
+    let call_id = request
+        .id
+        .clone()
+        .map(|v| match v {
+            serde_json::Value::String(s) => s,
+            other => other.to_string(),
+        })
+        .unwrap_or_else(|| "0".to_string());
+
+    let Some(handler) = tool_handler else {
+        return McpResponse::error(
+            request.id.clone(),
+            -32603,
+            "MCP tool handler not configured (DatabaseToolHandler missing)".to_string(),
+        );
+    };
+
+    let tool_req = ToolCallRequest {
+        id: call_id,
+        tool: tool_name.to_string(),
+        arguments: args_map,
+    };
+
+    let tool_resp = handler.call_tool(tool_req);
+
+    if let Some(err) = tool_resp.error {
+        return McpResponse::error(request.id.clone(), err.code as i64, err.message);
+    }
+
+    let result_json = tool_resp.result.unwrap_or(serde_json::Value::Null);
+    let text = match &result_json {
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+
     McpResponse::success(
         request.id.clone(),
         serde_json::json!({
             "content": [{
                 "type": "text",
-                "text": format!("Tool '{}' called. Wire through mcp_bridge for full execution.", tool_name)
+                "text": text
             }],
-            "energy_joules": 0.0
+            "structuredContent": result_json,
+            "energy_joules": tool_resp.energy_joules.unwrap_or(0.0)
         }),
     )
 }
@@ -514,7 +645,7 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
 
 /// Run the MCP stdio transport — reads JSON-RPC from stdin, writes to stdout.
 /// This blocks the calling task until stdin is closed.
-pub async fn run_stdio_transport() {
+pub async fn run_stdio_transport(tool_handler: Option<Arc<DatabaseToolHandler>>) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
     let stdin = tokio::io::stdin();
@@ -533,7 +664,7 @@ pub async fn run_stdio_transport() {
                 }
 
                 let response = match serde_json::from_str::<McpRequest>(trimmed) {
-                    Ok(request) => handle_mcp_request(&request),
+                    Ok(request) => handle_mcp_request(&request, tool_handler.as_deref()),
                     Err(e) => McpResponse::error(None, -32700, format!("Parse error: {}", e)),
                 };
 
@@ -567,7 +698,7 @@ mod tests {
             method: "initialize".to_string(),
             params: serde_json::json!({}),
         };
-        let resp = handle_mcp_request(&req);
+        let resp = handle_mcp_request(&req, None);
         assert!(resp.result.is_some());
         let result = resp.result.unwrap();
         assert_eq!(result["protocolVersion"], "2024-11-05");
@@ -582,7 +713,7 @@ mod tests {
             method: "tools/list".to_string(),
             params: serde_json::json!({}),
         };
-        let resp = handle_mcp_request(&req);
+        let resp = handle_mcp_request(&req, None);
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 24);
@@ -603,10 +734,14 @@ mod tests {
             method: "resources/list".to_string(),
             params: serde_json::json!({}),
         };
-        let resp = handle_mcp_request(&req);
+        let resp = handle_mcp_request(&req, None);
         let result = resp.result.unwrap();
         let resources = result["resources"].as_array().unwrap();
-        assert_eq!(resources.len(), 2);
+        assert_eq!(resources.len(), 3);
+        let uris: Vec<&str> = resources.iter().filter_map(|r| r["uri"].as_str()).collect();
+        assert!(uris.contains(&"jouledb://tables"));
+        assert!(uris.contains(&"jouledb://energy"));
+        assert!(uris.contains(&"jouledb://timeseries"));
     }
 
     #[test]
@@ -617,7 +752,7 @@ mod tests {
             method: "ping".to_string(),
             params: serde_json::json!({}),
         };
-        let resp = handle_mcp_request(&req);
+        let resp = handle_mcp_request(&req, None);
         assert!(resp.result.is_some());
         assert!(resp.error.is_none());
     }
@@ -630,23 +765,80 @@ mod tests {
             method: "nonexistent/method".to_string(),
             params: serde_json::json!({}),
         };
-        let resp = handle_mcp_request(&req);
+        let resp = handle_mcp_request(&req, None);
         assert!(resp.error.is_some());
         assert_eq!(resp.error.unwrap().code, -32601);
     }
 
     #[test]
-    fn test_tools_call() {
+    fn test_tools_call_without_handler_errors() {
         let req = McpRequest {
             jsonrpc: "2.0".to_string(),
             id: Some(serde_json::json!(6)),
             method: "tools/call".to_string(),
+            params: serde_json::json!({ "name": "db.energy" }),
+        };
+        let resp = handle_mcp_request(&req, None);
+        assert!(resp.error.is_some());
+        assert_eq!(resp.error.unwrap().code, -32603);
+    }
+
+    #[test]
+    fn test_tools_call_dispatches_to_bridge() {
+        use crate::mcp_bridge::DatabaseToolHandler;
+        use crate::query::{QueryErrorResponse, QueryExecutor, QueryRequest, QueryResponse};
+        use std::collections::HashMap as StdHashMap;
+
+        struct MockExec;
+        impl QueryExecutor for MockExec {
+            fn execute(
+                &self,
+                request: &QueryRequest,
+            ) -> Result<QueryResponse, QueryErrorResponse> {
+                Ok(QueryResponse {
+                    columns: vec!["result".into()],
+                    rows: vec![vec![serde_json::json!(format!("executed: {}", request.sql))]],
+                    affected_rows: Some(1),
+                    execution_time_ms: 1,
+                    truncated: false,
+                    warnings: vec![],
+                    energy_joules: Some(0.001),
+                    power_watts: Some(5.0),
+                    device_target: Some("cpu".into()),
+                    algorithm_type: Some("btree".into()),
+                    session_id: None,
+                    viz_hint: None,
+                })
+            }
+        }
+
+        let handler = DatabaseToolHandler::new(Arc::new(MockExec));
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(7)),
+            method: "tools/call".to_string(),
+            params: serde_json::json!({
+                "name": "db.query",
+                "arguments": { "sql": "SELECT 1" }
+            }),
+        };
+        let resp = handle_mcp_request(&req, Some(&handler));
+        assert!(resp.error.is_none(), "unexpected error: {:?}", resp.error);
+        let result = resp.result.expect("result");
+        assert!(result["content"].is_array());
+        assert!(result["structuredContent"].is_object() || result["structuredContent"].is_array());
+        assert!(result["energy_joules"].as_f64().unwrap_or(0.0) > 0.0);
+
+        // Unknown tool must not pretend success
+        let bad = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(8)),
+            method: "tools/call".to_string(),
             params: serde_json::json!({ "name": "db.status" }),
         };
-        let resp = handle_mcp_request(&req);
-        assert!(resp.result.is_some());
-        let result = resp.result.unwrap();
-        assert!(result["content"].is_array());
+        let bad_resp = handle_mcp_request(&bad, Some(&handler));
+        assert!(bad_resp.error.is_some());
+        let _ = StdHashMap::<String, serde_json::Value>::new();
     }
 
     #[test]
@@ -663,5 +855,77 @@ mod tests {
         assert!(names.contains(&"db.memory_recall"));
         assert!(names.contains(&"db.schema_inspect"));
         assert!(names.contains(&"db.status"));
+    }
+
+    #[test]
+    fn test_resources_read_uses_catalog_sql() {
+        use crate::mcp_bridge::DatabaseToolHandler;
+        use crate::query::{QueryErrorResponse, QueryExecutor, QueryRequest, QueryResponse};
+
+        struct MockExec;
+        impl QueryExecutor for MockExec {
+            fn execute(
+                &self,
+                request: &QueryRequest,
+            ) -> Result<QueryResponse, QueryErrorResponse> {
+                Ok(QueryResponse {
+                    columns: vec!["sql".into()],
+                    rows: vec![vec![serde_json::json!(request.sql.clone())]],
+                    affected_rows: None,
+                    execution_time_ms: 1,
+                    truncated: false,
+                    warnings: vec![],
+                    energy_joules: Some(0.0004),
+                    power_watts: Some(1.0),
+                    device_target: Some("cpu".into()),
+                    algorithm_type: Some("catalog".into()),
+                    session_id: None,
+                    viz_hint: None,
+                })
+            }
+        }
+
+        let missing = McpRequest {
+            jsonrpc: "2.0".into(),
+            id: Some(serde_json::json!(9)),
+            method: "resources/read".into(),
+            params: serde_json::json!({ "uri": "jouledb://tables" }),
+        };
+        let missing_resp = handle_mcp_request(&missing, None);
+        assert_eq!(missing_resp.error.unwrap().code, -32603);
+
+        let handler = DatabaseToolHandler::new(Arc::new(MockExec));
+        let req = McpRequest {
+            jsonrpc: "2.0".into(),
+            id: Some(serde_json::json!(10)),
+            method: "resources/read".into(),
+            params: serde_json::json!({ "uri": "jouledb://tables" }),
+        };
+        let resp = handle_mcp_request(&req, Some(&handler));
+        assert!(resp.error.is_none(), "{:?}", resp.error);
+        let text = resp.result.unwrap()["contents"][0]["text"].as_str().unwrap().to_string();
+        assert!(text.contains("information_schema.tables"), "{text}");
+
+        let series = McpRequest {
+            jsonrpc: "2.0".into(),
+            id: Some(serde_json::json!(11)),
+            method: "resources/read".into(),
+            params: serde_json::json!({ "uri": "jouledb://timeseries/cpu?start=0&end=10" }),
+        };
+        let series_resp = handle_mcp_request(&series, Some(&handler));
+        let series_text = series_resp.result.unwrap()["contents"][0]["text"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(series_text.contains("TSQUERY cpu 0 10"), "{series_text}");
+
+        let unknown = McpRequest {
+            jsonrpc: "2.0".into(),
+            id: Some(serde_json::json!(12)),
+            method: "resources/read".into(),
+            params: serde_json::json!({ "uri": "jouledb://nope" }),
+        };
+        let unknown_resp = handle_mcp_request(&unknown, Some(&handler));
+        assert_eq!(unknown_resp.error.unwrap().code, -32002);
     }
 }

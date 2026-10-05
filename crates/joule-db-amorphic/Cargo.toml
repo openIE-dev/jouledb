@@ -16,6 +16,7 @@ joule-db-hdc = { workspace = true, features = ["holographic", "hyperdimensional"
 joule-db-gpu = { workspace = true }
 joule-db-local = { workspace = true, optional = true }
 joule-db-core = { workspace = true }
+sigql = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

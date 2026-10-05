@@ -3,8 +3,23 @@
 //! This module provides the computational backend for SigQL transforms.
 //! All DSP operations are implemented here and called by the runtime.
 
+#[cfg(not(feature = "std"))]
+use alloc::{format, string::String, vec::Vec};
+
+#[cfg(feature = "std")]
 pub mod correlation;
+#[cfg(not(feature = "std"))]
+#[path = "correlation_nostd.rs"]
+pub mod correlation;
+#[cfg(feature = "std")]
 pub mod envelope;
+#[cfg(not(feature = "std"))]
+#[path = "envelope_nostd.rs"]
+pub mod envelope;
+#[cfg(feature = "std")]
+pub mod fft;
+#[cfg(not(feature = "std"))]
+#[path = "fft_nostd.rs"]
 pub mod fft;
 pub mod filter;
 pub mod resample;

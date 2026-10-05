@@ -55,6 +55,15 @@ pub struct PlatformInfo {
     pub lpu_available: bool,
 }
 
+/// Whether the Apple Neural Engine is present for a host OS/arch pair.
+///
+/// Apple Silicon Macs (`macos` + `aarch64`) include the ANE. Intel Macs and
+/// non-macOS hosts do not. Pure function so tests (and fabric detectors) can
+/// inject a platform descriptor without a Linux `/dev/*` node or a macOS runner.
+pub fn apple_neural_engine_present(os: &str, arch: &str) -> bool {
+    os == "macos" && arch == "aarch64"
+}
+
 /// Detect the current platform's CPU, TDP, and accelerator availability.
 ///
 /// Uses `sysinfo` for CPU identification, then matches known CPU families
@@ -255,5 +264,14 @@ mod tests {
         let (tdp, source) = estimate_tdp("Unknown Processor XYZ");
         assert_eq!(tdp, 30.0);
         assert_eq!(source, "default");
+    }
+
+    #[test]
+    fn test_apple_neural_engine_present_macos_aarch64() {
+        assert!(apple_neural_engine_present("macos", "aarch64"));
+        assert!(!apple_neural_engine_present("macos", "x86_64"));
+        assert!(!apple_neural_engine_present("linux", "aarch64"));
+        assert!(!apple_neural_engine_present("linux", "x86_64"));
+        assert!(!apple_neural_engine_present("windows", "aarch64"));
     }
 }

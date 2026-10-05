@@ -405,10 +405,18 @@ impl SimpleQueryExecutor {
     /// let db = SimpleQueryExecutor::open("./my_database");
     /// ```
     pub fn open(path: impl AsRef<std::path::Path>) -> Self {
-        let store = joule_db_amorphic::DurableAmorphicStore::open(path.as_ref())
+        let path = path.as_ref();
+        let store = joule_db_amorphic::DurableAmorphicStore::open(path)
             .expect("Failed to open database");
         let amorphic = Arc::new(AmorphicTableStorage::new(store));
-        Self::with_amorphic(amorphic)
+        let mut exec = Self::with_amorphic(amorphic);
+        let ts_path = path.join("timeseries.wdb");
+        if let Ok(engine) = joule_db_features::CoreEngineStore::open(&ts_path) {
+            exec.feature_stores = Arc::new(crate::features_bridge::FeatureStores::with_timeseries(
+                Arc::new(engine),
+            ));
+        }
+        exec
     }
 
     /// Create executor with an existing AmorphicTableStorage (production path).
@@ -670,6 +678,16 @@ impl QueryExecutor for SimpleQueryExecutor {
             Ok(response)
         } else {
             result
+        };
+
+        // Heterogeneous dispatch receipt. Never refuses the query: a missing
+        // accelerator falls back to CPU and the joules are reported.
+        let result = match result {
+            Ok(mut response) => {
+                crate::fabric::attach_receipt(&mut response, &request.sql);
+                Ok(response)
+            }
+            Err(err) => Err(err),
         };
 
         // Slow query logging

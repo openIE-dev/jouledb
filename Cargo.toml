@@ -31,6 +31,9 @@ members = [
     "crates/joule-db-viz",
     "crates/joule-energy",
     "crates/joule-runtime",
+    "crates/joule-runtime/runtime/joule-energy-rt",
+    "crates/joule-runtime/runtime/joule-metal-rt",
+    "crates/joule-runtime/runtime/joule-ane-rt",
     "crates/joule-web",
     "crates/jpb-core",
     "crates/jwp",
@@ -72,6 +75,8 @@ joule-db-ternary    = { path = "crates/joule-db-ternary" }
 joule-db-viz        = { path = "crates/joule-db-viz" }
 joule-db-ledger     = { path = "crates/joule-db-ledger" }
 joule-runtime       = { path = "crates/joule-runtime" }
+joule-metal-rt      = { path = "crates/joule-runtime/runtime/joule-metal-rt" }
+joule-ane-rt        = { path = "crates/joule-runtime/runtime/joule-ane-rt" }
 joule-db-domains    = { path = "crates/joule-db-domains" }
 joule-db-langgraph  = { path = "crates/joule-db-langgraph" }
 joule-db-client     = { path = "crates/joule-db-client" }
@@ -247,7 +252,8 @@ governor = "0.10"
 validator = { version = "0.20", features = ["derive"] }
 
 # ── System / FFI ───────────────────────────────────────────
-libc    = "0.2"
+libc       = "0.2"
+libloading  = "0.8"
 sysinfo = "0.38"
 battery = "0.7"
 

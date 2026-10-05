@@ -20,6 +20,7 @@
 //! ```
 
 pub mod ast;
+pub mod vector_scan;
 pub mod error;
 
 #[cfg(feature = "sql")]

@@ -2,6 +2,9 @@
 //!
 //! Parses SigQL query strings into AST using nom combinators.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 pub mod combinators;
 pub mod error;
 pub mod lexer;

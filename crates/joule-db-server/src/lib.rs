@@ -27,6 +27,7 @@ pub mod energy;
 pub mod energy_executor;
 pub mod enterprise;
 pub mod error;
+pub mod fabric;
 pub mod features_bridge;
 pub mod fts_analyzer;
 pub mod graphql_executor;
@@ -1096,6 +1097,13 @@ impl Server {
             .route("/api/v1/cluster/health", get(cluster_health_handler))
             .with_state(cluster_state);
 
+        // MCP transport (SSE + JSON-RPC) — dispatches tools/call via DatabaseToolHandler
+        let mcp_handler = Arc::new(mcp_bridge::DatabaseToolHandler::new(
+            self.query_executor.clone(),
+        ));
+        let mcp_state = mcp_transport::McpSseState::with_handler(mcp_handler);
+        let mcp_rt = mcp_transport::mcp_routes(mcp_state);
+
         let merged = kv_routes
             .merge(query_routes)
             .merge(metrics_routes)
@@ -1113,7 +1121,8 @@ impl Server {
             .merge(scale_routes)
             .merge(memory_routes)
             .merge(workflow_routes)
-            .merge(edge_routes);
+            .merge(edge_routes)
+            .merge(mcp_rt);
 
         // Merge ledger verification routes (if ledger is enabled)
         let merged = if let Some(ref store) = self.ledger_store {

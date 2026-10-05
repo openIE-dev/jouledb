@@ -161,8 +161,9 @@ impl PlatformEnergyProvider for MacOsProvider {
     }
 
     fn npu_available(&self) -> bool {
-        // All Apple Silicon Macs have the Apple Neural Engine
-        true
+        // Apple Neural Engine is on Apple Silicon only (macos + aarch64).
+        // No Linux-style /dev node is required — use the portable OS/arch check.
+        crate::apple_neural_engine_present(std::env::consts::OS, std::env::consts::ARCH)
     }
 }
 
@@ -174,6 +175,12 @@ mod tests {
     fn test_macos_provider_creation() {
         let provider = MacOsProvider::new();
         assert!(provider.gpu_available());
+        // On Apple Silicon builds the ANE is present; Intel Mac builds are not.
+        assert_eq!(
+            provider.npu_available(),
+            cfg!(target_arch = "aarch64"),
+            "ANE availability must follow aarch64, not a blanket macos true"
+        );
     }
 
     #[test]

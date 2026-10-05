@@ -418,7 +418,7 @@ impl Default for AcceleratorManager {
 // ── Device Detection ────────────────────────────────────────────────────────
 
 /// Auto-detect all available hardware accelerators on this host.
-fn detect_devices() -> Vec<AcceleratorDevice> {
+pub fn detect_devices() -> Vec<AcceleratorDevice> {
     let mut devices = Vec::new();
 
     // Use joule-db-energy for baseline platform info
@@ -427,8 +427,12 @@ fn detect_devices() -> Vec<AcceleratorDevice> {
     // GPU detection
     detect_gpus(&mut devices, &platform);
 
-    // NPU detection
-    if platform.npu_available {
+    // NPU detection — Apple Silicon reports ANE without a Linux device node.
+    let ane = joule_db_energy::apple_neural_engine_present(
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+    );
+    if platform.npu_available || ane {
         detect_npus(&mut devices, &platform);
     }
 
@@ -565,19 +569,52 @@ fn detect_amd_gpus() -> Option<Vec<AcceleratorDevice>> {
     }
 }
 
-/// Detect Apple Neural Engine (NPU).
-fn detect_npus(devices: &mut Vec<AcceleratorDevice>, platform: &joule_db_energy::PlatformInfo) {
-    if cfg!(target_os = "macos") {
-        let npu_cores = estimate_apple_npu_cores(&platform.cpu_brand);
-        let npu_tdp = estimate_apple_npu_tdp(&platform.cpu_brand);
+/// Build an Apple Neural Engine device for an injected host OS/arch pair.
+///
+/// Returns `Some` only for `macos` + `aarch64`. Used by `detect_npus` and by
+/// unit tests on Linux CI (no macOS runner, no `/dev/accel*` required).
+pub fn apple_neural_engine_device_for_host(
+    os: &str,
+    arch: &str,
+    cpu_brand: &str,
+) -> Option<AcceleratorDevice> {
+    if !joule_db_energy::apple_neural_engine_present(os, arch) {
+        return None;
+    }
+    Some(AcceleratorDevice {
+        id: "npu-0".to_string(),
+        kind: AcceleratorKind::NPU,
+        name: "Apple Neural Engine".to_string(),
+        memory_mb: 0, // Shared unified memory
+        compute_units: estimate_apple_npu_cores(cpu_brand),
+        tdp_watts: estimate_apple_npu_tdp(cpu_brand),
+        available: true,
+        allocated_to: None,
+    })
+}
 
+/// Detect NPUs. On Apple Silicon this reports the ANE without probing nvidia-smi
+/// or requiring a Linux-style device node.
+fn detect_npus(devices: &mut Vec<AcceleratorDevice>, platform: &joule_db_energy::PlatformInfo) {
+    if let Some(ane) = apple_neural_engine_device_for_host(
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        &platform.cpu_brand,
+    ) {
+        devices.push(ane);
+        return;
+    }
+
+    // Non-Apple hosts: only emit a generic NPU when the platform provider already
+    // confirmed availability (Linux sysfs /dev nodes, etc.).
+    if platform.npu_available {
         devices.push(AcceleratorDevice {
             id: "npu-0".to_string(),
             kind: AcceleratorKind::NPU,
-            name: format!("{} Neural Engine", &platform.cpu_brand),
-            memory_mb: 0, // Shared unified memory
-            compute_units: npu_cores,
-            tdp_watts: npu_tdp,
+            name: "NPU".to_string(),
+            memory_mb: 0,
+            compute_units: 1,
+            tdp_watts: 5.0,
             available: true,
             allocated_to: None,
         });
@@ -677,10 +714,8 @@ fn estimate_apple_gpu_cores(cpu_brand: &str) -> u32 {
         // M1/M2/M3/M4 Ultra: 60-80 cores
         76
     } else if upper.contains("MAX") {
-        // M1/M2/M3/M4 Max: 30-40 cores
-        if upper.contains("M4") {
-            40
-        } else if upper.contains("M3") {
+        // M1/M2/M3/M4/M5 Max: 30-40 cores
+        if upper.contains("M5") || upper.contains("M4") || upper.contains("M3") {
             40
         } else {
             32
@@ -1094,5 +1129,35 @@ mod tests {
             assert!(!dev.name.is_empty());
             assert!(dev.tdp_watts > 0.0);
         }
+    }
+
+    #[test]
+    fn macos_aarch64_host_reports_apple_neural_engine() {
+        let device = apple_neural_engine_device_for_host("macos", "aarch64", "Apple M5 Max")
+            .expect("macos aarch64 must report the Apple Neural Engine");
+        assert_eq!(device.id, "npu-0");
+        assert_eq!(device.kind, AcceleratorKind::NPU);
+        assert_eq!(device.name, "Apple Neural Engine");
+        assert!(device.available);
+        assert_eq!(device.compute_units, 16);
+        assert!(device.tdp_watts > 0.0);
+    }
+
+    #[test]
+    fn non_apple_silicon_hosts_have_no_ane() {
+        assert!(
+            apple_neural_engine_device_for_host("linux", "aarch64", "Apple M5 Max").is_none(),
+            "Linux must not invent an ANE"
+        );
+        assert!(
+            apple_neural_engine_device_for_host("macos", "x86_64", "Intel Core i9").is_none(),
+            "Intel Macs have no Neural Engine"
+        );
+        assert!(apple_neural_engine_device_for_host("windows", "aarch64", "Snapdragon").is_none());
+    }
+
+    #[test]
+    fn apple_gpu_cores_include_m5_max() {
+        assert_eq!(estimate_apple_gpu_cores("Apple M5 Max"), 40);
     }
 }

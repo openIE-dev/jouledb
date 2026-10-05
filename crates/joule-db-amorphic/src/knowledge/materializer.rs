@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use super::energy_receipt::EnergyReceipt;
+use crate::ai::traits::HolographicInference;
 
 /// Entropy level of a query — determines which tier handles it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -318,14 +319,36 @@ impl Materializer {
             }
         }
 
-        // 5-7. HOLOGRAPHIC / FLOWR / NEURAL — escalation
-        // These would wire to the AI facade's tier system.
-        // For now: return that we need higher-tier processing.
+        // Deterministic arithmetic (no model weights). Runs after registered
+        // skills so an explicit skill still wins, and before the neural tier.
+        if let Some(answer) = eval_arithmetic_expr(input) {
+            self.cache.insert(cache_key.clone(), answer.clone());
+            *self.metrics.by_source.entry("pattern_lang".into()).or_insert(0) += 1;
+            let actual_pj = 1_000u64;
+            return MaterializeResult {
+                output: answer,
+                source: Source::PatternLang,
+                entropy,
+                verified: true,
+                energy_joules: EnergyReceipt::pj_to_joules(actual_pj),
+                elapsed_us: start.elapsed().as_micros() as u64,
+                receipt: EnergyReceipt::for_tier(Source::PatternLang, actual_pj),
+            };
+        }
+
+        // Holographic probe, then stop. Open-ended generation needs model
+        // weights that are not linked in this crate. Do not invent a paragraph.
+        let holo = crate::ai::holo::HoloEngine::new();
+        let probe = holo.encode_text(input);
+        let _probe_mix = probe.as_words().iter().fold(0u64, |acc, w| acc ^ *w);
         *self.metrics.by_source.entry("neural".into()).or_insert(0) += 1;
-        // 10 mJ actual cost — full LLM stack is our neural stub today.
+        // 10 mJ — cost of escalating to a weight-backed model that is absent.
+        // Callers (LocalInference / FrontierInference) turn this into
+        // AiError::ModelNotLoaded. `output` stays empty on purpose.
         let actual_pj = 10_000_000_000u64;
+        let _ = probe.dimension();
         MaterializeResult {
-            output: format!("Requires higher-tier processing for: {}", input),
+            output: String::new(),
             source: Source::Neural,
             entropy,
             verified: false,
@@ -385,6 +408,30 @@ impl Materializer {
     pub fn cache_size(&self) -> usize {
         self.cache.len()
     }
+}
+
+
+/// Evaluate the first `a <op> b` triple in `input`.
+///
+/// Returns `None` when the text is not a deterministic arithmetic expression.
+fn eval_arithmetic_expr(input: &str) -> Option<String> {
+    let tokens: Vec<&str> = input
+        .split(|c: char| c.is_whitespace() || matches!(c, '?' | ',' | ':' | ';'))
+        .filter(|t| !t.is_empty())
+        .collect();
+    for w in tokens.windows(3) {
+        let Ok(a) = w[0].parse::<f64>() else { continue };
+        let Ok(b) = w[2].parse::<f64>() else { continue };
+        let result = match w[1] {
+            "+" => a + b,
+            "-" => a - b,
+            "*" | "x" | "×" => a * b,
+            "/" if b != 0.0 => a / b,
+            _ => continue,
+        };
+        return Some(format!("{}", result));
+    }
+    None
 }
 
 impl Default for Materializer {
@@ -478,6 +525,18 @@ mod tests {
         let result = m.materialize("Write me a sonnet about entropy");
         assert_eq!(result.source, Source::Neural);
         assert_eq!(result.entropy, EntropyLevel::High);
+        assert!(!result.verified);
+        assert!(result.output.is_empty(), "neural tier must not invent text");
+    }
+
+    #[test]
+    #[test]
+    fn test_builtin_arithmetic_without_skill() {
+        let mut m = Materializer::new();
+        let result = m.materialize("2 + 3");
+        assert_eq!(result.source, Source::PatternLang);
+        assert_eq!(result.output, "5");
+        assert!(result.verified);
     }
 
     #[test]

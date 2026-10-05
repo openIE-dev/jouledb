@@ -4,6 +4,9 @@
 //! confidence intervals, noise floors, and artifact flags through
 //! all computations.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use core::ops::{Add, Div, Mul, Sub};
 
 /// A value with associated uncertainty quantification.

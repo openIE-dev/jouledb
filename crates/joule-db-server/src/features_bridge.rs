@@ -16,9 +16,10 @@
 use crate::lock_util::{read_lock, write_lock};
 use crate::query::{QueryErrorResponse, QueryResponse};
 use joule_db_features::{
-    ColumnStore, ColumnStoreBuilder, DataPoint, EmbeddingConfig, EmbeddingModel, EmbeddingStore,
-    FullTextConfig, FullTextIndex, SearchQuery, SimilarityMetric, TimeSeriesConfig,
-    TimeSeriesStore, VectorConfig, VectorIndex,
+    ColumnStore, ColumnStoreBuilder, CoreEngineStore, DataPoint, EmbeddingConfig, EmbeddingModel,
+    EmbeddingStore, FullTextConfig, FullTextIndex, PersistedDataPoint, SearchQuery,
+    SimilarityMetric, TimeSeriesConfig, TimeSeriesPersistence, TimeSeriesStore, VectorConfig,
+    VectorIndex,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -37,6 +38,9 @@ pub struct FeatureStores {
     pub fulltext: Arc<RwLock<HashMap<String, FullTextIndex>>>,
     pub embeddings: Arc<RwLock<EmbeddingStore>>,
     pub columnar: Arc<RwLock<HashMap<String, ColumnStore>>>,
+    /// Durable B-tree backing [`TimeSeriesPersistence`]. `None` keeps the
+    /// in-memory store only (tests that never open a database file).
+    pub ts_store: Option<Arc<CoreEngineStore>>,
 }
 
 impl FeatureStores {
@@ -48,8 +52,71 @@ impl FeatureStores {
             fulltext: Arc::new(RwLock::new(HashMap::new())),
             embeddings: Arc::new(RwLock::new(EmbeddingStore::default_store())),
             columnar: Arc::new(RwLock::new(HashMap::new())),
+            ts_store: None,
         }
     }
+
+    /// Attach a durable engine and hydrate the in-memory series from it.
+    pub fn with_timeseries(store: Arc<CoreEngineStore>) -> Self {
+        let stores = Self::new();
+        let persist = TimeSeriesPersistence::new(Arc::clone(&store));
+        if let Ok(metrics) = persist.list_metrics() {
+            let ts = write_lock(&stores.timeseries);
+            for metric in metrics {
+                if let Ok(points) = persist.query(&metric, i64::MIN, i64::MAX) {
+                    for point in points {
+                        ts.write(
+                            &metric,
+                            DataPoint {
+                                timestamp: point.timestamp,
+                                value: point.value,
+                                tags: point.tags,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        Self {
+            ts_store: Some(store),
+            ..stores
+        }
+    }
+}
+
+fn persist_ts_point(stores: &FeatureStores, metric: &str, point: &DataPoint) {
+    let Some(store) = &stores.ts_store else {
+        return;
+    };
+    let persist = TimeSeriesPersistence::new(Arc::clone(store));
+    if persist.register_metric(metric).is_err() {
+        return;
+    }
+    let _ = persist.write(
+        metric,
+        PersistedDataPoint {
+            timestamp: point.timestamp,
+            value: point.value,
+            tags: point.tags.clone(),
+        },
+    );
+    let _ = store.sync();
+}
+
+fn persisted_points(stores: &FeatureStores, metric: &str, start: i64, end: i64) -> Option<Vec<DataPoint>> {
+    let store = stores.ts_store.as_ref()?;
+    let persist = TimeSeriesPersistence::new(Arc::clone(store));
+    let points = persist.query(metric, start, end).ok()?;
+    Some(
+        points
+            .into_iter()
+            .map(|point| DataPoint {
+                timestamp: point.timestamp,
+                value: point.value,
+                tags: point.tags,
+            })
+            .collect(),
+    )
 }
 
 impl Default for FeatureStores {
@@ -197,7 +264,9 @@ fn exec_ts_write(
         tags,
     };
     let ts = write_lock(&stores.timeseries);
-    ts.write(metric, point);
+    ts.write(metric, point.clone());
+    drop(ts);
+    persist_ts_point(stores, metric, &point);
 
     Ok(ok_response(start, Some(1)))
 }
@@ -229,8 +298,17 @@ fn exec_ts_query(
         QueryErrorResponse::syntax_error(&format!("Invalid end: {}", parts[2]), 1, 1)
     })?;
 
-    let ts = read_lock(&stores.timeseries);
-    let points = ts.query(metric, ts_start, ts_end);
+    let points = if let Some(persisted) = persisted_points(stores, metric, ts_start, ts_end) {
+        if !persisted.is_empty() {
+            persisted
+        } else {
+            let ts = read_lock(&stores.timeseries);
+            ts.query(metric, ts_start, ts_end)
+        }
+    } else {
+        let ts = read_lock(&stores.timeseries);
+        ts.query(metric, ts_start, ts_end)
+    };
 
     let columns = vec!["timestamp".into(), "value".into(), "tags".into()];
     let rows: Vec<Vec<serde_json::Value>> = points
@@ -370,6 +448,12 @@ fn exec_ts_delete(
 
     let ts = write_lock(&stores.timeseries);
     let deleted = ts.delete_metric(metric);
+    drop(ts);
+    if let Some(store) = &stores.ts_store {
+        let persist = TimeSeriesPersistence::new(Arc::clone(store));
+        let _ = persist.delete_metric(metric);
+        let _ = store.sync();
+    }
 
     Ok(ok_response(start, if deleted { Some(1) } else { Some(0) }))
 }

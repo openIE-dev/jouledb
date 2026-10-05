@@ -2,7 +2,12 @@
 //!
 //! Executes compiled plans against actual signal data using the DSP module.
 
+#[cfg(feature = "std")]
 use std::collections::HashMap;
+#[cfg(not(feature = "std"))]
+use alloc::collections::BTreeMap as HashMap;
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 
 use num_complex::Complex64;
 use smol_str::SmolStr;
@@ -124,6 +129,7 @@ impl Runtime {
 
     /// Execute a plan
     pub fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult, RuntimeError> {
+        #[cfg(feature = "std")]
         let start = std::time::Instant::now();
 
         // Allocate registers
@@ -139,13 +145,16 @@ impl Runtime {
             self.execute_step(step, &mut registers, &mut outputs, &mut samples_processed)?;
         }
 
-        let elapsed = start.elapsed();
+        #[cfg(feature = "std")]
+        let execution_time_ns = start.elapsed().as_nanos() as u64;
+        #[cfg(not(feature = "std"))]
+        let execution_time_ns = 0u64;
 
         Ok(ExecutionResult {
             outputs,
             stats: ExecutionStats {
                 samples_processed,
-                execution_time_ns: elapsed.as_nanos() as u64,
+                execution_time_ns,
                 memory_used: registers.iter().filter(|r| r.is_some()).count() * 8 * 1024, // Rough estimate
             },
         })
@@ -376,6 +385,15 @@ impl Runtime {
                 block_size,
                 quality,
             } => {
+                #[cfg(not(feature = "std"))]
+                {
+                    return Err(RuntimeError::OperationFailed(String::from(
+                        "media ingest requires the std feature",
+                    )));
+                }
+                #[cfg(feature = "std")]
+                {
+
                 let input_signal = self.get_signal(registers, *input)?;
                 let config = crate::io::media_ingest::MediaIngestConfig {
                     dct_block_size: *block_size,
@@ -399,6 +417,7 @@ impl Runtime {
                     .map(|e| e.magnitude as f64)
                     .collect();
                 registers[output.0 as usize] = Some(RegisterValue::Spectrum(spectrum));
+                }
             }
 
             // MediaQL: Inverse 2D DCT (reconstruct from spectrum)
@@ -416,6 +435,15 @@ impl Runtime {
                 output,
                 n_coefficients,
             } => {
+                #[cfg(not(feature = "std"))]
+                {
+                    return Err(RuntimeError::OperationFailed(String::from(
+                        "media ingest requires the std feature",
+                    )));
+                }
+                #[cfg(feature = "std")]
+                {
+
                 let input_signal = self.get_signal(registers, *input)?;
                 let config = crate::io::media_ingest::MediaIngestConfig {
                     fft_window_size: 2048.min(input_signal.samples.len()),
@@ -437,6 +465,7 @@ impl Runtime {
                     .map(|e| e.magnitude as f64)
                     .collect();
                 registers[output.0 as usize] = Some(RegisterValue::Spectrum(spectrum));
+                }
             }
 
             // MediaQL: 2D FFT, perceptual hash, edge detect — pass through with metadata
@@ -480,6 +509,7 @@ impl Runtime {
         }
     }
 
+    #[cfg(feature = "std")]
     fn load_from_file(
         &self,
         path: &str,
@@ -504,6 +534,18 @@ impl Runtime {
                 path
             ))),
         }
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn load_from_file(
+        &self,
+        path: &str,
+        _format: &FileFormat,
+    ) -> Result<DynSignal<f64>, RuntimeError> {
+        Err(RuntimeError::FileLoadError(format!(
+            "file loading requires std feature: {}",
+            path
+        )))
     }
 
     // ==================== Register Access ====================
@@ -565,10 +607,19 @@ impl Runtime {
         let mut complex: Vec<Complex64> =
             windowed.iter().map(|&x| Complex64::new(x, 0.0)).collect();
 
-        // Compute FFT using rustfft
-        let mut planner = rustfft::FftPlanner::new();
-        let fft = planner.plan_fft_forward(size);
-        fft.process(&mut complex);
+        #[cfg(feature = "std")]
+        {
+            let mut planner = rustfft::FftPlanner::new();
+            let fft = planner.plan_fft_forward(size);
+            fft.process(&mut complex);
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            let _ = &complex;
+            return Err(RuntimeError::DspError(crate::dsp::DspError::InvalidParameter(
+                String::from("FFT requires the std feature (rustfft)"),
+            )));
+        }
 
         // Return magnitude spectrum (positive frequencies only)
         let n_bins = size / 2 + 1;
@@ -595,11 +646,21 @@ impl Runtime {
             complex.push(complex[n_bins - 1 - i].conj());
         }
 
-        let mut planner = rustfft::FftPlanner::new();
-        let ifft = planner.plan_fft_inverse(size);
-        ifft.process(&mut complex);
-
-        let samples: Vec<f64> = complex.iter().map(|c| c.re / size as f64).collect();
+        #[cfg(feature = "std")]
+        let samples: Vec<f64> = {
+            let mut complex = complex;
+            let mut planner = rustfft::FftPlanner::new();
+            let ifft = planner.plan_fft_inverse(size);
+            ifft.process(&mut complex);
+            complex.iter().map(|c| c.re / size as f64).collect()
+        };
+        #[cfg(not(feature = "std"))]
+        let samples: Vec<f64> = {
+            let _ = &complex;
+            return Err(RuntimeError::DspError(crate::dsp::DspError::InvalidParameter(
+                String::from("IFFT requires the std feature (rustfft)"),
+            )));
+        };
 
         Ok(DynSignal::new(
             SmolStr::new("ifft_result"),

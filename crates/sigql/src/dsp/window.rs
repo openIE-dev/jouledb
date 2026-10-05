@@ -1,6 +1,9 @@
 //! Windowing functions for spectral analysis
 
-use std::f64::consts::PI;
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use core::f64::consts::PI;
 
 /// Window function type
 #[derive(Debug, Clone, Copy, Default, PartialEq)]

@@ -64,6 +64,9 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
+
 pub mod ast;
 pub mod compile;
 pub mod dsp;

@@ -3,6 +3,9 @@
 //! Signals are first-class citizens with compile-time dimensional analysis.
 //! Every computation propagates uncertainty through the type system.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 pub mod signal;
 pub mod spectrum;
 pub mod uncertainty;

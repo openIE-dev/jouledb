@@ -1786,7 +1786,8 @@ impl<S: TableStorage> StorageExecutor<S> {
                 if nums.is_empty() {
                     Ok(Value::Null)
                 } else {
-                    Ok(Value::Float(nums.iter().sum()))
+                    let (sum, _) = crate::vector_scan::aggregate_chunked(&nums, "sum");
+                    Ok(Value::Float(sum))
                 }
             }
             "AVG" => {
@@ -1794,7 +1795,8 @@ impl<S: TableStorage> StorageExecutor<S> {
                 if vals.is_empty() {
                     Ok(Value::Null)
                 } else {
-                    Ok(Value::Float(vals.iter().sum::<f64>() / vals.len() as f64))
+                    let (avg, _) = crate::vector_scan::aggregate_chunked(&vals, "avg");
+                    Ok(Value::Float(avg))
                 }
             }
             "MIN" => values
@@ -2305,6 +2307,29 @@ mod tests {
 
         let result = executor.execute(&plan, &context).unwrap();
         assert_eq!(result.rows.len(), 2);
+    }
+
+    #[test]
+    fn test_aggregate_uses_data_chunk() {
+        crate::vector_scan::reset_chunk_scans();
+        let storage = setup_test_data();
+        let executor = StorageExecutor::new(storage);
+        let context = QueryContext::default();
+        let plan = ExecutionPlan::new(PlanNode::Aggregate {
+            input: Box::new(PlanNode::Scan {
+                table: "users".to_string(),
+                columns: vec![],
+                filter: None,
+            }),
+            group_by: vec![],
+            aggregates: vec![("sum_age".to_string(), "SUM".to_string(), "age".to_string())],
+        });
+        let result = executor.execute(&plan, &context).unwrap();
+        assert!(!result.rows.is_empty());
+        assert!(
+            crate::vector_scan::chunk_scans() >= 1,
+            "SUM aggregate must use the DataChunk scan"
+        );
     }
 
     #[test]

@@ -2,6 +2,9 @@
 //!
 //! The intermediate representation between AST and executable code.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use smol_str::SmolStr;
 
 use super::Target;
@@ -565,27 +568,27 @@ impl ExecutionPlan {
                     requires_fft = true;
                     requires_complex = true;
                     // FFT requires 2x buffer for complex values + scratch space
-                    (Some(output.0), *size * 2 * std::mem::size_of::<f64>() * 2)
+                    (Some(output.0), *size * 2 * core::mem::size_of::<f64>() * 2)
                 }
                 PlanStep::Ifft { output, .. } => (Some(output.0), 0),
                 PlanStep::IirFilter { output, coeffs, .. } => {
                     // IIR filter state per section
-                    let state_size = coeffs.sections.len() * 4 * std::mem::size_of::<f64>();
+                    let state_size = coeffs.sections.len() * 4 * core::mem::size_of::<f64>();
                     (Some(output.0), state_size)
                 }
                 PlanStep::FirFilter { output, coeffs, .. } => {
                     // FIR filter needs delay line of length = num_taps
-                    let delay_size = coeffs.taps.len() * std::mem::size_of::<f64>();
+                    let delay_size = coeffs.taps.len() * core::mem::size_of::<f64>();
                     (Some(output.0), delay_size)
                 }
                 PlanStep::Resample { output, .. } => {
                     // Resample may need temporary buffer
-                    (Some(output.0), 4096 * std::mem::size_of::<f64>())
+                    (Some(output.0), 4096 * core::mem::size_of::<f64>())
                 }
                 PlanStep::ComplexToMagnitude { output, .. } => (Some(output.0), 0),
                 PlanStep::Envelope { output, .. } => {
                     // Envelope (Hilbert transform) needs FFT-sized buffer
-                    (Some(output.0), 1024 * 2 * std::mem::size_of::<f64>())
+                    (Some(output.0), 1024 * 2 * core::mem::size_of::<f64>())
                 }
                 PlanStep::Reduce { output, .. } => (Some(output.0), 0),
                 PlanStep::Window {
@@ -596,12 +599,12 @@ impl ExecutionPlan {
                     // Window buffer for accumulated samples
                     (
                         Some(output.0),
-                        *duration_samples * std::mem::size_of::<f64>(),
+                        *duration_samples * core::mem::size_of::<f64>(),
                     )
                 }
                 PlanStep::CrossCorrelate { output, .. } => {
                     // Cross-correlation typically done via FFT
-                    (Some(output.0), 4096 * 2 * std::mem::size_of::<f64>())
+                    (Some(output.0), 4096 * 2 * core::mem::size_of::<f64>())
                 }
                 PlanStep::BandPower { output, .. } => (Some(output.0), 0),
                 PlanStep::Store { .. } => (None, 0),
@@ -616,39 +619,39 @@ impl ExecutionPlan {
                     ..
                 } => {
                     // Median filter needs sliding window buffer
-                    (Some(output.0), *kernel_size * std::mem::size_of::<f64>())
+                    (Some(output.0), *kernel_size * core::mem::size_of::<f64>())
                 }
                 PlanStep::Decimate { output, factor, .. } => {
                     // Decimation may need anti-aliasing filter
-                    (Some(output.0), *factor * 32 * std::mem::size_of::<f64>())
+                    (Some(output.0), *factor * 32 * core::mem::size_of::<f64>())
                 }
                 PlanStep::Interpolate { output, factor, .. } => {
                     // Interpolation needs upsampled buffer
-                    (Some(output.0), *factor * 1024 * std::mem::size_of::<f64>())
+                    (Some(output.0), *factor * 1024 * core::mem::size_of::<f64>())
                 }
                 PlanStep::DominantFrequency { output, .. } => {
                     // FFT-based analysis
-                    (Some(output.0), 1024 * 2 * std::mem::size_of::<f64>())
+                    (Some(output.0), 1024 * 2 * core::mem::size_of::<f64>())
                 }
                 PlanStep::SpectralEntropy { output, .. } => {
-                    (Some(output.0), 1024 * std::mem::size_of::<f64>())
+                    (Some(output.0), 1024 * core::mem::size_of::<f64>())
                 }
                 PlanStep::SpectralCentroid { output, .. } => {
-                    (Some(output.0), 1024 * std::mem::size_of::<f64>())
+                    (Some(output.0), 1024 * core::mem::size_of::<f64>())
                 }
                 PlanStep::Passthrough { output, .. } => (Some(output.0), 0),
                 // MediaQL steps
                 PlanStep::Fft2d { output, .. } | PlanStep::Ifft2d { output, .. } => {
-                    (Some(output.0), 1024 * 1024 * std::mem::size_of::<f64>())
+                    (Some(output.0), 1024 * 1024 * core::mem::size_of::<f64>())
                 }
                 PlanStep::Dct2d { output, block_size, .. } => {
-                    (Some(output.0), block_size * block_size * std::mem::size_of::<f64>())
+                    (Some(output.0), block_size * block_size * core::mem::size_of::<f64>())
                 }
                 PlanStep::Idct2d { output, .. } => {
-                    (Some(output.0), 1024 * 1024 * std::mem::size_of::<f64>())
+                    (Some(output.0), 1024 * 1024 * core::mem::size_of::<f64>())
                 }
                 PlanStep::Mfcc { output, .. } => {
-                    (Some(output.0), 2048 * 2 * std::mem::size_of::<f64>())
+                    (Some(output.0), 2048 * 2 * core::mem::size_of::<f64>())
                 }
                 PlanStep::PerceptualHash { output, .. } => (Some(output.0), 64 * 64 * 8),
                 PlanStep::EdgeDetect { output, .. } => (Some(output.0), 0),
@@ -661,7 +664,7 @@ impl ExecutionPlan {
         }
 
         // Each register needs a buffer, add that to total
-        let register_buffers = (max_reg as usize + 1) * 4096 * std::mem::size_of::<f64>();
+        let register_buffers = (max_reg as usize + 1) * 4096 * core::mem::size_of::<f64>();
         max_buffer_size = max_buffer_size.max(register_buffers);
 
         ResourceAllocation {

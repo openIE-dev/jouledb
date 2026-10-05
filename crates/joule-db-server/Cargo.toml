@@ -28,6 +28,8 @@ joule-db-query = { workspace = true, features = ["sql", "cypher", "cql", "graphq
 joule-db-amorphic = { workspace = true, features = ["durable"] }
 joule-db-branch = { workspace = true }
 joule-db-crdt = { workspace = true }
+wgpu = { workspace = true }
+pollster = { workspace = true }
 joule-db-viz = { workspace = true, optional = true }
 
 # Async runtime
@@ -121,6 +123,10 @@ libc = { workspace = true }
 
 # Energy profiling (always-on — hardware auto-detection)
 joule-db-energy = { workspace = true }
+joule-db-gpu = { workspace = true }
+joule-runtime = { workspace = true }
+joule-metal-rt = { workspace = true }
+joule-ane-rt = { workspace = true }
 
 # Energy receipt ledger (blockchain-anchored attestation)
 joule-db-ledger = { workspace = true, features = ["http"] }

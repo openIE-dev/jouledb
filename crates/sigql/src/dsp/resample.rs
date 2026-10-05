@@ -1,8 +1,11 @@
 //! Resampling operations
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::{DspOperation, DspResult};
 use crate::types::{DynSignal, SampleRate};
-use std::f64::consts::PI;
+use core::f64::consts::PI;
 
 /// Resampling method
 #[derive(Debug, Clone, Copy, Default)]

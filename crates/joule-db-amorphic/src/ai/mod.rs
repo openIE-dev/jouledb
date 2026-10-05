@@ -29,8 +29,10 @@ pub mod ucg;
 pub mod flow_bridge;
 pub mod pattern_bridge;
 pub mod flowqit;
+pub mod backends;
 
 pub use facade::JouleDbAi;
+pub use backends::{CascadeFrontier, CascadeLocal, HdcEmbedded};
 pub use receipt::{AiReceipt, EnergyProvenance, TokenCount};
 pub use tier::{InferenceTier, TierConstraints};
 pub use traits::{

@@ -1,5 +1,8 @@
 //! Statistical operations for signal analysis
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::{DspError, DspResult};
 use crate::types::UncertainValue;
 

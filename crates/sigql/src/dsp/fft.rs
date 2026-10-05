@@ -3,6 +3,10 @@
 use super::{DspError, DspResult};
 use crate::types::{Hertz, SampleRate};
 use num_complex::Complex64;
+#[cfg(not(feature = "std"))]
+use alloc::{format, string::String, vec, vec::Vec};
+
+#[cfg(feature = "std")]
 use rustfft::FftPlanner;
 
 /// FFT operation
@@ -121,16 +125,16 @@ impl Fft {
 
         match self.window {
             WindowType::Rectangular => 1.0,
-            WindowType::Hann => 0.5 * (1.0 - (2.0 * std::f64::consts::PI * x / n).cos()),
-            WindowType::Hamming => 0.54 - 0.46 * (2.0 * std::f64::consts::PI * x / n).cos(),
+            WindowType::Hann => 0.5 * (1.0 - (2.0 * core::f64::consts::PI * x / n).cos()),
+            WindowType::Hamming => 0.54 - 0.46 * (2.0 * core::f64::consts::PI * x / n).cos(),
             WindowType::Blackman => {
-                0.42 - 0.5 * (2.0 * std::f64::consts::PI * x / n).cos()
-                    + 0.08 * (4.0 * std::f64::consts::PI * x / n).cos()
+                0.42 - 0.5 * (2.0 * core::f64::consts::PI * x / n).cos()
+                    + 0.08 * (4.0 * core::f64::consts::PI * x / n).cos()
             }
             WindowType::BlackmanHarris => {
-                0.35875 - 0.48829 * (2.0 * std::f64::consts::PI * x / n).cos()
-                    + 0.14128 * (4.0 * std::f64::consts::PI * x / n).cos()
-                    - 0.01168 * (6.0 * std::f64::consts::PI * x / n).cos()
+                0.35875 - 0.48829 * (2.0 * core::f64::consts::PI * x / n).cos()
+                    + 0.14128 * (4.0 * core::f64::consts::PI * x / n).cos()
+                    - 0.01168 * (6.0 * core::f64::consts::PI * x / n).cos()
             }
             WindowType::Kaiser { beta } => {
                 let alpha = (n - 1.0) / 2.0;
@@ -143,10 +147,10 @@ impl Fft {
                 let a2 = 0.277263158;
                 let a3 = 0.083578947;
                 let a4 = 0.006947368;
-                a0 - a1 * (2.0 * std::f64::consts::PI * x / n).cos()
-                    + a2 * (4.0 * std::f64::consts::PI * x / n).cos()
-                    - a3 * (6.0 * std::f64::consts::PI * x / n).cos()
-                    + a4 * (8.0 * std::f64::consts::PI * x / n).cos()
+                a0 - a1 * (2.0 * core::f64::consts::PI * x / n).cos()
+                    + a2 * (4.0 * core::f64::consts::PI * x / n).cos()
+                    - a3 * (6.0 * core::f64::consts::PI * x / n).cos()
+                    + a4 * (8.0 * core::f64::consts::PI * x / n).cos()
             }
         }
     }
@@ -329,7 +333,7 @@ mod tests {
         let f = 100.0; // 100 Hz sine wave
 
         let signal: Vec<f64> = (0..n)
-            .map(|i| (2.0 * std::f64::consts::PI * f * i as f64 / fs).sin())
+            .map(|i| (2.0 * core::f64::consts::PI * f * i as f64 / fs).sin())
             .collect();
 
         let fft = Fft::new(n).unwrap();

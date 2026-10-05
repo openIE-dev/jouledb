@@ -1,5 +1,8 @@
 //! Cross-signal correlation and coherence operations
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::fft::{Fft, WindowType};
 use super::{DspError, DspResult};
 use crate::types::{SampleRate, UncertainValue};
@@ -326,7 +329,7 @@ fn compute_ranks(signal: &[f64]) -> Vec<f64> {
 mod tests {
     use super::*;
     use approx::assert_relative_eq;
-    use std::f64::consts::PI;
+    use core::f64::consts::PI;
 
     #[test]
     fn test_autocorrelation() {

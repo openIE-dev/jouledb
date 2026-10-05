@@ -2,6 +2,9 @@
 //!
 //! Represents a complete SigQL query with all clauses.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use smol_str::SmolStr;
 
 use super::expr::{

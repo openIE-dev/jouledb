@@ -2,6 +2,9 @@
 //!
 //! Token definitions for the parser.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use smol_str::SmolStr;
 
 /// Token types for SigQL

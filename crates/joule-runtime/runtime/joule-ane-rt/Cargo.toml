@@ -1,0 +1,58 @@
+[package]
+name = "joule-ane-rt"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Apple Neural Engine lane for JouleDB HDC similarity via Core ML (sanctioned path)"
+keywords = ["joule", "coreml", "ane", "hdc", "apple"]
+categories = ["hardware-support"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+thiserror.workspace = true
+half = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "NSArray",
+    "NSDictionary",
+    "NSError",
+    "NSObject",
+    "NSString",
+    "NSURL",
+    "NSValue",
+] }
+objc2-core-ml = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "block2",
+    "MLComputeDeviceProtocol",
+    "MLComputePlan",
+    "MLComputePlanCost",
+    "MLComputePlanDeviceUsage",
+    "MLCPUComputeDevice",
+    "MLDictionaryFeatureProvider",
+    "MLFeatureProvider",
+    "MLFeatureValue",
+    "MLGPUComputeDevice",
+    "MLModel",
+    "MLModelConfiguration",
+    "MLModel_MLModelCompilation",
+    "MLModelStructure",
+    "MLModelStructureProgram",
+    "MLModelStructureProgramBlock",
+    "MLModelStructureProgramFunction",
+    "MLModelStructureProgramNamedValueType",
+    "MLModelStructureProgramOperation",
+    "MLMultiArray",
+    "MLNeuralEngineComputeDevice",
+] }
+
+[lints]
+workspace = true

@@ -62,6 +62,7 @@ use std::str::FromStr;
 
 // Re-exports
 pub use backend::RuntimeBackend;
+pub use accelerator::{AcceleratorDevice, AcceleratorManager, apple_neural_engine_device_for_host, detect_devices};
 pub use manager::RuntimeManager;
 pub use registry::InstanceRegistry;
 

@@ -2,12 +2,17 @@
 //!
 //! Transforms AST into executable plans for various backends.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 pub mod codegen;
 pub mod optimize;
 pub mod plan;
+#[cfg(feature = "simd")]
 pub mod simd_runtime;
 
 pub use plan::*;
+#[cfg(feature = "simd")]
 pub use simd_runtime::{SimdOp, SimdRuntime};
 
 use crate::ast::{

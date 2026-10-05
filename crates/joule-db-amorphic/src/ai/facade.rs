@@ -31,6 +31,7 @@ use super::selector::{self, ComplexityScore, HardwareProfile, TierAvailability};
 use super::tier::{InferenceTier, TierConstraints};
 use super::traits::*;
 use super::ucg::UcgEngine;
+use crate::knowledge::{Materializer, Source};
 use crate::{AmorphicRecord, AmorphicStore, RecordId, Value, DIMENSION};
 
 /// The unified AI interface for JouleDB.
@@ -79,6 +80,8 @@ pub struct JouleDbAi {
     pub ucg: UcgEngine,
     /// flowQIT engine: entropy tracking + axiom 6 dynamics.
     pub qit: FlowQitEngine,
+    /// Deterministic cascade consulted before tier escalation.
+    materializer: Materializer,
 }
 
 impl JouleDbAi {
@@ -99,6 +102,7 @@ impl JouleDbAi {
             flow_reasoner: Box::new(LocalFlowReasoner),
             ucg: UcgEngine::with_default_weights(),
             qit: FlowQitEngine::new(10_000.0), // 10s decoherence
+            materializer: Materializer::new(),
         }
     }
 
@@ -468,13 +472,26 @@ impl JouleDbAi {
     // Internal pipeline stages
     // ====================================================================
 
-    /// Attempt pattern-based deterministic resolution.
-    fn try_pattern_resolution(&self, _query: &str) -> Option<AiResult> {
-        // Pattern bridge requires a PatternResolver trait object.
-        // Without one registered, we skip this stage.
-        // When a resolver is available, this returns deterministic results
-        // at zero LLM cost for known patterns.
-        None
+    /// Attempt pattern-based deterministic resolution via the materializer cascade.
+    ///
+    /// Neural-tier misses (no model weights) return `None` so holographic
+    /// similarity can still run. Verified LUT/arithmetic hits return text.
+    fn try_pattern_resolution(&mut self, query: &str) -> Option<AiResult> {
+        let started = Instant::now();
+        let resolved = self.materializer.materialize(query);
+        if resolved.source == Source::Neural || !resolved.verified || resolved.output.is_empty() {
+            return None;
+        }
+        let receipt = AiReceipt::holographic(
+            &format!("cascade:{:?}", resolved.source),
+            resolved.energy_joules,
+            started.elapsed().as_micros() as u64,
+        );
+        self.record_energy(receipt.energy_joules);
+        Some(AiResult {
+            output: AiOutput::Text(resolved.output),
+            receipt,
+        })
     }
 
     /// Attempt pattern-based resolution with an explicit resolver.
@@ -830,5 +847,18 @@ mod tests {
         // System should be tracking
         let health = ai.health();
         assert!(health.energy_consumed > 0.0);
+    }
+
+    #[test]
+    fn test_facade_cascade_arithmetic_before_similarity() {
+        let mut ai = JouleDbAi::new();
+        let store = AmorphicStore::new();
+        let result = ai
+            .infer("2 + 3", &store, TierConstraints::default())
+            .unwrap();
+        match result.output {
+            AiOutput::Text(text) => assert_eq!(text, "5"),
+            other => panic!("expected cascade text, got {other:?}"),
+        }
     }
 }

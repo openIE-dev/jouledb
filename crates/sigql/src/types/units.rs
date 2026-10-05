@@ -3,6 +3,9 @@
 //! Compile-time enforcement of dimensional correctness.
 //! You cannot add Hz to seconds or confuse amplitude with power.
 
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use core::ops::Add;
 
 /// Hertz - frequency unit

@@ -3,7 +3,13 @@
 //! Optimizes execution plans for performance.
 
 use super::plan::{ExecutionPlan, FirCoeffs, IirCoeffs, PlanStep, RegisterId};
+
+#[cfg(feature = "std")]
 use std::collections::{HashMap, HashSet};
+#[cfg(not(feature = "std"))]
+use alloc::collections::{BTreeMap as HashMap, BTreeSet as HashSet};
+#[cfg(not(feature = "std"))]
+use alloc::{format, string::String, vec, vec::Vec};
 
 /// Optimization passes
 pub enum OptimizationPass {

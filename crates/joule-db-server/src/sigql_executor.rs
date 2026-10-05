@@ -18,6 +18,7 @@ use sigql::compile::Target;
 use sigql::runtime::{OutputValue, Runtime, RuntimeConfig};
 use sigql::types::DynSignal;
 use std::sync::Arc;
+use wgpu::util::DeviceExt;
 use std::time::Instant;
 
 /// Maximum rows returned for signal/spectrum outputs to prevent OOM.
@@ -26,6 +27,47 @@ const MAX_SIGNAL_ROWS: usize = 10_000;
 // ============================================================================
 // Detection
 // ============================================================================
+
+
+/// Choose SigQL codegen target: WebGpu when a wgpu adapter is present, else Simd.
+///
+/// Probe runs once and is cached. Never invents a Metal backend — only WebGpu or Simd.
+fn select_sigql_target() -> Target {
+    if wgpu_adapter_available() {
+        Target::WebGpu
+    } else {
+        Target::Simd
+    }
+}
+
+fn wgpu_adapter_available() -> bool {
+    use std::sync::OnceLock;
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        // Probe on a dedicated thread so we never nest pollster inside a tokio worker.
+        std::thread::spawn(|| {
+            pollster::block_on(async {
+                let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+                    backends: wgpu::Backends::all(),
+                    flags: wgpu::InstanceFlags::default(),
+                    backend_options: wgpu::BackendOptions::default(),
+                    display: None,
+                    memory_budget_thresholds: Default::default(),
+                });
+                instance
+                    .request_adapter(&wgpu::RequestAdapterOptions {
+                        power_preference: wgpu::PowerPreference::HighPerformance,
+                        compatible_surface: None,
+                        force_fallback_adapter: false,
+                    })
+                    .await
+                    .is_ok()
+            })
+        })
+        .join()
+        .unwrap_or(false)
+    })
+}
 
 /// Detect whether a query string is SigQL rather than SQL.
 ///
@@ -103,7 +145,28 @@ pub fn execute_sigql(
     let query = sigql::parse(sql)
         .map_err(|e| QueryErrorResponse::syntax_error(&format!("SigQL: {}", e), 1, 1))?;
 
-    // 2. Compile
+    // 2. Compile — prefer WebGPU when a wgpu adapter is available, else SIMD.
+    //    WebGPU must actually dispatch the generated WGSL. On any failure the
+    //    Simd runtime still runs.
+    let target = select_sigql_target();
+    let mut gpu_note: Option<String> = None;
+    if target == Target::WebGpu {
+        match try_execute_webgpu(&query, amorphic) {
+            Ok(samples) => {
+                let mut response = webgpu_samples_response(&samples, start);
+                response.warnings.push(
+                    "SigQL plan executed on the wgpu adapter from generated WGSL".into(),
+                );
+                return Ok(response);
+            }
+            Err(reason) => {
+                gpu_note = Some(format!(
+                    "WebGpu plan did not execute ({reason}); fell back to Simd"
+                ));
+            }
+        }
+    }
+
     let plan = sigql::compile(&query, Target::Simd)
         .map_err(|e| QueryErrorResponse::execution_error(&format!("SigQL compile: {}", e)))?;
 
@@ -111,13 +174,309 @@ pub fn execute_sigql(
     let mut runtime = Runtime::new(RuntimeConfig::default());
     register_sources_from_storage(&query, &mut runtime, amorphic)?;
 
-    // 4. Execute
+    // 4. Execute on the CPU DSP / Simd runtime
     let result = runtime
         .execute(&plan)
         .map_err(|e| QueryErrorResponse::execution_error(&format!("SigQL runtime: {}", e)))?;
 
     // 5. Map results to QueryResponse
-    map_result_to_response(result, start)
+    let mut response = map_result_to_response(result, start)?;
+    response.device_target = Some("cpu".into());
+    if let Some(note) = gpu_note {
+        response.warnings.push(note);
+    } else if target == Target::Simd {
+        response
+            .warnings
+            .push("SigQL target Simd; no wgpu adapter".into());
+    }
+    Ok(response)
+}
+
+fn webgpu_samples_response(samples: &[f64], start: Instant) -> QueryResponse {
+    let mut rows = Vec::new();
+    let limit = samples.len().min(MAX_SIGNAL_ROWS);
+    for (i, sample) in samples.iter().take(limit).enumerate() {
+        rows.push(vec![
+            serde_json::json!(i),
+            serde_json::json!(sample),
+        ]);
+    }
+    QueryResponse {
+        columns: vec!["sample_index".into(), "value".into()],
+        rows,
+        affected_rows: None,
+        execution_time_ms: start.elapsed().as_millis() as u64,
+        truncated: samples.len() > MAX_SIGNAL_ROWS,
+        warnings: Vec::new(),
+        energy_joules: None,
+        power_watts: None,
+        device_target: Some("webgpu".into()),
+        algorithm_type: Some("sigql".into()),
+        session_id: None,
+        viz_hint: None,
+    }
+}
+
+/// Compile the plan to WGSL and dispatch it. Errors mean the caller must use Simd.
+fn try_execute_webgpu(
+    query: &sigql::Query,
+    amorphic: &Arc<AmorphicTableStorage>,
+) -> Result<Vec<f64>, String> {
+    let plan = sigql::compile(query, Target::WebGpu).map_err(|e| e.to_string())?;
+    let generated = sigql::compile::codegen::generate(&plan, Target::WebGpu).map_err(|e| e.to_string())?;
+    let sigql::compile::codegen::GeneratedCode::WebGpu(code) = generated else {
+        return Err("codegen did not produce WebGpu shader".into());
+    };
+    let samples = collect_samples(query, amorphic)?;
+    if samples.is_empty() {
+        return Err("no signal samples in storage".into());
+    }
+    dispatch_wgsl(&code.wgsl, &code.bindings, code.workgroup_size, &samples)
+}
+
+fn collect_samples(
+    query: &sigql::Query,
+    amorphic: &Arc<AmorphicTableStorage>,
+) -> Result<Vec<f64>, String> {
+    let mut samples = Vec::new();
+    for from in &query.from {
+        let source_name = match from {
+            FromClause::Signal(source_ref) => source_ref.path.to_string(),
+            FromClause::Table { name, .. } => name.to_string(),
+            _ => continue,
+        };
+        let table_name = source_name.replace('.', "_");
+        let tables = amorphic.list_tables();
+        if !tables.contains(&table_name) {
+            continue;
+        }
+        let scan = amorphic.scan(&table_name).map_err(|e| e.to_string())?;
+        for row in scan {
+            if let Some(value) = row.get("value").and_then(value_to_f64) {
+                samples.push(value);
+            } else if let Some(value) = row.values.first().and_then(value_to_f64) {
+                samples.push(value);
+            }
+        }
+    }
+    Ok(samples)
+}
+
+fn dispatch_wgsl(
+    wgsl: &str,
+    bindings: &[sigql::compile::codegen::BindingDescriptor],
+    workgroup_size: (u32, u32, u32),
+    samples: &[f64],
+) -> Result<Vec<f64>, String> {
+    let wgsl = wgsl.to_string();
+    let binding_kinds: Vec<sigql::compile::codegen::BufferType> =
+        bindings.iter().map(|b| b.buffer_type).collect();
+    let samples = samples.to_vec();
+    std::thread::spawn(move || {
+        pollster::block_on(async move {
+            let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+                backends: wgpu::Backends::all(),
+                flags: wgpu::InstanceFlags::default(),
+                backend_options: wgpu::BackendOptions::default(),
+                display: None,
+                memory_budget_thresholds: Default::default(),
+            });
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: None,
+                    force_fallback_adapter: false,
+                })
+                .await
+                .map_err(|e| format!("no wgpu adapter: {e:?}"))?;
+            let (device, queue) = adapter
+                .request_device(&wgpu::DeviceDescriptor {
+                    label: Some("sigql-webgpu"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                    memory_hints: Default::default(),
+                    trace: wgpu::Trace::default(),
+                    experimental_features: wgpu::ExperimentalFeatures::default(),
+                })
+                .await
+                .map_err(|e| e.to_string())?;
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("sigql-wgsl"),
+                source: wgpu::ShaderSource::Wgsl(wgsl.into()),
+            });
+            let mut entries = Vec::new();
+            for (i, kind) in binding_kinds.iter().enumerate() {
+                let ty = match kind {
+                    sigql::compile::codegen::BufferType::Uniform => wgpu::BufferBindingType::Uniform,
+                    sigql::compile::codegen::BufferType::ReadOnlyStorage => {
+                        wgpu::BufferBindingType::Storage { read_only: true }
+                    }
+                    sigql::compile::codegen::BufferType::Storage => {
+                        wgpu::BufferBindingType::Storage { read_only: false }
+                    }
+                };
+                entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                });
+            }
+            let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("sigql-bgl"),
+                entries: &entries,
+            });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sigql-pl"),
+                bind_group_layouts: &[Some(&layout)],
+                immediate_size: 0,
+            });
+            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("sigql-pipe"),
+                layout: Some(&pipeline_layout),
+                module: &module,
+                entry_point: Some("main"),
+                cache: None,
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            });
+            let n = samples.len().max(1);
+            let input_bytes: Vec<u8> = samples
+                .iter()
+                .map(|v| (*v as f32).to_le_bytes())
+                .flatten()
+                .collect();
+            let input = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("sigql-in"),
+                contents: &input_bytes,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            });
+            let out_size = (n * 4) as u64;
+            let mut storage_buffers = Vec::new();
+            let mut params_buf = None;
+            let mut output_index = None;
+            for (i, kind) in binding_kinds.iter().enumerate() {
+                match kind {
+                    sigql::compile::codegen::BufferType::ReadOnlyStorage => {}
+                    sigql::compile::codegen::BufferType::Storage => {
+                        let buf = device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("sigql-store"),
+                            size: out_size.max(4),
+                            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                            mapped_at_creation: false,
+                        });
+                        if output_index.is_none() {
+                            output_index = Some(storage_buffers.len());
+                        }
+                        storage_buffers.push(buf);
+                    }
+                    sigql::compile::codegen::BufferType::Uniform => {
+                        let params = [
+                            n as u32,
+                            1000f32.to_bits(),
+                            n.next_power_of_two() as u32,
+                            0u32,
+                        ];
+                        let mut bytes = Vec::new();
+                        for word in params {
+                            bytes.extend_from_slice(&word.to_le_bytes());
+                        }
+                        params_buf = Some(device.create_buffer_init(
+                            &wgpu::util::BufferInitDescriptor {
+                                label: Some("sigql-params"),
+                                contents: &bytes,
+                                usage: wgpu::BufferUsages::UNIFORM,
+                            },
+                        ));
+                    }
+                }
+                let _ = i;
+            }
+            let mut bind_entries = Vec::new();
+            let mut storage_cursor = 0usize;
+            for (i, kind) in binding_kinds.iter().enumerate() {
+                let resource = match kind {
+                    sigql::compile::codegen::BufferType::ReadOnlyStorage => {
+                        input.as_entire_binding()
+                    }
+                    sigql::compile::codegen::BufferType::Storage => {
+                        let buf = storage_buffers.get(storage_cursor).ok_or("missing storage")?;
+                        storage_cursor += 1;
+                        buf.as_entire_binding()
+                    }
+                    sigql::compile::codegen::BufferType::Uniform => params_buf
+                        .as_ref()
+                        .ok_or("missing params")?
+                        .as_entire_binding(),
+                };
+                bind_entries.push(wgpu::BindGroupEntry {
+                    binding: i as u32,
+                    resource,
+                });
+            }
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("sigql-bg"),
+                layout: &layout,
+                entries: &bind_entries,
+            });
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("sigql-enc"),
+            });
+            {
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("sigql-pass"),
+                    timestamp_writes: None,
+                });
+                pass.set_pipeline(&pipeline);
+                pass.set_bind_group(0, &bind_group, &[]);
+                let wg = workgroup_size.0.max(1);
+                let groups = ((n as u32) + wg - 1) / wg;
+                pass.dispatch_workgroups(groups.max(1), 1, 1);
+            }
+            let out_buf = output_index
+                .and_then(|idx| storage_buffers.get(idx))
+                .ok_or("shader has no storage output")?;
+            let staging = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sigql-stage"),
+                size: out_size,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            encoder.copy_buffer_to_buffer(out_buf, 0, &staging, 0, out_size);
+            queue.submit(std::iter::once(encoder.finish()));
+            let slice = staging.slice(..);
+            let (tx, rx) = std::sync::mpsc::channel();
+            slice.map_async(wgpu::MapMode::Read, move |r| {
+                let _ = tx.send(r);
+            });
+            let _ = device.poll(wgpu::PollType::wait_indefinitely());
+            rx.recv()
+                .map_err(|_| "map channel closed".to_string())?
+                .map_err(|e| format!("map failed: {e:?}"))?;
+            let data = slice.get_mapped_range().to_vec();
+            drop(data.clone());
+            let copied = slice.get_mapped_range().to_vec();
+            staging.unmap();
+            let mut out = Vec::with_capacity(n);
+            for chunk in copied.chunks_exact(4) {
+                let arr: [u8; 4] = chunk.try_into().unwrap();
+                let v = f32::from_le_bytes(arr) as f64;
+                if !v.is_finite() {
+                    return Err("webgpu output was non-finite".into());
+                }
+                out.push(v);
+            }
+            if out.is_empty() {
+                return Err("webgpu output was empty".into());
+            }
+            Ok(out)
+        })
+    })
+    .join()
+    .map_err(|_| "webgpu thread panicked".to_string())?
 }
 
 /// Extract signal source names from the parsed query's FROM clauses
@@ -223,13 +582,23 @@ fn map_result_to_response(
     start: Instant,
 ) -> Result<QueryResponse, QueryErrorResponse> {
     if result.outputs.is_empty() {
+        // No named outputs: report the runtime's execution stats instead of
+        // a hardcoded success token.
         return Ok(QueryResponse {
-            columns: vec!["result".into()],
-            rows: vec![vec![serde_json::json!("OK")]],
+            columns: vec![
+                "samples_processed".into(),
+                "execution_time_ns".into(),
+                "memory_used".into(),
+            ],
+            rows: vec![vec![
+                serde_json::json!(result.stats.samples_processed),
+                serde_json::json!(result.stats.execution_time_ns),
+                serde_json::json!(result.stats.memory_used),
+            ]],
             affected_rows: None,
             execution_time_ms: start.elapsed().as_millis() as u64,
             truncated: false,
-            warnings: Vec::new(),
+            warnings: vec!["sigql plan produced no named outputs".into()],
             energy_joules: None,
             power_watts: None,
             device_target: None,
@@ -533,6 +902,16 @@ fn map_mixed(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn select_sigql_target_is_simd_or_webgpu() {
+        let t = super::select_sigql_target();
+        assert!(
+            matches!(t, Target::Simd | Target::WebGpu),
+            "unexpected target: {:?}",
+            t
+        );
+    }
+
     use super::*;
 
     // -- Detection tests --
