@@ -107,4 +107,4 @@ jobs:
         run: cargo test -p joule-ane-rt -- --nocapture
 
       - name: joule-db-server fabric tests
-        run: cargo test -p joule-db-server --lib fabric:: -- --nocapture
+        run: "cargo test -p joule-db-server --lib fabric:: -- --nocapture"
