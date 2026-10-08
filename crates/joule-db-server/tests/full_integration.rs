@@ -271,7 +271,7 @@ mod subscription_tests {
         let manager = Arc::new(SubscriptionManager::new());
 
         // Subscribe to user changes
-        let (sub_id, mut receiver) = manager.subscribe("users:*").await;
+        let (sub_id, mut receiver) = manager.subscribe("users:*").await.unwrap();
 
         // Simulate database operations
         manager.notify_insert("users:1", b"Alice").await;
@@ -313,9 +313,9 @@ mod subscription_tests {
     async fn test_multiple_subscribers_different_patterns() {
         let manager = Arc::new(SubscriptionManager::new());
 
-        let (_, mut user_rx) = manager.subscribe("users:*").await;
-        let (_, mut order_rx) = manager.subscribe("orders:*").await;
-        let (_, mut all_rx) = manager.subscribe("*").await;
+        let (_, mut user_rx) = manager.subscribe("users:*").await.unwrap();
+        let (_, mut order_rx) = manager.subscribe("orders:*").await.unwrap();
+        let (_, mut all_rx) = manager.subscribe("*").await.unwrap();
 
         // User event
         manager.notify_insert("users:1", b"Alice").await;
@@ -346,7 +346,7 @@ mod subscription_tests {
     #[tokio::test]
     async fn test_high_volume_notifications() {
         let manager = Arc::new(SubscriptionManager::new());
-        let (_, mut receiver) = manager.subscribe("*").await;
+        let (_, mut receiver) = manager.subscribe("*").await.unwrap();
 
         // Send many events
         for i in 0..1000i32 {
@@ -607,7 +607,7 @@ mod concurrency_tests {
             let mgr = manager.clone();
             handles.push(tokio::spawn(async move {
                 let pattern = format!("topic:{}:*", i);
-                let (id, mut rx) = mgr.subscribe(&pattern).await;
+                let (id, mut rx) = mgr.subscribe(&pattern).await.unwrap();
 
                 // Wait for potential events
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;

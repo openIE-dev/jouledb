@@ -382,14 +382,19 @@ fn test_query_response_has_energy_fields() {
     exec(&executor, "CREATE TABLE energy_test (id INT)");
     let resp = exec(&executor, "SELECT * FROM energy_test");
 
-    // Without energy feature, fields should be None
-    assert!(resp.energy_joules.is_none());
-    assert!(resp.power_watts.is_none());
+    // Every query carries an energy receipt from the fabric
+    // (`fabric::attach_receipt`): energy is reported, never withheld.
+    let joules = resp.energy_joules.expect("energy_joules on every response");
+    assert!(joules.is_finite() && joules >= 0.0, "joules={joules}");
+    let watts = resp.power_watts.expect("power_watts on every response");
+    assert!(watts.is_finite() && watts >= 0.0, "watts={watts}");
+    let device = resp.device_target.as_deref().expect("device_target on every response");
+    assert!(matches!(device, "cpu" | "gpu" | "npu" | "tpu" | "lpu"), "device={device}");
 
-    // Verify the fields serialize correctly (skip_serializing_if = None)
+    // The receipt fields serialize alongside the rows.
     let json = serde_json::to_value(&resp).unwrap();
-    assert!(!json.as_object().unwrap().contains_key("energy_joules"));
-    assert!(!json.as_object().unwrap().contains_key("power_watts"));
+    assert!(json.as_object().unwrap().contains_key("energy_joules"));
+    assert!(json.as_object().unwrap().contains_key("power_watts"));
 }
 
 // ─── Server creation test ─────────────────────────────────────────────────

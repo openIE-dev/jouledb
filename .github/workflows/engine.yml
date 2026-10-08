@@ -1,0 +1,110 @@
+name: Engine
+
+# Builds and tests the JouleDB engine (the Cargo workspace). ci.yml and
+# quality.yml keep checking the release surface and the crates.io stub.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: engine-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # No debuginfo: the workspace test build otherwise needs more RAM and disk
+  # than a hosted runner has. Backtraces still name functions.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  RUST_BACKTRACE: 1
+  # Matches `rust-version` in the workspace Cargo.toml.
+  RUST_TOOLCHAIN: 1.94.1
+
+jobs:
+  linux:
+    name: Linux (check, test, no_std)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: engine-linux
+
+      # Cargo.lock is gitignored, so each run resolves the newest compatible
+      # versions (resolver 3 honours rust-version).
+      - name: Resolve dependencies
+        run: cargo generate-lockfile
+
+      - name: cargo check (workspace, all targets)
+        run: cargo check --workspace --all-targets
+
+      - name: cargo test (workspace)
+        run: cargo test --workspace --no-fail-fast
+
+      - name: SigQL no_std typecheck
+        run: cargo check -p sigql --no-default-features --features no_std
+
+      - name: Windows typecheck (joule-energy-rt)
+        run: |
+          rustup target add x86_64-pc-windows-gnu --toolchain "$RUST_TOOLCHAIN"
+          cargo check -p joule-energy-rt --target x86_64-pc-windows-gnu
+
+      # Not blocking yet: the existing tree has clippy findings. Shown so new
+      # code does not add more; make it blocking once the backlog is cleared.
+      - name: cargo clippy (non-blocking)
+        continue-on-error: true
+        run: cargo clippy --workspace --all-targets
+
+  macos:
+    name: macOS arm64 (Metal, Core ML, fabric)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: engine-macos
+
+      # Hosted macOS runners are VMs: the GPU is paravirtualized and Core ML
+      # may place nothing on the Neural Engine. Tests check that receipts name
+      # the processor that really ran; they never assert ANE placement. On a
+      # real Mac, JOULE_REQUIRE_HW=1 turns hardware skips into failures.
+      - name: Host
+        run: |
+          sw_vers
+          uname -m
+          sysctl -n machdep.cpu.brand_string
+          system_profiler SPDisplaysDataType || true
+
+      - name: joule-metal-rt tests
+        run: cargo test -p joule-metal-rt -- --nocapture
+
+      - name: joule-ane-rt tests
+        run: cargo test -p joule-ane-rt -- --nocapture
+
+      - name: joule-db-server fabric tests
+        run: cargo test -p joule-db-server --lib fabric:: -- --nocapture

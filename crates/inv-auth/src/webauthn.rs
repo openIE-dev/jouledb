@@ -503,7 +503,7 @@ mod tests {
         use p256::ecdsa::{SigningKey, signature::Signer};
 
         // Generate a P-256 keypair
-        let signing_key = SigningKey::random(&mut rand::rng());
+        let signing_key = SigningKey::random(&mut rand_core_06::OsRng);
         let verifying_key = signing_key.verifying_key();
 
         // Uncompressed P-256 public key (65 bytes: 0x04 || x || y)
@@ -534,8 +534,8 @@ mod tests {
     fn verify_es256_wrong_key() {
         use p256::ecdsa::{SigningKey, signature::Signer};
 
-        let signing_key = SigningKey::random(&mut rand::rng());
-        let wrong_key = SigningKey::random(&mut rand::rng());
+        let signing_key = SigningKey::random(&mut rand_core_06::OsRng);
+        let wrong_key = SigningKey::random(&mut rand_core_06::OsRng);
 
         let auth_data = vec![0u8; 37];
         let client_data_hash: [u8; 32] = Sha256::digest(b"test").into();
@@ -560,7 +560,7 @@ mod tests {
         use rsa::pkcs1v15::Pkcs1v15Sign;
 
         // Generate a 2048-bit RSA keypair
-        let mut rng = rand::rng();
+        let mut rng = rand_core_06::OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
         let public_key = private_key.to_public_key();
         let public_key_der = public_key.to_pkcs1_der().unwrap();
@@ -591,7 +591,7 @@ mod tests {
     fn verify_assertion_es256_full_flow() {
         use p256::ecdsa::{SigningKey, signature::Signer};
 
-        let signing_key = SigningKey::random(&mut rand::rng());
+        let signing_key = SigningKey::random(&mut rand_core_06::OsRng);
         let verifying_key = signing_key.verifying_key();
 
         let rp_id = "invisible.dev";

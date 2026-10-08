@@ -396,17 +396,11 @@ impl LshProjections {
 }
 
 /// Global LSH projections (initialized lazily)
-static mut LSH_PROJECTIONS: Option<LshProjections> = None;
-static LSH_INIT: std::sync::Once = std::sync::Once::new();
+static LSH_PROJECTIONS: std::sync::OnceLock<LshProjections> = std::sync::OnceLock::new();
 
 fn get_lsh_projections(input_dim: usize) -> &'static LshProjections {
-    unsafe {
-        LSH_INIT.call_once(|| {
-            // Use 1024 bits (16 x u64) for better recall
-            LSH_PROJECTIONS = Some(LshProjections::new(input_dim, 1024));
-        });
-        LSH_PROJECTIONS.as_ref().unwrap()
-    }
+    // Use 1024 bits (16 x u64) for better recall
+    LSH_PROJECTIONS.get_or_init(|| LshProjections::new(input_dim, 1024))
 }
 
 /// Build HDC index from base vectors using LSH

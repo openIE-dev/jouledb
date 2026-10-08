@@ -304,6 +304,7 @@ mod tests {
             qid: format!("q_{}", id),
             tenant_id: "default".to_string(),
             workload_tag: None,
+            branch_id: None,
             energy_joules_total: energy,
             energy_joules_by_stage: HashMap::new(),
             kwh: energy / 3_600_000.0,

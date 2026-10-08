@@ -170,6 +170,7 @@ mod tests {
             qid: "q1".to_string(),
             tenant_id: "tenant1".to_string(),
             workload_tag: Some("oltp".to_string()),
+            branch_id: None,
             energy_joules_total: 0.005,
             energy_joules_by_stage: HashMap::new(),
             kwh: 0.005 / 3_600_000.0,

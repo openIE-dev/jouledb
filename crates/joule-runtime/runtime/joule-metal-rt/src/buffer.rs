@@ -376,7 +376,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_buffer_create_write_read() {
-        let device = crate::MetalDevice::system_default().unwrap();
+        let Some(device) = crate::device_or_skip("test_buffer_create_write_read") else { return };
         let mut buffer = device
             .create_buffer(256, BufferUsage::Shared)
             .unwrap();

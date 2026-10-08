@@ -281,8 +281,10 @@ mod tests {
     use super::*;
 
     fn test_keypair() -> (VcIssuer, ed25519_dalek::VerifyingKey) {
-        let mut rng = rand::rng();
-        let signing_key = ed25519_dalek::SigningKey::generate(&mut rng);
+        // ed25519-dalek 2 uses rand_core 0.6, which the workspace `rand`
+        // (0.10) no longer implements; seed from rand's CSPRNG directly.
+        let seed: [u8; 32] = rand::random();
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&seed);
         let verifying_key = signing_key.verifying_key();
         let issuer =
             VcIssuer::from_signing_key("did:webvh:example.com:issuer1".into(), signing_key);

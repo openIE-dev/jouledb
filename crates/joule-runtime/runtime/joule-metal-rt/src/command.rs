@@ -470,7 +470,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_command_queue_and_buffer() {
-        let device = crate::MetalDevice::system_default().unwrap();
+        let Some(device) = crate::device_or_skip("test_command_queue_and_buffer") else { return };
         let queue = device.create_command_queue().unwrap();
         let cmd_buf = queue.create_command_buffer().unwrap();
         assert_eq!(cmd_buf.status(), CommandBufferStatus::NotEnqueued);

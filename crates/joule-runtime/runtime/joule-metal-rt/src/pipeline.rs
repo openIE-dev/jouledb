@@ -318,7 +318,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_library_from_source() {
-        let device = crate::MetalDevice::system_default().unwrap();
+        let Some(device) = crate::device_or_skip("test_library_from_source") else { return };
         let source = r#"
             #include <metal_stdlib>
             using namespace metal;

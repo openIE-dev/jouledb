@@ -71,6 +71,38 @@ pub use reduce::{
 };
 pub use sync::{MetalEvent, MetalFence, MetalSharedEvent};
 
+/// Environment variable that marks a host as real Apple-silicon hardware.
+///
+/// With `JOULE_REQUIRE_HW=1`, tests that need a Metal GPU (or the Core ML /
+/// Neural Engine lane) fail when it is missing. Without it they print a
+/// `SKIP` line and return, which is what virtualized CI runners need. Value
+/// checks never change: whenever a kernel runs, its result is compared with
+/// the CPU reference exactly as before.
+pub const REQUIRE_HW_ENV: &str = "JOULE_REQUIRE_HW";
+
+/// `true` when [`REQUIRE_HW_ENV`] is set to `1` or `true`.
+pub fn hardware_required() -> bool {
+    std::env::var(REQUIRE_HW_ENV)
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+/// The system Metal device for a hardware test, or `None` after printing
+/// `SKIP <test>: ...` when there is no device. Panics instead of skipping
+/// when [`hardware_required`] is set.
+pub fn device_or_skip(test: &str) -> Option<MetalDevice> {
+    match MetalDevice::system_default() {
+        Ok(device) => Some(device),
+        Err(e) if hardware_required() => {
+            panic!("{test}: {REQUIRE_HW_ENV}=1 but no Metal device: {e}")
+        }
+        Err(e) => {
+            println!("SKIP {test}: no Metal device ({e}); set {REQUIRE_HW_ENV}=1 to fail instead");
+            None
+        }
+    }
+}
+
 /// Grid size for kernel dispatch (width, height, depth)
 pub type GridSize = (u32, u32, u32);
 

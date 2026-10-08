@@ -1476,15 +1476,38 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn live_mac_scan_runs_on_metal_gpu_and_matches_cpu() {
+        // A real Mac always has the Metal lane. A virtualized runner may not;
+        // there the receipt must name the processor that actually ran.
+        let metal_lane = live_profile().gpu == Some(GpuLane::Metal);
+        if !metal_lane {
+            assert!(
+                !joule_metal_rt::hardware_required(),
+                "{}=1 but the live profile has no Metal lane",
+                joule_metal_rt::REQUIRE_HW_ENV
+            );
+            println!("live scan: no Metal lane on this host; checking the fallback receipt instead");
+        }
         for n in [1usize, 255, 256, 257, 4096, 100_003] {
             let values: Vec<f64> = (0..n).map(|i| ((i * 2_654_435_761usize) % 5 + 1) as f64).collect();
             let receipt = dispatch_sum(&values, AlgorithmType::Scan, false);
             let cpu = cpu_sum(&values).expect("cpu sum");
             println!("live scan n={n}: cpu={cpu} {}", receipt.line());
-            assert_eq!(receipt.requested_device, "gpu");
-            assert_eq!(receipt.device, "gpu");
-            assert_eq!(receipt.backend, "metal");
             assert_eq!(receipt.value, cpu, "integer-valued sums are exact in f32 below 2^24");
+            assert_processor(&receipt.requested_device);
+            assert_processor(&receipt.device);
+            assert_processor(&receipt.fallback);
+            if metal_lane {
+                assert_eq!(receipt.requested_device, "gpu");
+                assert_eq!(receipt.device, "gpu");
+                assert_eq!(receipt.backend, "metal");
+            } else {
+                assert_ne!(receipt.backend, "metal", "no Metal lane, so Metal cannot be claimed");
+                match receipt.backend.as_str() {
+                    "wgpu" => assert_eq!(receipt.device, "gpu"),
+                    "cpu" => assert_eq!(receipt.device, "cpu"),
+                    other => panic!("unexpected backend {other:?}"),
+                }
+            }
         }
     }
 
@@ -1492,6 +1515,14 @@ mod tests {
     #[test]
     fn live_mac_profile_has_the_coreml_lane() {
         let host = live_profile();
+        if !kind_on(&host, AcceleratorKind::NPU) && !joule_metal_rt::hardware_required() {
+            println!(
+                "SKIP live_mac_profile_has_the_coreml_lane: no Neural Engine detected on this host; set {}=1 to fail instead",
+                joule_metal_rt::REQUIRE_HW_ENV
+            );
+            assert_eq!(host.ane, None, "no NPU detected, so no Core ML lane may be claimed");
+            return;
+        }
         assert_eq!(host.ane, Some(AneLane::Live), "macOS aarch64 with an ANE gets the Core ML lane");
         assert_eq!(host.ane_min_work, ANE_MIN_WORK);
     }
@@ -1627,6 +1658,12 @@ mod tests {
         let vectors = |count: usize, d: usize, seed: u64| -> Vec<BinaryHyperVector> {
             (0..count).map(|i| BinaryHyperVector::random(d, seed + i as u64)).collect()
         };
+        // Real Macs have both lanes. A virtualized runner may lack either;
+        // then the receipts must say what actually ran instead.
+        let host = live_profile();
+        let npu_detected = kind_on(&host, AcceleratorKind::NPU);
+        let metal_lane = host.gpu == Some(GpuLane::Metal);
+        let ane_lane = host.ane.is_some();
         let check = |label: &str, q: &[BinaryHyperVector], m: &[BinaryHyperVector]| -> HdcDispatch {
             let out = dispatch_hdc_hamming(q, m, false).expect("dispatch");
             let k = m.len();
@@ -1639,19 +1676,50 @@ mod tests {
             }
             println!("  receipt: {}", out.receipt.line());
             assert!(exact);
-            assert_eq!(out.receipt.requested_device, "npu");
+            assert_processor(&out.receipt.requested_device);
+            assert_processor(&out.receipt.device);
+            assert_processor(&out.receipt.fallback);
+            if npu_detected {
+                assert_eq!(out.receipt.requested_device, "npu");
+            }
             out
         };
 
+        if !(metal_lane && ane_lane) {
+            assert!(
+                !joule_metal_rt::hardware_required(),
+                "{}=1 but the live profile lacks a lane: metal={metal_lane} coreml={ane_lane}",
+                joule_metal_rt::REQUIRE_HW_ENV
+            );
+            println!("live hdc: metal_lane={metal_lane} coreml_lane={ane_lane}; checking fallback receipts");
+        }
+
         let small = check("small", &vectors(8, 1024, 11_000), &vectors(64, 1024, 12_000));
-        assert_eq!(small.receipt.route_reason, "below_ane_threshold");
         assert!(small.receipt.placement.is_none(), "small jobs never invoke Core ML");
-        assert_eq!(small.receipt.backend, "metal");
+        if ane_lane {
+            assert_eq!(small.receipt.route_reason, "below_ane_threshold");
+        }
+        if metal_lane {
+            assert_eq!(small.receipt.backend, "metal");
+        } else {
+            assert_eq!(small.receipt.backend, "cpu");
+            assert_eq!(small.receipt.device, "cpu");
+        }
 
         let q = vectors(64, 2048, 21_000);
         let m = vectors(1024, 2048, 22_000);
         let first = check("large_first", &q, &m);
         let second = check("large_second", &q, &m);
+        if !ane_lane {
+            assert!(
+                !first.receipt.route_reason.starts_with("ane_"),
+                "no Core ML lane, so no ANE route: {}",
+                first.receipt.route_reason
+            );
+            assert!(first.receipt.placement.is_none(), "no Core ML lane, so no placement");
+            assert_ne!(first.receipt.backend, "coreml-ane");
+            return;
+        }
         assert!(first.receipt.placement.is_some());
         assert!(first.receipt.setup_ms.is_some(), "first large call loads the model");
         assert!(second.receipt.setup_ms.is_none(), "second call reuses the loaded model");

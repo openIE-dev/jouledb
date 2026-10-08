@@ -402,6 +402,7 @@ impl SimpleQueryExecutor {
     /// all committed data.
     ///
     /// ```no_run
+    /// use joule_db_server::query::SimpleQueryExecutor;
     /// let db = SimpleQueryExecutor::open("./my_database");
     /// ```
     pub fn open(path: impl AsRef<std::path::Path>) -> Self {

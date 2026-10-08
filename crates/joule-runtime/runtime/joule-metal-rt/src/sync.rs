@@ -376,7 +376,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_fence_creation() {
-        let device = MetalDevice::system_default().unwrap();
+        let Some(device) = crate::device_or_skip("test_fence_creation") else { return };
         let fence = MetalFence::new(&device);
         assert!(fence.is_ok());
     }
@@ -384,7 +384,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_event_creation_and_signal() {
-        let device = MetalDevice::system_default().unwrap();
+        let Some(device) = crate::device_or_skip("test_event_creation_and_signal") else { return };
         let event = MetalEvent::new(&device).unwrap();
         assert!(!event.is_signaled());
         event.signal();
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_shared_event_creation() {
-        let device = MetalDevice::system_default().unwrap();
+        let Some(device) = crate::device_or_skip("test_shared_event_creation") else { return };
         let event = MetalSharedEvent::new(&device).unwrap();
         assert_eq!(event.signaled_value(), 0);
         event.signal(42);

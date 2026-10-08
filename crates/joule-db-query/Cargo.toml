@@ -18,6 +18,9 @@ chrono = { workspace = true }
 base64 = { workspace = true }
 sha2 = { workspace = true }
 md-5 = "0.10"
+# Grows the stack on the heap during deep expression recursion so nesting
+# up to MAX_EXPRESSION_DEPTH can never overflow a small thread stack.
+stacker = "0.1"
 
 # HDC domain encoding (optional — enables HDC_ENCODE, HDC_SIMILARITY, etc. SQL functions)
 joule-db-hdc = { workspace = true, features = ["hyperdimensional"], optional = true }

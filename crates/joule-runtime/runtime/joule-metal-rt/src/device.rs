@@ -516,10 +516,10 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_system_default_succeeds_on_macos() {
-        // On macOS, Metal should be available.
-        let device = MetalDevice::system_default();
-        assert!(device.is_ok(), "Metal device should be available on macOS");
-        let device = device.unwrap();
+        // Real Macs always have a Metal device; virtualized runners may not.
+        let Some(device) = crate::device_or_skip("test_system_default_succeeds_on_macos") else {
+            return;
+        };
         assert!(!device.name().is_empty());
         assert!(device.max_buffer_length() > 0);
         assert!(device.max_threads_per_threadgroup() > 0);
@@ -528,6 +528,9 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_all_devices_succeeds_on_macos() {
+        if crate::device_or_skip("test_all_devices_succeeds_on_macos").is_none() {
+            return;
+        }
         let devices = MetalDevice::all_devices();
         assert!(devices.is_ok());
         let devices = devices.unwrap();

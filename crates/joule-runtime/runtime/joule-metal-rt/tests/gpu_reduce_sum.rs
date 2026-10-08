@@ -45,7 +45,9 @@ fn cpu_reference(values: &[f64]) -> (f64, f64) {
 #[cfg(target_os = "macos")]
 #[test]
 fn fabric_reduce_sum_on_gpu_matches_cpu_reference() {
-    let device = joule_metal_rt::MetalDevice::system_default().expect("Metal device");
+    let Some(device) = joule_metal_rt::device_or_skip("fabric_reduce_sum_on_gpu_matches_cpu_reference") else {
+        return;
+    };
     println!("metal device: {}", device.name());
     let mut failures = Vec::new();
     for &n in &SIZES {
@@ -118,6 +120,10 @@ fn bipolar(len: usize, seed: u64) -> Vec<i8> {
 #[cfg(target_os = "macos")]
 #[test]
 fn fabric_hdc_dot_on_gpu_matches_cpu_exactly() {
+    let Some(device) = joule_metal_rt::device_or_skip("fabric_hdc_dot_on_gpu_matches_cpu_exactly") else {
+        return;
+    };
+    println!("metal device: {}", device.name());
     for &(n, k, d) in &[(1usize, 1usize, 1usize), (3, 5, 257), (8, 64, 1024), (16, 300, 2048), (2, 7, 10_000)] {
         let q = bipolar(n * d, 11 + d as u64);
         let m = bipolar(k * d, 29 + k as u64);

@@ -829,12 +829,12 @@ mod tests {
         assert!(result["structuredContent"].is_object() || result["structuredContent"].is_array());
         assert!(result["energy_joules"].as_f64().unwrap_or(0.0) > 0.0);
 
-        // Unknown tool must not pretend success
+        // Unknown tool must not pretend success (db.status is a real tool now).
         let bad = McpRequest {
             jsonrpc: "2.0".to_string(),
             id: Some(serde_json::json!(8)),
             method: "tools/call".to_string(),
-            params: serde_json::json!({ "name": "db.status" }),
+            params: serde_json::json!({ "name": "db.no_such_tool" }),
         };
         let bad_resp = handle_mcp_request(&bad, Some(&handler));
         assert!(bad_resp.error.is_some());

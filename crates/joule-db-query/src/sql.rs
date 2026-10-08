@@ -2944,7 +2944,10 @@ impl SqlParser {
                 MAX_EXPRESSION_DEPTH
             )));
         }
-        let result = self.parse_or_expression();
+        // Each nesting level costs ~9 frames; unoptimized builds make them
+        // large. Grow the stack on the heap when it runs low so the depth
+        // limit, not the thread's stack size, decides when to reject input.
+        let result = stacker::maybe_grow(64 * 1024, 1024 * 1024, || self.parse_or_expression());
         self.expression_depth -= 1;
         result
     }

@@ -32,6 +32,8 @@ p256 = { workspace = true }
 rsa = { workspace = true }
 
 [dev-dependencies]
+# p256 / rsa / ed25519-dalek take rand_core 0.6 RNGs; workspace `rand` is 0.10.
+rand_core_06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
 tokio-test = { workspace = true }
 ed25519-dalek = { workspace = true }
 p256 = { workspace = true }
