@@ -20,7 +20,7 @@
 //! ```
 
 #[cfg(not(feature = "std"))]
-use alloc::{format, string::String, vec::Vec};
+use alloc::{format, string::String, vec, vec::Vec};
 
 use super::plan::{ElementWiseOp, PlanStep, ReduceOp};
 use crate::types::FrequencyBand;
@@ -70,6 +70,68 @@ pub struct BandBins {
     pub df: f64,
 }
 
+/// How a biquad cascade is split for the parallel IIR kernel.
+///
+/// The cascade is linear in its state `s` (two DF2T delays per section):
+/// with zero input, `L` samples map `s` to `M s` with `M = A^L`. So:
+/// 1. `chunk_state`: every chunk runs from a zero state, in parallel, and
+///    records where its state ends (`local[c]`);
+/// 2. `carry`: one invocation walks the chunks, `init[c + 1] = M init[c] +
+///    local[c]`, which is the true state entering each chunk;
+/// 3. `main`: every chunk reruns from its true state, in parallel, and
+///    writes its samples. Outputs come from the same recurrence as a
+///    sequential pass; only the entry states pass through `M`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct IirChunks {
+    /// Number of chunks.
+    pub chunks: u32,
+    /// Samples per chunk (the last one may be shorter).
+    pub chunk_len: u32,
+    /// `M = A^chunk_len`, row-major, `2K x 2K` for `K` sections.
+    pub carry: Vec<f64>,
+}
+
+impl IirChunks {
+    /// Plan the split of `n` samples for `sections`: about `sqrt(16 n)`
+    /// chunks, so the serial carry (chunks x (2K)^2) stays small next to the
+    /// parallel passes (n / chunks samples each).
+    pub fn plan(sections: &[[f64; 6]], n: usize) -> Self {
+        let n = n.max(1);
+        let target = ceil_to_usize(libm_sqrt(16.0 * n as f64)).clamp(1, 8192).min(n);
+        let chunk_len = n.div_ceil(target);
+        let chunks = n.div_ceil(chunk_len);
+        let d = 2 * sections.len();
+        let mut carry = vec![0.0; d * d];
+        for j in 0..d {
+            let mut state = vec![0.0f64; d];
+            state[j] = 1.0;
+            for _ in 0..chunk_len {
+                cascade_step(sections, 0.0, &mut state);
+            }
+            for (r, v) in state.iter().enumerate() {
+                carry[r * d + j] = *v;
+            }
+        }
+        Self {
+            chunks: chunks as u32,
+            chunk_len: chunk_len as u32,
+            carry,
+        }
+    }
+}
+
+/// One sample through the cascade (DF2T per section), as the kernels do.
+fn cascade_step(sections: &[[f64; 6]], x: f64, state: &mut [f64]) -> f64 {
+    let mut y = x;
+    for (k, &[b0, b1, b2, _a0, a1, a2]) in sections.iter().enumerate() {
+        let xk = y;
+        y = b0 * xk + state[2 * k];
+        state[2 * k] = b1 * xk - a1 * y + state[2 * k + 1];
+        state[2 * k + 1] = b2 * xk - a2 * y;
+    }
+    y
+}
+
 /// A plan step lowered to one compute shader.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GpuKernel {
@@ -81,8 +143,13 @@ pub enum GpuKernel {
     Cumsum,
     /// `(x - mean) / sample_std`, all zeros when the std is below 1e-10.
     ZScore,
-    /// Cascade of Direct Form II Transposed biquads, `[b0, b1, b2, a0, a1, a2]`.
-    Iir { sections: Vec<[f64; 6]> },
+    /// Cascade of Direct Form II Transposed biquads, `[b0, b1, b2, a0, a1, a2]`,
+    /// run as a chunked parallel scan (see [`IirChunks`]); `chunks` is filled
+    /// in by [`GpuKernel::bind`].
+    Iir {
+        sections: Vec<[f64; 6]>,
+        chunks: Option<IirChunks>,
+    },
     /// Causal convolution with the taps in `aux`.
     Fir { taps: Vec<f64> },
     /// One-sided magnitude spectrum, `size / 2 + 1` bins, window in `aux`,
@@ -106,6 +173,7 @@ pub enum GpuKernel {
     Decimate {
         factor: usize,
         sections: Vec<[f64; 6]>,
+        chunks: Option<IirChunks>,
     },
     /// Power in a band, `sum |X_k|^2 * df`, from a spectrum or a signal.
     BandPower {
@@ -143,6 +211,7 @@ impl GpuKernel {
             PlanStep::ZScore { .. } => Self::ZScore,
             PlanStep::IirFilter { coeffs, .. } => Self::Iir {
                 sections: coeffs.sections.clone(),
+                chunks: None,
             },
             PlanStep::FirFilter { coeffs, .. } => Self::Fir {
                 taps: coeffs.taps.clone(),
@@ -178,6 +247,7 @@ impl GpuKernel {
             PlanStep::Decimate { factor, .. } => Self::Decimate {
                 factor: *factor,
                 sections: Vec::new(),
+                chunks: None,
             },
             PlanStep::BandPower { band, .. } => Self::BandPower {
                 band: *band,
@@ -232,11 +302,17 @@ impl GpuKernel {
                         .map(|s| [s.b0, s.b1, s.b2, 1.0, s.a1, s.a2])
                         .collect()
                 };
+                let chunks = (!sections.is_empty()).then(|| IirChunks::plan(&sections, input.len));
                 Self::Decimate {
                     factor: *factor,
                     sections,
+                    chunks,
                 }
             }
+            Self::Iir { sections, .. } => Self::Iir {
+                sections: sections.clone(),
+                chunks: (!sections.is_empty()).then(|| IirChunks::plan(sections, input.len)),
+            },
             Self::BandPower { band, .. } => {
                 let (size, n_bins) = if input.is_spectrum {
                     if input.len < 2 {
@@ -327,7 +403,29 @@ impl GpuKernel {
         match self {
             // Complex FFT workspace of the padded length.
             Self::Envelope => n + 2 * n.max(1).next_power_of_two(),
+            // Per-chunk local end states and true entry states.
+            Self::Iir {
+                sections,
+                chunks: Some(c),
+            }
+            | Self::Decimate {
+                sections,
+                chunks: Some(c),
+                ..
+            } => self.output_len(n) + 2 * c.chunks as usize * 2 * sections.len(),
             _ => self.output_len(n),
+        }
+    }
+
+    /// Dispatches, in order, as `(entry point, workgroups)`. Each sees the
+    /// previous one's writes (WebGPU orders dispatches on shared buffers).
+    pub fn passes(&self, n: usize) -> Vec<(&'static str, u32)> {
+        match self {
+            Self::Iir { chunks: Some(c), .. } | Self::Decimate { chunks: Some(c), .. } => {
+                let groups = c.chunks.div_ceil(WORKGROUP);
+                vec![("chunk_state", groups), ("carry", 1), ("main", groups)]
+            }
+            _ => vec![("main", self.workgroups(n))],
         }
     }
 
@@ -366,6 +464,10 @@ impl GpuKernel {
         let per_sample = |len: usize| (len.max(1) as u32).div_ceil(WORKGROUP);
         match self {
             Self::ElementWise { .. } | Self::Fir { .. } => per_sample(n),
+            // Without sections the filter is a copy (strided for decimate).
+            Self::Iir { sections, .. } | Self::Decimate { sections, .. } if sections.is_empty() => {
+                per_sample(n)
+            }
             Self::Diff => per_sample(n.saturating_sub(1)),
             Self::Spectrum { .. } | Self::CrossCorrelate { .. } => per_sample(self.output_len(n)),
             Self::Cumsum
@@ -386,6 +488,9 @@ impl GpuKernel {
         let v: Vec<f32> = match self {
             Self::Fir { taps } => taps.iter().map(|&t| t as f32).collect(),
             Self::Spectrum { window, .. } => window.iter().map(|&w| w as f32).collect(),
+            Self::Iir { chunks: Some(c), .. } | Self::Decimate { chunks: Some(c), .. } => {
+                c.carry.iter().map(|&m| m as f32).collect()
+            }
             _ => Vec::new(),
         };
         if v.is_empty() {
@@ -416,7 +521,18 @@ impl GpuKernel {
                 p[2] = size as u32;
                 p[1] = size.trailing_zeros();
             }
-            Self::Decimate { factor, .. } => p[2] = (*factor).max(1) as u32,
+            Self::Iir { chunks, .. } | Self::Decimate { chunks, .. } => {
+                if let Self::Decimate { factor, .. } = self {
+                    p[2] = (*factor).max(1) as u32;
+                } else {
+                    p[2] = 1;
+                }
+                if let Some(c) = chunks {
+                    p[4] = c.chunks;
+                    p[5] = c.chunk_len;
+                    p[6] = self.output_len(n) as u32;
+                }
+            }
             Self::BandPower { bins: Some(b), .. } => {
                 p[1] = u32::from(b.from_spectrum);
                 p[2] = b.size;
@@ -475,8 +591,9 @@ impl GpuKernel {
                 s.push_str(BAND_POWER_MAIN);
             }
             Self::Envelope => s.push_str(ENVELOPE_MAIN),
-            Self::Iir { sections } => s.push_str(&iir_main(sections, false)),
-            Self::Decimate { sections, .. } => s.push_str(&iir_main(sections, true)),
+            Self::Iir { sections, .. } | Self::Decimate { sections, .. } => {
+                s.push_str(&iir_parallel(sections))
+            }
         }
         s
     }
@@ -955,6 +1072,89 @@ fn main(@builtin(local_invocation_id) lid3: vec3<u32>) {
 }
 ";
 
+/// The single-invocation IIR shader this module used before the chunked
+/// scan (same bindings, entry `main`, dispatch 1 workgroup). Kept as the
+/// baseline for benchmarks; the executor never uses it.
+pub fn sequential_iir_wgsl(sections: &[[f64; 6]]) -> String {
+    let mut s = String::from("// SigQL GPU kernel: iir (sequential baseline)\n");
+    s.push_str(HEADER);
+    s.push_str(&iir_main(sections, false));
+    s
+}
+
+/// Chunked parallel IIR / decimate (see [`IirChunks`]). `params.size` is the
+/// output stride (1 for a plain filter); `p4` chunks, `p5` chunk length,
+/// `p6` workspace offset; `aux` holds the carry matrix.
+fn iir_parallel(sections: &[[f64; 6]]) -> String {
+    let store = "        if (i % params.size == 0u) { output[i / params.size] = y; }\n";
+    if sections.is_empty() {
+        return per_sample_main(&format!(
+            "    if (i < params.n) {{\n        let y = input[i];\n{store}    }}\n"
+        ));
+    }
+    let d = 2 * sections.len();
+    let mut s = format!("const D: u32 = {d}u;\n\nfn filt(x: f32, s: ptr<function, array<f32, {d}>>) -> f32 {{\n    var y = x;\n");
+    for (k, sec) in sections.iter().enumerate() {
+        let [b0, b1, b2, _a0, a1, a2] = *sec;
+        let (z1, z2) = (2 * k, 2 * k + 1);
+        s.push_str(&format!(
+            "    let x{k} = y;\n    y = {b0} * x{k} + (*s)[{z1}];\n    (*s)[{z1}] = {b1} * x{k} - {a1} * y + (*s)[{z2}];\n    (*s)[{z2}] = {b2} * x{k} - {a2} * y;\n",
+            b0 = wgsl_f32(b0),
+            b1 = wgsl_f32(b1),
+            b2 = wgsl_f32(b2),
+            a1 = wgsl_f32(a1),
+            a2 = wgsl_f32(a2),
+        ));
+    }
+    s.push_str("    return y;\n}\n\n");
+    s.push_str(&format!(
+        "@compute @workgroup_size({WORKGROUP})
+fn chunk_state(@builtin(global_invocation_id) gid: vec3<u32>) {{
+    let c = gid.x;
+    if (c >= params.p4) {{ return; }}
+    var s: array<f32, {d}>;
+    let start = c * params.p5;
+    let end = min(params.n, start + params.p5);
+    for (var i = start; i < end; i++) {{ _ = filt(input[i], &s); }}
+    let base = params.p6 + c * D;
+    for (var j = 0u; j < D; j++) {{ output[base + j] = s[j]; }}
+}}
+
+@compute @workgroup_size(1)
+fn carry() {{
+    let local = params.p6;
+    let init = params.p6 + params.p4 * D;
+    var st: array<f32, {d}>;
+    for (var c = 0u; c < params.p4; c++) {{
+        for (var j = 0u; j < D; j++) {{ output[init + c * D + j] = st[j]; }}
+        var next: array<f32, {d}>;
+        for (var r = 0u; r < D; r++) {{
+            var acc = output[local + c * D + r];
+            for (var q = 0u; q < D; q++) {{ acc += aux[r * D + q] * st[q]; }}
+            next[r] = acc;
+        }}
+        st = next;
+    }}
+}}
+
+@compute @workgroup_size({WORKGROUP})
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {{
+    let c = gid.x;
+    if (c >= params.p4) {{ return; }}
+    var s: array<f32, {d}>;
+    let init = params.p6 + params.p4 * D + c * D;
+    for (var j = 0u; j < D; j++) {{ s[j] = output[init + j]; }}
+    let start = c * params.p5;
+    let end = min(params.n, start + params.p5);
+    for (var i = start; i < end; i++) {{
+        let y = filt(input[i], &s);
+{store}    }}
+}}
+"
+    ));
+    s
+}
+
 fn iir_main(sections: &[[f64; 6]], decimate: bool) -> String {
     // The recurrence is sequential, so one invocation walks the signal and
     // carries every section's state; cascading per sample equals running
@@ -1137,6 +1337,125 @@ mod tests {
     /// Every kernel the GPU path can emit must parse and validate as WGSL
     /// (naga is the compiler wgpu uses), so a shader bug fails the build
     /// instead of silently pushing queries onto the CPU.
+    fn validate_wgsl(name: &str, src: &str) -> naga::Module {
+        let module = naga::front::wgsl::parse_str(src)
+            .unwrap_or_else(|e| panic!("{name} does not parse:\n{}\n{src}", e.emit_to_string(src)));
+        naga::valid::Validator::new(
+            naga::valid::ValidationFlags::all(),
+            naga::valid::Capabilities::empty(),
+        )
+        .validate(&module)
+        .unwrap_or_else(|e| panic!("{name} does not validate: {e:?}\n{src}"));
+        module
+    }
+
+    /// The chunked IIR kernels expose every entry point their passes
+    /// dispatch, and the sequential baseline still compiles.
+    #[test]
+    fn iir_passes_name_real_entry_points() {
+        let sections = crate::dsp::filter::CascadedBiquad::butterworth_lowpass(
+            crate::types::Hertz::new(50.0),
+            crate::types::SampleRate::new(1000),
+            4,
+        )
+        .unwrap()
+        .sections()
+        .into_iter()
+        .map(|s| [s.b0, s.b1, s.b2, 1.0, s.a1, s.a2])
+        .collect::<Vec<_>>();
+        let input = GpuInput {
+            len: 100_000,
+            rate: 1000,
+            is_spectrum: false,
+            second_len: None,
+            default_rate: 1000,
+        };
+        for kernel in [
+            GpuKernel::Iir {
+                sections: sections.clone(),
+                chunks: None,
+            },
+            GpuKernel::Decimate {
+                factor: 4,
+                sections: Vec::new(),
+                chunks: None,
+            },
+        ] {
+            let bound = kernel.bind(&input).unwrap();
+            let module = validate_wgsl(bound.name(), &bound.wgsl());
+            let passes = bound.passes(input.len);
+            assert_eq!(passes.len(), 3, "{}", bound.name());
+            for (entry, groups) in passes {
+                assert!(groups >= 1);
+                assert!(
+                    module.entry_points.iter().any(|e| e.name == entry),
+                    "{} lacks {entry}",
+                    bound.name()
+                );
+            }
+        }
+        validate_wgsl("sequential iir", &sequential_iir_wgsl(&sections));
+    }
+
+    /// Emulating the three passes in f64 reproduces the sequential cascade:
+    /// the carry matrix is exactly the zero-input chunk map.
+    #[test]
+    fn chunked_scan_reproduces_sequential_cascade() {
+        let sections = crate::dsp::filter::CascadedBiquad::butterworth_lowpass(
+            crate::types::Hertz::new(20.0),
+            crate::types::SampleRate::new(1000),
+            8,
+        )
+        .unwrap()
+        .sections()
+        .into_iter()
+        .map(|s| [s.b0, s.b1, s.b2, 1.0, s.a1, s.a2])
+        .collect::<Vec<_>>();
+        let d = 2 * sections.len();
+        for n in [1usize, 7, 100, 4097, 50_000] {
+            let x: Vec<f64> = (0..n)
+                .map(|i| (i as f64 * 0.013).sin() + 0.3 * (i as f64 * 0.41).cos())
+                .collect();
+            let mut st = vec![0.0; d];
+            let want: Vec<f64> = x.iter().map(|&v| cascade_step(&sections, v, &mut st)).collect();
+
+            let plan = IirChunks::plan(&sections, n);
+            let (p, l) = (plan.chunks as usize, plan.chunk_len as usize);
+            assert!(p * l >= n && (p - 1) * l < n, "n={n} p={p} l={l}");
+            let local: Vec<Vec<f64>> = (0..p)
+                .map(|c| {
+                    let mut s = vec![0.0; d];
+                    for &v in &x[c * l..((c + 1) * l).min(n)] {
+                        cascade_step(&sections, v, &mut s);
+                    }
+                    s
+                })
+                .collect();
+            let mut init = vec![vec![0.0; d]];
+            for c in 0..p - 1 {
+                let prev = &init[c];
+                init.push(
+                    (0..d)
+                        .map(|r| {
+                            local[c][r]
+                                + (0..d).map(|q| plan.carry[r * d + q] * prev[q]).sum::<f64>()
+                        })
+                        .collect(),
+                );
+            }
+            let mut got = Vec::with_capacity(n);
+            for (c, s0) in init.iter().enumerate() {
+                let mut s = s0.clone();
+                for &v in &x[c * l..((c + 1) * l).min(n)] {
+                    got.push(cascade_step(&sections, v, &mut s));
+                }
+            }
+            for (i, (a, b)) in got.iter().zip(&want).enumerate() {
+                assert!((a - b).abs() <= 1e-9 * (1.0 + b.abs()), "n={n} i={i}: {a} vs {b}");
+            }
+        }
+    }
+
     #[test]
     fn every_kernel_is_valid_wgsl() {
         for kernel in all_kernels() {

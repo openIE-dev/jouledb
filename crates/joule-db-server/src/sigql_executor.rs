@@ -189,8 +189,8 @@ struct GpuContext {
     adapter: String,
     layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
-    /// Compiled pipelines keyed by WGSL source.
-    pipelines: std::sync::Mutex<std::collections::HashMap<String, wgpu::ComputePipeline>>,
+    /// Compiled pipelines keyed by (WGSL source, entry point).
+    pipelines: std::sync::Mutex<std::collections::HashMap<(String, &'static str), wgpu::ComputePipeline>>,
 }
 
 /// What a GPU run did, for the response.
@@ -287,30 +287,31 @@ async fn open_gpu() -> Result<GpuContext, String> {
 }
 
 impl GpuContext {
-    /// Compile (or reuse) the pipeline for `kernel`, surfacing WGSL errors.
-    fn pipeline(&self, kernel: &GpuKernel) -> Result<wgpu::ComputePipeline, String> {
-        let wgsl = kernel.wgsl();
-        if let Some(p) = self.pipelines.lock().ok().and_then(|m| m.get(&wgsl).cloned()) {
+    /// Compile (or reuse) the pipeline for one entry point of a kernel's
+    /// WGSL, surfacing WGSL errors.
+    fn pipeline(&self, wgsl: &str, entry: &'static str, label: &str) -> Result<wgpu::ComputePipeline, String> {
+        let key = (wgsl.to_string(), entry);
+        if let Some(p) = self.pipelines.lock().ok().and_then(|m| m.get(&key).cloned()) {
             return Ok(p);
         }
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(kernel.name()),
-            source: wgpu::ShaderSource::Wgsl(wgsl.clone().into()),
+            label: Some(label),
+            source: wgpu::ShaderSource::Wgsl(wgsl.into()),
         });
         let pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some(kernel.name()),
+            label: Some(label),
             layout: Some(&self.pipeline_layout),
             module: &module,
-            entry_point: Some("main"),
+            entry_point: Some(entry),
             cache: None,
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         });
         if let Some(err) = pollster::block_on(scope.pop()) {
-            return Err(format!("{} kernel failed to compile: {err}", kernel.name()));
+            return Err(format!("{label} kernel ({entry}) failed to compile: {err}"));
         }
         if let Ok(mut m) = self.pipelines.lock() {
-            m.insert(wgsl, pipeline.clone());
+            m.insert(key, pipeline.clone());
         }
         Ok(pipeline)
     }
@@ -474,7 +475,12 @@ fn run_on_gpu(
                         usage: wgpu::BufferUsages::STORAGE,
                     }),
                 };
-                let pipeline = ctx.pipeline(&kernel)?;
+                let wgsl = kernel.wgsl();
+                let passes = kernel
+                    .passes(len)
+                    .into_iter()
+                    .map(|(entry, groups)| Ok((ctx.pipeline(&wgsl, entry, kernel.name())?, groups)))
+                    .collect::<Result<Vec<_>, String>>()?;
                 let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some(kernel.name()),
                     layout: &ctx.layout,
@@ -490,9 +496,13 @@ fn run_on_gpu(
                         label: Some(kernel.name()),
                         timestamp_writes: None,
                     });
-                    pass.set_pipeline(&pipeline);
                     pass.set_bind_group(0, &bind, &[]);
-                    pass.dispatch_workgroups(kernel.workgroups(len), 1, 1);
+                    // Dispatches in one pass are ordered: each sees the
+                    // previous one's storage writes.
+                    for (pipeline, groups) in &passes {
+                        pass.set_pipeline(pipeline);
+                        pass.dispatch_workgroups(*groups, 1, 1);
+                    }
                 }
                 names.push(kernel.name());
                 regs[output.0 as usize] = Some(if matches!(kernel, GpuKernel::Spectrum { .. }) {
@@ -1292,6 +1302,233 @@ mod tests {
         if std::env::var("JOULE_REQUIRE_WEBGPU").is_ok_and(|v| v == "1") {
             let ctx = gpu.as_ref().expect("JOULE_REQUIRE_WEBGPU=1 but no wgpu adapter");
             eprintln!("WebGPU adapter: {}", ctx.adapter);
+        }
+    }
+
+    /// Compile `sql` and bind every source it loads to `samples` at 1 kHz.
+    fn long_plan(sql: &str, samples: &[f64]) -> (sigql::ExecutionPlan, Vec<(String, DynSignal<f64>)>) {
+        let plan = sigql::compile(&sigql::parse(sql).unwrap(), Target::Simd).unwrap();
+        let sources = plan
+            .steps
+            .iter()
+            .filter_map(|s| match s {
+                sigql::compile::PlanStep::LoadSignal { source, .. } => Some(source.to_string()),
+                _ => None,
+            })
+            .map(|name| (name.clone(), DynSignal::new(name.as_str(), samples.to_vec(), 1000, 0)))
+            .collect();
+        (plan, sources)
+    }
+
+    fn signal_output(result: &sigql::runtime::ExecutionResult) -> Vec<f64> {
+        result
+            .outputs
+            .values()
+            .find_map(|v| match v {
+                OutputValue::Signal(s) => Some(s.samples.clone()),
+                _ => None,
+            })
+            .expect("a signal output")
+    }
+
+    fn cpu_run(plan: &sigql::ExecutionPlan, sources: &[(String, DynSignal<f64>)]) -> sigql::runtime::ExecutionResult {
+        let mut runtime = Runtime::new(RuntimeConfig::default());
+        for (name, signal) in sources {
+            runtime.register_signal(name.clone(), signal.clone());
+        }
+        runtime.execute(plan).unwrap()
+    }
+
+    fn long_signal(n: usize) -> Vec<f64> {
+        (0..n)
+            .map(|i| {
+                let t = i as f64 / 1000.0;
+                (2.0 * std::f64::consts::PI * 8.0 * t).sin()
+                    + 0.5 * (2.0 * std::f64::consts::PI * 120.0 * t).sin()
+                    + 0.2 * ((i * 7919 % 1009) as f64 / 1009.0 - 0.5)
+                    + 0.1
+            })
+            .collect()
+    }
+
+    const LONG_IIR_QUERIES: [&str; 4] = [
+        "FROM bench.sig TRANSFORM lowpass(50Hz)",
+        "FROM bench.sig TRANSFORM highpass(20Hz)",
+        "FROM bench.sig TRANSFORM bandpass(4Hz, 12Hz)",
+        "FROM bench.sig TRANSFORM decimate(4)",
+    ];
+
+    /// The chunked parallel IIR matches the CPU runtime over a long signal
+    /// (2^20 samples), where any error in the carried chunk states would
+    /// show up and accumulate.
+    #[test]
+    fn sigql_webgpu_long_iir_matches_cpu() {
+        let ctx = match gpu_context() {
+            Ok(ctx) => ctx,
+            Err(reason) => {
+                assert!(
+                    !std::env::var("JOULE_REQUIRE_WEBGPU").is_ok_and(|v| v == "1"),
+                    "JOULE_REQUIRE_WEBGPU=1 but no wgpu adapter: {reason}"
+                );
+                eprintln!("no wgpu adapter ({reason}); long IIR parity needs one");
+                return;
+            }
+        };
+        let samples = long_signal(1 << 20);
+        for sql in LONG_IIR_QUERIES {
+            let (plan, sources) = long_plan(sql, &samples);
+            let cpu = signal_output(&cpu_run(&plan, &sources));
+            let (result, run) = execute_plan_webgpu(&plan, &sources).unwrap_or_else(|e| panic!("{sql}: {e}"));
+            assert!(run.kernels.iter().any(|k| *k == "iir" || *k == "decimate"), "{sql}: {:?}", run.kernels);
+            let gpu = signal_output(&result);
+            assert_eq!(gpu.len(), cpu.len(), "{sql}");
+            let scale = cpu.iter().fold(1.0f64, |m, v| m.max(v.abs()));
+            let worst = gpu
+                .iter()
+                .zip(&cpu)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0f64, f64::max);
+            assert!(worst <= 2e-4 * scale, "{sql}: max error {worst} (scale {scale})");
+            eprintln!(
+                "{sql}: {} samples on {} match CPU, max error {:.2e} of scale {scale:.3}",
+                samples.len(),
+                ctx.adapter,
+                worst
+            );
+        }
+    }
+
+    /// Kernel-only time (submit to completion, buffers resident) of one
+    /// shader's dispatches, best of `reps` after a warm-up.
+    fn time_kernel(
+        ctx: &GpuContext,
+        wgsl: &str,
+        passes: &[(&'static str, u32)],
+        samples: &[f64],
+        out_floats: usize,
+        params: [u32; 8],
+        aux: &[f32],
+        reps: usize,
+    ) -> std::time::Duration {
+        use wgpu::util::DeviceExt;
+        let device = &ctx.device;
+        let bytes = |v: &[f32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+        let input = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bench-in"),
+            contents: &bytes(&samples.iter().map(|&v| v as f32).collect::<Vec<_>>()),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let out = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("bench-out"),
+            size: (out_floats.max(1) * 4) as u64,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bench-params"),
+            contents: &params.iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>(),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+        let aux = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bench-aux"),
+            contents: &bytes(if aux.is_empty() { &[0.0] } else { aux }),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("bench"),
+            layout: &ctx.layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: input.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: out.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: params.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: aux.as_entire_binding() },
+            ],
+        });
+        let pipelines: Vec<_> = passes
+            .iter()
+            .map(|(entry, groups)| (ctx.pipeline(wgsl, entry, "bench").unwrap(), *groups))
+            .collect();
+        let run = || {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            {
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
+                pass.set_bind_group(0, &bind, &[]);
+                for (p, g) in &pipelines {
+                    pass.set_pipeline(p);
+                    pass.dispatch_workgroups(*g, 1, 1);
+                }
+            }
+            let t = Instant::now();
+            ctx.queue.submit([encoder.finish()]);
+            let _ = device.poll(wgpu::PollType::wait_indefinitely());
+            t.elapsed()
+        };
+        run();
+        (0..reps).map(|_| run()).min().unwrap()
+    }
+
+    /// Timing of the chunked IIR against the old single-invocation shader
+    /// and the CPU runtime. Run with
+    /// `cargo test --release -p joule-db-server --lib sigql_iir_timing -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "benchmark"]
+    fn sigql_iir_timing() {
+        use sigql::compile::gpu::sequential_iir_wgsl;
+        let ctx = gpu_context().expect("a wgpu adapter");
+        eprintln!("adapter: {}", ctx.adapter);
+        for n in [1usize << 16, 1 << 20] {
+            let samples = long_signal(n);
+            for sql in ["FROM bench.sig TRANSFORM lowpass(50Hz)", "FROM bench.sig TRANSFORM bandpass(4Hz, 12Hz)"] {
+                let (plan, sources) = long_plan(sql, &samples);
+                let step = plan
+                    .steps
+                    .iter()
+                    .find(|s| matches!(s, sigql::compile::PlanStep::IirFilter { .. }))
+                    .unwrap();
+                let kernel = GpuKernel::from_step(step)
+                    .unwrap()
+                    .unwrap()
+                    .bind(&GpuInput { len: n, rate: 1000, is_spectrum: false, second_len: None, default_rate: 1000 })
+                    .unwrap();
+                let GpuKernel::Iir { sections, chunks: Some(chunks) } = &kernel else {
+                    panic!("not a chunked iir: {kernel:?}")
+                };
+                let reps = 5;
+                let new = time_kernel(ctx, &kernel.wgsl(), &kernel.passes(n), &samples, kernel.buffer_len(n), kernel.params(n), &kernel.aux(), reps);
+                let old = time_kernel(ctx, &sequential_iir_wgsl(sections), &[("main", 1)], &samples, n, kernel.params(n), &[0.0], 2);
+                let best = |f: &dyn Fn() -> ()| {
+                    f();
+                    (0..reps)
+                        .map(|_| {
+                            let t = Instant::now();
+                            f();
+                            t.elapsed()
+                        })
+                        .min()
+                        .unwrap()
+                };
+                let cpu = best(&|| {
+                    cpu_run(&plan, &sources);
+                });
+                let e2e = best(&|| {
+                    execute_plan_webgpu(&plan, &sources).unwrap();
+                });
+                let ms = |d: std::time::Duration| d.as_secs_f64() * 1e3;
+                eprintln!(
+                    "TIMING n={n} {sql} sections={} chunks={}x{}: old shader {:.2} ms, chunked shader {:.2} ms ({:.1}x), CPU runtime {:.2} ms, GPU end-to-end (upload+run+readback) {:.2} ms",
+                    sections.len(),
+                    chunks.chunks,
+                    chunks.chunk_len,
+                    ms(old),
+                    ms(new),
+                    ms(old) / ms(new),
+                    ms(cpu),
+                    ms(e2e),
+                );
+            }
         }
     }
 
