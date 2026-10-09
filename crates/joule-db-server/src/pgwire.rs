@@ -2273,6 +2273,7 @@ mod tests {
                 algorithm_type: None,
                 session_id: None,
                 viz_hint: None,
+                energy_receipt: None,
             })
         }
     }

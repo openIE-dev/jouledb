@@ -808,6 +808,7 @@ mod tests {
                     algorithm_type: Some("btree".into()),
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
         }
@@ -881,6 +882,7 @@ mod tests {
                     algorithm_type: Some("catalog".into()),
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
         }

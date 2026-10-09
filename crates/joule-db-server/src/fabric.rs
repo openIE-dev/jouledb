@@ -332,6 +332,12 @@ fn snapshot_for(host: &HostProfile) -> EnergySnapshot {
     snap
 }
 
+/// Watts the cost model multiplies elapsed time by (the live energy
+/// snapshot's figure; 5 W when the platform reports none). An estimate.
+pub fn routing_watts() -> f64 {
+    snapshot_for(&live_profile()).power_watts
+}
+
 fn preferred_from_hints(hints: &[ExecutionHint]) -> Vec<DeviceTarget> {
     let mut out = Vec::new();
     for hint in hints {
@@ -494,8 +500,53 @@ fn wgpu_sum(values: &[f64]) -> Result<f64, String> {
 }
 
 /// Route `values` and reduce them. Always returns a receipt; never an energy error.
+///
+/// When the smart route prefers the GPU and a GPU lane exists, the
+/// process-wide [cost model](crate::cost_model::global) decides between
+/// that lane and the CPU from measured joules (then time) for this
+/// algorithm and size bucket; `route_reason` says which rule fired.
 pub fn dispatch_sum(values: &[f64], algorithm: AlgorithmType, force_cpu: bool) -> EnergyReceipt {
-    dispatch_sum_on(values, algorithm, force_cpu, &live_profile())
+    dispatch_sum_costed(values, algorithm, force_cpu, &live_profile(), crate::cost_model::global())
+}
+
+/// [`dispatch_sum_on`] with measured-cost routing between the GPU lane and
+/// the CPU. Other preferences (NPU, TPU, LPU, CPU), `force_cpu`, and hosts
+/// without a GPU lane keep the smart route unchanged.
+fn dispatch_sum_costed(
+    values: &[f64],
+    algorithm: AlgorithmType,
+    force_cpu: bool,
+    host: &HostProfile,
+    model: &crate::cost_model::CostModel,
+) -> EnergyReceipt {
+    use crate::cost_model::Candidate;
+    let snap = snapshot_for(host);
+    let hints = HardwareAdvisor::new(&EnergyConfig::default()).advise(&snap);
+    let preferred = smart_preferred(algorithm, &hints, &snap, host);
+    let lane = match host.gpu {
+        Some(lane) if !force_cpu && preferred == DeviceTarget::Gpu => lane,
+        _ => return dispatch_sum_on(values, algorithm, force_cpu, host),
+    };
+    let gpu = Candidate::new(
+        "gpu",
+        match lane {
+            GpuLane::Metal => "metal",
+            GpuLane::Wgpu => "wgpu",
+        },
+    );
+    let op = format!("fabric:sum:{algorithm}");
+    let route = model.choose(&op, values.len(), &[gpu, Candidate::cpu()]);
+    let mut receipt = dispatch_sum_on(values, algorithm, route.chosen.device == "cpu", host);
+    let ran = Candidate::new(receipt.device.clone(), receipt.backend.clone());
+    let seconds = receipt.joules / receipt.watts.max(f64::MIN_POSITIVE);
+    model.record(&op, values.len(), &ran, seconds, receipt.joules);
+    receipt.route_reason = route.reason_label();
+    if ran.device == route.chosen.device {
+        receipt.fallback = route.fallback.device.clone();
+    } else {
+        receipt.route_reason.push_str(&format!("+{}_error", route.chosen.device));
+    }
+    receipt
 }
 
 fn dispatch_sum_on(
@@ -1105,6 +1156,58 @@ mod tests {
         assert_processor(&receipt.fallback);
     }
 
+    /// Injected costs decide between the GPU lane and the CPU for a sum the
+    /// smart route sends to the GPU; the receipt says why, and the fallback
+    /// is the other real processor.
+    #[test]
+    fn fabric_sum_follows_injected_costs() {
+        use crate::cost_model::{Candidate, CostModel};
+        let mut host = m5_max_host();
+        host.live_gpu = false; // descriptor lane: no Metal submit needed
+        let values: Vec<f64> = (0..4096).map(|i| (i % 7) as f64).collect();
+        let snap = snapshot_for(&host);
+        let hints = HardwareAdvisor::new(&EnergyConfig::default()).advise(&snap);
+        assert_eq!(smart_preferred(AlgorithmType::Scan, &hints, &snap, &host), DeviceTarget::Gpu);
+        let op = format!("fabric:sum:{}", AlgorithmType::Scan);
+        let gpu = Candidate::new("gpu", "metal");
+
+        let mut model = CostModel::new();
+        model.explore_every = 0;
+        model.record(&op, values.len(), &Candidate::cpu(), 1e-4, 5e-4);
+        model.record(&op, values.len(), &gpu, 1e-3, 5e-3);
+        let r = dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model);
+        println!("injected cpu cheaper: {}", r.line());
+        assert_eq!((r.device.as_str(), r.backend.as_str()), ("cpu", "cpu"));
+        assert_eq!(r.route_reason, "cost_model_cpu_cheaper");
+        assert_eq!(r.requested_device, "gpu");
+        assert_eq!(r.fallback, "gpu");
+        assert_eq!(r.value, values.iter().sum::<f64>());
+
+        let mut model = CostModel::new();
+        model.explore_every = 0;
+        model.record(&op, values.len(), &Candidate::cpu(), 1e-3, 5e-3);
+        model.record(&op, values.len(), &gpu, 1e-4, 5e-4);
+        let r = dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model);
+        println!("injected gpu cheaper: {}", r.line());
+        assert_eq!((r.device.as_str(), r.backend.as_str()), ("gpu", "metal"));
+        assert_eq!(r.route_reason, "cost_model_gpu_cheaper");
+        assert_eq!(r.fallback, "cpu");
+
+        // Fresh model: static preference first, then the CPU is explored.
+        let model = CostModel::new();
+        let first = dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model);
+        let second = dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model);
+        assert_eq!((first.device.as_str(), first.route_reason.as_str()), ("gpu", "no_history"));
+        assert_eq!((second.device.as_str(), second.route_reason.as_str()), ("cpu", "explore"));
+        for r in [&first, &second] {
+            assert_processor(&r.fallback);
+            assert_processor(&r.requested_device);
+        }
+        // force_cpu keeps its meaning and skips the model.
+        let forced = dispatch_sum_costed(&values, AlgorithmType::Scan, true, &host, &model);
+        assert_eq!(forced.route_reason, "force_cpu");
+    }
+
     #[test]
     fn fabric_live_host_always_routes_and_falls_back() {
         let receipt = dispatch_sum(&[1.0, 2.0, 3.0], AlgorithmType::Hdc, false);
@@ -1489,7 +1592,9 @@ mod tests {
         }
         for n in [1usize, 255, 256, 257, 4096, 100_003] {
             let values: Vec<f64> = (0..n).map(|i| ((i * 2_654_435_761usize) % 5 + 1) as f64).collect();
-            let receipt = dispatch_sum(&values, AlgorithmType::Scan, false);
+            // The smart route without the cost model, so the Metal lane is
+            // what runs (cost routing has its own tests).
+            let receipt = dispatch_sum_on(&values, AlgorithmType::Scan, false, &live_profile());
             let cpu = cpu_sum(&values).expect("cpu sum");
             println!("live scan n={n}: cpu={cpu} {}", receipt.line());
             assert_eq!(receipt.value, cpu, "integer-valued sums are exact in f32 below 2^24");

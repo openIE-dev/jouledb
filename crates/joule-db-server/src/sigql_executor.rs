@@ -116,7 +116,160 @@ pub fn execute_sigql(
     amorphic: &Arc<AmorphicTableStorage>,
     start: Instant,
 ) -> Result<QueryResponse, QueryErrorResponse> {
-    execute_sigql_with(sql, amorphic, start, select_sigql_target())
+    execute_sigql_routed(sql, amorphic, start, crate::cost_model::global())
+}
+
+/// The cost-model key for a plan: `sigql:` plus the distinct GPU kernels
+/// (or CPU step labels) it runs, e.g. `sigql:iir`. `Err` names why the plan
+/// cannot run on the GPU.
+fn plan_op_kind(plan: &sigql::ExecutionPlan) -> (String, Result<(), String>) {
+    use sigql::compile::PlanStep;
+    let mut parts: Vec<String> = Vec::new();
+    let mut gpu = Ok(());
+    for step in &plan.steps {
+        if matches!(step, PlanStep::LoadSignal { .. } | PlanStep::Store { .. } | PlanStep::Passthrough { .. }) {
+            continue;
+        }
+        let part = match GpuKernel::from_step(step) {
+            Ok(Some(kernel)) => kernel.name().to_string(),
+            Ok(None) => continue,
+            Err(reason) => {
+                if gpu.is_ok() {
+                    gpu = Err(reason);
+                }
+                sigql::compile::codegen::step_label(step).to_ascii_lowercase()
+            }
+        };
+        if !parts.contains(&part) {
+            parts.push(part);
+        }
+    }
+    (format!("sigql:{}", parts.join("+")), gpu)
+}
+
+/// Run the plan on the CPU runtime.
+fn run_cpu_plan(
+    plan: &sigql::ExecutionPlan,
+    sources: &[(String, DynSignal<f64>)],
+) -> Result<sigql::runtime::ExecutionResult, QueryErrorResponse> {
+    let mut runtime = Runtime::new(RuntimeConfig::default());
+    for (name, signal) in sources {
+        runtime.register_signal(name.clone(), signal.clone());
+    }
+    runtime
+        .execute(plan)
+        .map_err(|e| QueryErrorResponse::execution_error(&format!("SigQL runtime: {}", e)))
+}
+
+/// [`execute_sigql`] with an explicit cost model: the fabric routes the
+/// plan to the processor that measured cheapest (joules, then time) for this
+/// op kind and size on this machine, explores a bounded number of times, and
+/// never refuses. The response carries an [`energy_receipt`](QueryResponse::energy_receipt).
+pub fn execute_sigql_routed(
+    sql: &str,
+    amorphic: &Arc<AmorphicTableStorage>,
+    start: Instant,
+    model: &crate::cost_model::CostModel,
+) -> Result<QueryResponse, QueryErrorResponse> {
+    let query = sigql::parse(sql)
+        .map_err(|e| QueryErrorResponse::syntax_error(&format!("SigQL: {}", e), 1, 1))?;
+    let plan = sigql::compile(&query, Target::Simd)
+        .map_err(|e| QueryErrorResponse::execution_error(&format!("SigQL compile: {}", e)))?;
+    let sources = load_sources(&query, amorphic);
+    run_routed(&plan, &sources, start, model)
+}
+
+/// Route a compiled plan by measured cost and run it (see
+/// [`execute_sigql_routed`]).
+fn run_routed(
+    plan: &sigql::ExecutionPlan,
+    sources: &[(String, DynSignal<f64>)],
+    start: Instant,
+    model: &crate::cost_model::CostModel,
+) -> Result<QueryResponse, QueryErrorResponse> {
+    use crate::cost_model::{Candidate, RouteReceipt, size_bucket};
+    let (op, lowers) = plan_op_kind(plan);
+    let size: usize = sources.iter().map(|(_, s)| s.samples.len()).sum();
+
+    // Candidates: the GPU when it exists and every step has a kernel, then
+    // the CPU (always).
+    let mut candidates = Vec::new();
+    let mut cpu_only_note = None;
+    match (gpu_context(), &lowers) {
+        (Ok(ctx), Ok(())) => candidates.push(Candidate::new("gpu", ctx.backend.clone())),
+        (Err(reason), _) => cpu_only_note = Some(format!("no wgpu adapter ({reason})")),
+        (Ok(_), Err(reason)) => cpu_only_note = Some(format!("WebGPU path unavailable ({reason})")),
+    }
+    candidates.push(Candidate::cpu());
+    let route = model.choose(&op, size, &candidates);
+    let mut route_reason = route.reason_label();
+    let watts = crate::fabric::routing_watts();
+
+    let began = Instant::now();
+    let mut gpu_error = None;
+    let mut ran_gpu = None;
+    let mut setup = std::time::Duration::ZERO;
+    if route.chosen.device == "gpu" {
+        match execute_plan_webgpu(&plan, &sources) {
+            Ok(done) => ran_gpu = Some(done),
+            Err(reason) => {
+                route_reason.push_str("+gpu_error");
+                gpu_error = Some(reason);
+            }
+        }
+    }
+    let (mut response, ran) = match ran_gpu {
+        Some((result, run)) => {
+            setup = run.setup;
+            let mut response = map_result_to_response(result, start)?;
+            response.device_target = Some("webgpu".into());
+            response.warnings.push(format!(
+                "SigQL ran on the GPU ({}) as {} WGSL kernel(s): {}",
+                run.adapter,
+                run.kernels.len(),
+                run.kernels.join(", ")
+            ));
+            (response, route.chosen.clone())
+        }
+        None => {
+            let result = run_cpu_plan(&plan, &sources)?;
+            let mut response = map_result_to_response(result, start)?;
+            response.device_target = Some("cpu".into());
+            response.warnings.push(match (&gpu_error, &cpu_only_note) {
+                (Some(reason), _) => format!("SigQL ran on the CPU runtime: WebGPU path failed ({reason})"),
+                (None, Some(note)) => format!("SigQL ran on the CPU runtime: {note}"),
+                (None, None) => format!("SigQL ran on the CPU runtime (route: {route_reason})"),
+            });
+            (response, Candidate::cpu())
+        }
+    };
+    // Pipeline compilation is one-time setup: reported, not charged to the
+    // job, so a first GPU run is not judged by its shader compile.
+    let seconds = began.elapsed().saturating_sub(setup).as_secs_f64().max(1e-9);
+    let joules = watts * seconds;
+    let setup_seconds = (!setup.is_zero()).then(|| setup.as_secs_f64());
+    model.record(&op, size, &ran, seconds, joules);
+    // The next real processor: the route's fallback when the chosen device
+    // ran; the processor that actually ran when it did not.
+    let fallback = if ran == route.chosen { route.fallback.device.clone() } else { ran.device.clone() };
+    let receipt = RouteReceipt {
+        op,
+        size_bucket: size_bucket(size),
+        requested_device: route.requested.device.clone(),
+        device: ran.device.clone(),
+        backend: ran.backend.clone(),
+        fallback,
+        route_reason,
+        joules,
+        seconds,
+        watts,
+        energy_source: "estimate".into(),
+        setup_seconds,
+    };
+    response.energy_joules = Some(joules);
+    response.power_watts = Some(watts);
+    response.energy_receipt = Some(receipt);
+    Ok(response)
 }
 
 /// [`execute_sigql`] with an explicit target, so tests can compare backends.
@@ -187,6 +340,8 @@ struct GpuContext {
     queue: wgpu::Queue,
     /// "<adapter name> via <backend>", for receipts.
     adapter: String,
+    /// Routing backend label, e.g. `wgpu-metal`, `wgpu-vulkan`.
+    backend: String,
     /// The adapter is a CPU rasterizer (lavapipe, SwiftShader, WARP).
     cpu_adapter: bool,
     layout: wgpu::BindGroupLayout,
@@ -202,6 +357,9 @@ struct GpuContext {
 struct GpuRun {
     adapter: String,
     kernels: Vec<&'static str>,
+    /// Time spent compiling pipelines this run (zero when all were cached):
+    /// one-time setup, kept out of the per-job cost.
+    setup: std::time::Duration,
 }
 
 fn gpu_context() -> Result<&'static GpuContext, String> {
@@ -286,6 +444,7 @@ async fn open_gpu() -> Result<GpuContext, String> {
         device,
         queue,
         adapter: format!("{} via {:?}", info.name, info.backend),
+        backend: format!("wgpu-{:?}", info.backend).to_ascii_lowercase(),
         cpu_adapter: info.device_type == wgpu::DeviceType::Cpu,
         layout,
         pipeline_layout,
@@ -403,6 +562,7 @@ fn run_on_gpu(
     let mut stores = Vec::new();
     let mut names = Vec::new();
     let mut samples_processed = 0usize;
+    let mut setup = std::time::Duration::ZERO;
     let mut bytes_used = 0u64;
 
     for (step, kernel) in plan.steps.iter().zip(kernels) {
@@ -500,11 +660,13 @@ fn run_on_gpu(
                     }),
                 };
                 let wgsl = kernel.wgsl();
+                let compiling = Instant::now();
                 let passes = kernel
                     .passes(len)
                     .into_iter()
                     .map(|(entry, groups)| Ok((ctx.pipeline(&wgsl, entry, kernel.name())?, groups)))
                     .collect::<Result<Vec<_>, String>>()?;
+                setup += compiling.elapsed();
                 let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some(kernel.name()),
                     layout: &ctx.layout,
@@ -617,7 +779,7 @@ fn run_on_gpu(
                 memory_used: bytes_used as usize,
             },
         },
-        GpuRun { adapter: ctx.adapter.clone(), kernels: names },
+        GpuRun { adapter: ctx.adapter.clone(), kernels: names, setup },
     ))
 }
 
@@ -747,6 +909,7 @@ fn map_result_to_response(
             algorithm_type: Some("sigql".into()),
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         });
     }
 
@@ -825,6 +988,7 @@ fn map_scalars(
         algorithm_type: Some("sigql".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -895,6 +1059,7 @@ fn map_signals(
         algorithm_type: Some("sigql".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -955,6 +1120,7 @@ fn map_spectra(
         algorithm_type: Some("sigql".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1035,6 +1201,7 @@ fn map_mixed(
         algorithm_type: Some("sigql".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1277,7 +1444,7 @@ mod tests {
             let cpu = execute_sigql_with(sql, &amorphic, Instant::now(), Target::Simd)
                 .unwrap_or_else(|e| panic!("{sql} on CPU: {e:?}"));
             assert_eq!(cpu.device_target.as_deref(), Some("cpu"));
-            let auto = execute_sigql(sql, &amorphic, Instant::now())
+            let auto = execute_sigql_with(sql, &amorphic, Instant::now(), Target::WebGpu)
                 .unwrap_or_else(|e| panic!("{sql}: {e:?}"));
             match &gpu {
                 Ok(ctx) => {
@@ -1747,6 +1914,147 @@ mod tests {
                     }
                 }
                 let _ = &tree_b.wgsl;
+            }
+        }
+    }
+
+    fn receipt(resp: &QueryResponse) -> crate::cost_model::RouteReceipt {
+        resp.energy_receipt.clone().expect("SigQL responses carry a routing receipt")
+    }
+
+    fn assert_real(device: &str) {
+        assert!(matches!(device, "cpu" | "gpu" | "npu" | "tpu" | "lpu"), "not a processor: {device:?}");
+    }
+
+    /// An injected cost model decides where SigQL runs: the cheaper device
+    /// by joules wins, the receipt says why, and the fallback is the other
+    /// real processor. Without an adapter the CPU is the only candidate and
+    /// still names a real fallback.
+    #[test]
+    fn sigql_routes_by_injected_cost() {
+        use crate::cost_model::{Candidate, CostModel};
+        let samples = long_signal(4096);
+        let amorphic = signal_table("route_sig", &samples);
+        let sql = "FROM route.sig TRANSFORM lowpass(50Hz)";
+        let gpu = gpu_context().ok().map(|ctx| Candidate::new("gpu", ctx.backend.clone()));
+        for (cpu_j, gpu_j) in [(1e-4, 1e-2), (1e-2, 1e-4)] {
+            let mut model = CostModel::new();
+            model.explore_every = 0;
+            model.record("sigql:iir", samples.len(), &Candidate::cpu(), 1e-3, cpu_j);
+            if let Some(gpu) = &gpu {
+                model.record("sigql:iir", samples.len(), gpu, 1e-3, gpu_j);
+            }
+            let resp = execute_sigql_routed(sql, &amorphic, Instant::now(), &model).unwrap();
+            let r = receipt(&resp);
+            eprintln!("injected cpu={cpu_j} gpu={gpu_j}: {}", r.line());
+            assert_eq!(r.op, "sigql:iir");
+            assert_eq!(r.size_bucket, 12);
+            assert_real(&r.device);
+            assert_real(&r.fallback);
+            assert_real(&r.requested_device);
+            assert!(r.joules > 0.0 && r.seconds > 0.0);
+            assert_eq!(resp.energy_joules, Some(r.joules));
+            match &gpu {
+                Some(g) => {
+                    assert_eq!(r.requested_device, "gpu");
+                    let want = if cpu_j < gpu_j { Candidate::cpu() } else { g.clone() };
+                    assert_eq!((r.device.clone(), r.backend.clone()), (want.device.clone(), want.backend.clone()));
+                    assert_eq!(r.route_reason, format!("cost_model_{}_cheaper", want.device));
+                    assert_eq!(r.fallback, if want.device == "cpu" { "gpu" } else { "cpu" });
+                    assert_eq!(resp.device_target.as_deref(), Some(if want.device == "cpu" { "cpu" } else { "webgpu" }));
+                }
+                None => {
+                    assert_eq!((r.device.as_str(), r.route_reason.as_str(), r.fallback.as_str()), ("cpu", "only_candidate", "cpu"));
+                }
+            }
+        }
+    }
+
+    /// A fresh model runs the static preference, explores the other device
+    /// once, then follows the measurement; one call in `explore_every`
+    /// re-measures the runner-up. The fallback is never empty.
+    #[test]
+    fn sigql_routing_explores_then_follows_measurement() {
+        use crate::cost_model::{Candidate, CostModel};
+        let samples = long_signal(2048);
+        let amorphic = signal_table("explore_sig", &samples);
+        let sql = "FROM explore.sig TRANSFORM lowpass(50Hz)";
+        let mut model = CostModel::new();
+        model.explore_every = 4;
+        let reasons: Vec<crate::cost_model::RouteReceipt> = (0..8)
+            .map(|_| receipt(&execute_sigql_routed(sql, &amorphic, Instant::now(), &model).unwrap()))
+            .collect();
+        for r in &reasons {
+            eprintln!("{}", r.line());
+            assert_real(&r.fallback);
+            assert_real(&r.device);
+        }
+        match gpu_context() {
+            Ok(ctx) => {
+                let gpu = Candidate::new("gpu", ctx.backend.clone());
+                assert_eq!((reasons[0].device.as_str(), reasons[0].route_reason.as_str()), ("gpu", "no_history"));
+                assert_eq!((reasons[1].device.as_str(), reasons[1].route_reason.as_str()), ("cpu", "explore"));
+                let explores = reasons[2..].iter().filter(|r| r.route_reason == "explore").count();
+                assert_eq!(explores, 2, "calls 4 and 8 re-measure the runner-up");
+                for r in reasons[2..].iter().filter(|r| r.route_reason != "explore") {
+                    assert!(r.route_reason.starts_with("cost_model_"), "{}", r.line());
+                }
+                assert!(model.observed("sigql:iir", samples.len(), &gpu).is_some());
+                assert!(model.observed("sigql:iir", samples.len(), &Candidate::cpu()).is_some());
+            }
+            Err(_) => {
+                assert!(reasons.iter().all(|r| r.device == "cpu" && r.route_reason == "only_candidate"));
+            }
+        }
+    }
+
+    /// Live: at 64K and 1M samples the route converges on the device this
+    /// machine measured cheaper (by joules, then time), and every later
+    /// cost-model decision agrees with the recorded costs.
+    #[test]
+    fn sigql_live_routing_follows_measurement() {
+        use crate::cost_model::{Candidate, CostModel};
+        for n in [1usize << 16, 1 << 20] {
+            // Sources bound directly (a 1M-row table insert would dominate).
+            let (plan, sources) = long_plan("FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)", &long_signal(n));
+            let mut model = CostModel::new();
+            model.explore_every = 0;
+            let mut receipts = Vec::new();
+            for _ in 0..8 {
+                let resp = run_routed(&plan, &sources, Instant::now(), &model).unwrap();
+                receipts.push(receipt(&resp));
+            }
+            let cpu = model.observed("sigql:iir", n, &Candidate::cpu()).unwrap();
+            let gpu = gpu_context()
+                .ok()
+                .and_then(|ctx| model.observed("sigql:iir", n, &Candidate::new("gpu", ctx.backend.clone())));
+            for r in &receipts {
+                eprintln!("LIVE n={n} {}", r.line());
+                assert_real(&r.fallback);
+            }
+            match gpu {
+                Some(gpu) => {
+                    let gpu_wins = gpu.joules < cpu.joules;
+                    eprintln!(
+                        "LIVE n={n} measured cpu {:.3e} J / {:.3} ms, gpu {:.3e} J / {:.3} ms -> {} cheaper",
+                        cpu.joules,
+                        cpu.seconds * 1e3,
+                        gpu.joules,
+                        gpu.seconds * 1e3,
+                        if gpu_wins { "gpu" } else { "cpu" }
+                    );
+                    // The final decision follows the final measurement.
+                    let last = receipts.last().unwrap();
+                    assert!(last.route_reason.starts_with("cost_model_"), "{}", last.line());
+                    let cheaper = if gpu_wins { "gpu" } else { "cpu" };
+                    // Ties within 2% go to the faster one, so only check
+                    // clear wins.
+                    let rel = (gpu.joules - cpu.joules).abs() / gpu.joules.max(cpu.joules);
+                    if rel > 0.02 {
+                        assert_eq!(last.device, cheaper, "{}", last.line());
+                    }
+                }
+                None => assert!(receipts.iter().all(|r| r.device == "cpu")),
             }
         }
     }

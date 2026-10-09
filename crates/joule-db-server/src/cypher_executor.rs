@@ -92,6 +92,7 @@ fn execute_union(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -143,6 +144,7 @@ fn execute_segment(
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         });
     }
 
@@ -168,6 +170,7 @@ fn execute_segment(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 

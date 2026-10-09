@@ -374,6 +374,7 @@ fn exec_ts_query(
         algorithm_type: Some("timeseries".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -440,6 +441,7 @@ fn exec_ts_aggregate(
         algorithm_type: Some("timeseries".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -470,6 +472,7 @@ fn exec_ts_list(
         algorithm_type: Some("timeseries".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -721,6 +724,7 @@ fn exec_vector_search(
         algorithm_type: Some("vector".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -792,6 +796,7 @@ fn exec_vector_list(
         algorithm_type: Some("vector".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -921,6 +926,7 @@ fn exec_ft_search(
         algorithm_type: Some("fulltext".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1074,6 +1080,7 @@ fn exec_embed_similar(
         algorithm_type: Some("embeddings".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1135,6 +1142,7 @@ fn exec_embed_search(
         algorithm_type: Some("embeddings".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1325,6 +1333,7 @@ fn exec_columnar_aggregate(
         algorithm_type: Some("columnar".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1359,6 +1368,7 @@ fn exec_columnar_list(
         algorithm_type: Some("columnar".into()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -1462,6 +1472,7 @@ fn ok_response(start: Instant, affected: Option<usize>) -> QueryResponse {
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     }
 }
 

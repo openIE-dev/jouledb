@@ -88,6 +88,7 @@ pub fn execute_datalog(
         algorithm_type: Some("datalog_semi_naive".to_string()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 

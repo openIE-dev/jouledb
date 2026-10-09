@@ -158,6 +158,7 @@ fn execute_select(
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         });
     }
 
@@ -238,6 +239,7 @@ fn execute_select(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -281,6 +283,7 @@ fn execute_insert(
                 algorithm_type: None,
                 session_id: None,
                 viz_hint: None,
+                energy_receipt: None,
             });
         }
     }
@@ -300,6 +303,7 @@ fn execute_insert(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -391,6 +395,7 @@ fn execute_update(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -417,6 +422,7 @@ fn execute_delete(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -534,6 +540,7 @@ fn execute_use(_keyspace: &str, start: Instant) -> Result<QueryResponse, QueryEr
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -563,6 +570,7 @@ fn execute_batch(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -727,6 +735,7 @@ fn ok_response(start: Instant) -> QueryResponse {
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     }
 }
 

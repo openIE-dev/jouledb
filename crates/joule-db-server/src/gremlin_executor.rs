@@ -97,6 +97,7 @@ pub fn execute_gremlin(
         algorithm_type: Some("gremlin_traversal".to_string()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 

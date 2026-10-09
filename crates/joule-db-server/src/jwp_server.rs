@@ -1041,6 +1041,7 @@ mod tests {
                 session_id: None,
                 #[cfg(feature = "viz")]
                 viz_hint: None,
+                energy_receipt: None,
             })
         }
     }

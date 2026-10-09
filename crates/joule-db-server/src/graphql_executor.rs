@@ -80,6 +80,7 @@ fn execute_query_operation(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 
@@ -398,6 +399,7 @@ fn execute_mutation_operation(
         algorithm_type: None,
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 

@@ -39,6 +39,7 @@ pub fn execute_sparql(
             algorithm_type: Some("sparql_bgp".to_string()),
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         });
     }
 
@@ -61,6 +62,7 @@ pub fn execute_sparql(
         algorithm_type: Some("sparql_bgp".to_string()),
         session_id: None,
         viz_hint: None,
+        energy_receipt: None,
     })
 }
 

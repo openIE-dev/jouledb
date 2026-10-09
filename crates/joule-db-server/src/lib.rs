@@ -27,6 +27,7 @@ pub mod energy;
 pub mod energy_executor;
 pub mod enterprise;
 pub mod error;
+pub mod cost_model;
 pub mod fabric;
 pub mod features_bridge;
 pub mod fts_analyzer;
@@ -724,6 +725,11 @@ impl Server {
         // own durable B-tree next to the amorphic store, so they survive a
         // restart like SQL tables do.
         let ts_path = std::path::Path::new(&config.db_path).join(query::TIMESERIES_FILE);
+        // Measured device costs (SigQL / fabric routing) persist next to the
+        // data unless JOULE_COST_MODEL_PATH chose a file.
+        if std::env::var_os("JOULE_COST_MODEL_PATH").is_none() {
+            cost_model::init_persistent(std::path::Path::new(&config.db_path).join(cost_model::FILE));
+        }
         base_executor
             .attach_timeseries_store(&ts_path)
             .map_err(|e| format!("Failed to open time-series store: {e}"))?;

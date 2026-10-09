@@ -104,6 +104,11 @@ pub struct QueryResponse {
     /// Visualization hint inferred from query results (when `viz` feature enabled)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viz_hint: Option<serde_json::Value>,
+    /// Routing and energy receipt for jobs the fabric placed by measured
+    /// cost (SigQL): requested and chosen device/backend, the fallback
+    /// processor, why, and the joules.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy_receipt: Option<crate::cost_model::RouteReceipt>,
 }
 
 /// Query error response
@@ -1148,6 +1153,7 @@ impl SimpleQueryExecutor {
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         })
     }
 
@@ -1220,6 +1226,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: exec_result.algorithm_type,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -1282,6 +1289,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -1331,6 +1339,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -1380,6 +1389,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -1424,6 +1434,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
         }
@@ -3953,6 +3964,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4124,6 +4136,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4401,6 +4414,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4425,6 +4439,7 @@ impl SimpleQueryExecutor {
                             algorithm_type: None,
                             session_id: None,
                             viz_hint: None,
+                            energy_receipt: None,
                         });
                     }
                 }
@@ -4458,6 +4473,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4500,6 +4516,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4522,6 +4539,7 @@ impl SimpleQueryExecutor {
                         algorithm_type: None,
                         session_id: session_id.map(|s| s.to_string()),
                         viz_hint: None,
+                        energy_receipt: None,
                     });
                 }
                 let new_session_id = self.mvcc.begin_transaction();
@@ -4538,6 +4556,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: Some(new_session_id),
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4563,6 +4582,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4588,6 +4608,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4728,6 +4749,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4752,6 +4774,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4787,6 +4810,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4813,6 +4837,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4854,6 +4879,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4883,6 +4909,7 @@ impl SimpleQueryExecutor {
                             algorithm_type: None,
                             session_id: None,
                             viz_hint: None,
+                            energy_receipt: None,
                         });
                     }
                     return Err(QueryErrorResponse::execution_error(&format!(
@@ -4934,6 +4961,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4962,6 +4990,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -4984,6 +5013,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5023,6 +5053,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5055,6 +5086,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5078,6 +5110,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5121,6 +5154,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5145,6 +5179,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5205,6 +5240,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5229,6 +5265,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5266,6 +5303,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5289,6 +5327,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5365,6 +5404,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5441,6 +5481,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5475,6 +5516,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5529,6 +5571,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5577,6 +5620,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5625,6 +5669,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5652,6 +5697,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5689,6 +5735,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5717,6 +5764,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5744,6 +5792,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5773,6 +5822,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5797,6 +5847,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5824,6 +5875,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5862,6 +5914,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5887,6 +5940,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
 
@@ -5912,6 +5966,7 @@ impl SimpleQueryExecutor {
                     algorithm_type: None,
                     session_id: None,
                     viz_hint: None,
+                    energy_receipt: None,
                 })
             }
         }
@@ -6031,6 +6086,7 @@ impl SimpleQueryExecutor {
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         })
     }
 
@@ -7150,6 +7206,7 @@ impl SimpleQueryExecutor {
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         })
     }
 
@@ -11706,6 +11763,7 @@ impl SimpleQueryExecutor {
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         })
     }
 
@@ -11796,6 +11854,7 @@ impl SimpleQueryExecutor {
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         })
     }
 
@@ -11864,6 +11923,7 @@ impl SimpleQueryExecutor {
             algorithm_type: None,
             session_id: None,
             viz_hint: None,
+            energy_receipt: None,
         })
     }
 }
