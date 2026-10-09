@@ -257,7 +257,9 @@ impl Value {
             }
             tags::ARRAY => {
                 let len = read_u32(bytes, cursor)? as usize;
-                let mut arr = Vec::with_capacity(len);
+                // The length comes from the input: every element takes at
+                // least one byte, so never reserve more than what remains.
+                let mut arr = Vec::with_capacity(len.min(bytes.len() - *cursor));
                 for _ in 0..len {
                     arr.push(Self::decode_at(bytes, cursor)?);
                 }
@@ -280,7 +282,7 @@ impl Value {
             }
             tags::VECTOR => {
                 let len = read_u32(bytes, cursor)? as usize;
-                let mut v = Vec::with_capacity(len);
+                let mut v = Vec::with_capacity(len.min((bytes.len() - *cursor) / 4));
                 for _ in 0..len {
                     if *cursor + 4 > bytes.len() {
                         return Err(CodecError::UnexpectedEof {
