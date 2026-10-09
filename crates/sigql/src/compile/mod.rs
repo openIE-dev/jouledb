@@ -124,6 +124,9 @@ impl Compiler {
             current_register = self.compile_window(&window.spec, current_register, &mut steps)?;
         }
 
+        // Phase 4a: cross-signal operations between FROM sources
+        let correlated = self.compile_correlate(query, &mut steps)?;
+
         // Phase 4: Compile aggregates
         if let Some(ref aggregate) = query.aggregate {
             for agg_item in &aggregate.aggregations {
@@ -134,7 +137,7 @@ impl Compiler {
                     name: agg_item.name.clone(),
                 });
             }
-        } else {
+        } else if !correlated {
             // No aggregation, store the signal directly
             steps.push(PlanStep::Store {
                 input: current_register,
@@ -153,6 +156,64 @@ impl Compiler {
         } else {
             Ok(plan)
         }
+    }
+
+    /// Compile `CORRELATE { name: cross_correlation(a, b[, max_lag: d]) }`
+    /// where `a` and `b` name FROM sources (by alias, full path or last path
+    /// segment): load both, correlate, store under `name`. Other correlate
+    /// operations, and pairs that do not name FROM sources, are not compiled
+    /// (as before). Returns whether any output was stored.
+    fn compile_correlate(
+        &mut self,
+        query: &Query,
+        steps: &mut Vec<PlanStep>,
+    ) -> Result<bool, CompileError> {
+        let Some(correlate) = &query.correlate else {
+            return Ok(false);
+        };
+        let resolve = |name: &str| -> Option<&FromClause> {
+            if name.is_empty() {
+                return None;
+            }
+            query.from.iter().find(|from| match from {
+                FromClause::Signal(src) => {
+                    src.alias.as_deref() == Some(name)
+                        || src.path.as_str() == name
+                        || src.path.rsplit('.').next() == Some(name)
+                }
+                FromClause::Table { name: table, alias } => {
+                    alias.as_deref() == Some(name) || table.as_str() == name
+                }
+                _ => false,
+            })
+        };
+        let mut stored = false;
+        for (item, pair) in correlate.operations.iter().zip(&correlate.pairs) {
+            let crate::ast::CorrelateOp::CrossCorrelation { max_lag } = &item.op else {
+                continue;
+            };
+            let (Some(a), Some(b)) = (resolve(&pair.signal_a), resolve(&pair.signal_b)) else {
+                continue;
+            };
+            let input_a = self.compile_from(a, steps)?;
+            let input_b = self.compile_from(b, steps)?;
+            let output = self.alloc_register();
+            steps.push(PlanStep::CrossCorrelate {
+                input_a,
+                input_b,
+                output,
+                // No max_lag: every lag the signals allow (resolved at run time).
+                max_lag_samples: max_lag
+                    .map(|d| (d.0 * self.config.default_sample_rate as f64) as usize)
+                    .unwrap_or(usize::MAX),
+            });
+            steps.push(PlanStep::Store {
+                input: output,
+                name: item.name.clone(),
+            });
+            stored = true;
+        }
+        Ok(stored)
     }
 
     /// Compile FROM clause
@@ -743,6 +804,56 @@ pub enum CompileError {
 mod tests {
     use super::*;
     use crate::parser::parse_query;
+
+    #[test]
+    fn correlate_cross_correlation_compiles_between_from_sources() {
+        let query = parse_query(
+            "FROM eeg.c3 AS a, eeg.c4 AS b CORRELATE { x: cross_correlation(a, b, max_lag: 10ms), r: pearson(a, b) }",
+        )
+        .unwrap();
+        let plan = Compiler::default().compile(&query).unwrap();
+        let loads: Vec<_> = plan
+            .steps
+            .iter()
+            .filter_map(|s| match s {
+                PlanStep::LoadSignal { source, .. } => Some(source.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(loads.contains(&"eeg.c3") && loads.contains(&"eeg.c4"), "{loads:?}");
+        let xcorr = plan
+            .steps
+            .iter()
+            .find_map(|s| match s {
+                PlanStep::CrossCorrelate {
+                    max_lag_samples, ..
+                } => Some(*max_lag_samples),
+                _ => None,
+            })
+            .expect("cross-correlation step");
+        assert_eq!(xcorr, 10, "10 ms at the default 1000 Hz");
+        let stores: Vec<_> = plan
+            .steps
+            .iter()
+            .filter_map(|s| match s {
+                PlanStep::Store { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(stores, ["x"], "only the correlation is stored");
+
+        // Names resolve by last path segment too; no max_lag means all lags.
+        let query =
+            parse_query("FROM eeg.c3, eeg.c4 CORRELATE { x: cross_correlation(c4, c3) }").unwrap();
+        let plan = Compiler::default().compile(&query).unwrap();
+        assert!(plan.steps.iter().any(|s| matches!(
+            s,
+            PlanStep::CrossCorrelate {
+                max_lag_samples: usize::MAX,
+                ..
+            }
+        )));
+    }
 
     #[test]
     fn test_compile_simple() {

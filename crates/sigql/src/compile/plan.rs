@@ -204,8 +204,8 @@ impl ExecutionPlan {
             PlanStep::CrossCorrelate {
                 max_lag_samples, ..
             } => {
-                // Direct correlation: O(n * lags)
-                n * max_lag_samples * 2
+                // Direct correlation: O(n * lags); usize::MAX means "all lags".
+                n.saturating_mul((*max_lag_samples).min(n)).saturating_mul(2)
             }
             PlanStep::BandPower { .. } => {
                 // Sum of squared magnitudes in band

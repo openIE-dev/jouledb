@@ -748,19 +748,55 @@ fn correlate_clause(input: &str) -> IResult<&str, CorrelateClause> {
     let (input, _) = multispace0(input)?;
     let (input, _) = char('{').parse(input)?;
     let (input, _) = multispace0(input)?;
-    let (input, operations) =
-        separated_list1((multispace0, char(','), multispace0), correlate_item).parse(input)?;
+    let (input, items) = separated_list1(
+        (multispace0, char(','), multispace0),
+        correlate_item_with_pair,
+    )
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = char('}').parse(input)?;
 
+    // `pairs[i]` names the two signals of `operations[i]` (empty names for an
+    // operation written without a signal pair).
+    let (operations, pairs) = items.into_iter().unzip();
     Ok((
         input,
         CorrelateClause {
-            pairs: Vec::new(),
+            pairs,
             operations,
             approximation: None,
         },
     ))
+}
+
+/// A correlate item plus the two signal names it was written with: every
+/// pair-taking operation starts `op(a, b`.
+fn correlate_item_with_pair(input: &str) -> IResult<&str, (CorrelateItem, CorrelatePair)> {
+    let before = input;
+    let (input, item) = correlate_item(input)?;
+    let text = &before[..before.len() - input.len()];
+    let mut names = text
+        .split_once('(')
+        .map(|(_, args)| args)
+        .unwrap_or("")
+        .split(|c: char| c == ',' || c == ')')
+        .map(str::trim);
+    let pair = match (names.next(), names.next()) {
+        (Some(a), Some(b))
+            if identifier(a).is_ok_and(|(rest, _)| rest.is_empty())
+                && identifier(b).is_ok_and(|(rest, _)| rest.is_empty()) =>
+        {
+            CorrelatePair {
+                signal_a: SmolStr::new(a),
+                signal_b: SmolStr::new(b),
+            }
+        }
+        _ => CorrelatePair {
+            signal_a: SmolStr::new(""),
+            signal_b: SmolStr::new(""),
+        },
+    };
+    Ok((input, (item, pair)))
 }
 
 fn correlate_item(input: &str) -> IResult<&str, CorrelateItem> {

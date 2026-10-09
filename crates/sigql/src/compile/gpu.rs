@@ -23,12 +23,52 @@
 use alloc::{format, string::String, vec::Vec};
 
 use super::plan::{ElementWiseOp, PlanStep, ReduceOp};
+use crate::types::FrequencyBand;
 
 /// Threads per workgroup. 64 fits every adapter's default limits.
 pub const WORKGROUP: u32 = 64;
 
-/// Number of `f32` values a [`GpuKernel::Stats`] dispatch writes.
-pub const STATS_LEN: usize = 7;
+/// Number of `f32` values a [`GpuKernel::Stats`] dispatch writes:
+/// `[sum, sum_sq, max, min, crossings, dev2, sq_dev2, dev3, dev4, xy]`.
+pub const STATS_LEN: usize = 10;
+
+/// Number of `u32` words in the `params` uniform.
+pub const PARAMS_LEN: usize = 8;
+
+/// Largest power-of-two DFT size the direct DFT kernels accept (`k * t`
+/// must fit in a `u32`).
+const MAX_DFT_SIZE: usize = 1 << 16;
+
+/// What the host knows about a step's inputs when it binds the kernel.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GpuInput {
+    /// Samples (or spectrum bins) in the primary input register.
+    pub len: usize,
+    /// Sample rate of the primary input.
+    pub rate: u32,
+    /// The primary input is a magnitude spectrum, not a time signal.
+    pub is_spectrum: bool,
+    /// Samples in the second input (cross-correlation only).
+    pub second_len: Option<usize>,
+    /// The CPU runtime's `default_sample_rate` (band power uses it for bin width).
+    pub default_rate: u32,
+}
+
+/// Band-power bin range, fixed once the input is known.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BandBins {
+    /// Input is a magnitude spectrum (sum its bins) rather than a signal
+    /// (evaluate the DFT bins in the band).
+    pub from_spectrum: bool,
+    /// Transform size the bins belong to.
+    pub size: u32,
+    /// First bin, inclusive.
+    pub low: u32,
+    /// Last bin, inclusive. `high < low` means an empty band (power 0).
+    pub high: u32,
+    /// Bin width in Hz.
+    pub df: f64,
+}
 
 /// A plan step lowered to one compute shader.
 #[derive(Debug, Clone, PartialEq)]
@@ -54,9 +94,29 @@ pub enum GpuKernel {
     },
     /// Whole-signal statistics feeding [`reduce_from_stats`].
     Stats { op: ReduceOp },
+    /// Remove the mean (`order == 0`) or the least-squares line (otherwise),
+    /// as `dsp::statistics::detrend` does.
+    Detrend { order: u8 },
+    /// `|analytic signal|` through a zero-padded power-of-two FFT, as
+    /// `dsp::envelope::HilbertTransform::envelope` does.
+    Envelope,
+    /// 8th-order Butterworth anti-alias filter at `0.45 * rate / factor`,
+    /// then every `factor`-th sample, as `dsp::resample::decimate` does.
+    /// `sections` are filled in by [`GpuKernel::bind`] from the input rate.
+    Decimate {
+        factor: usize,
+        sections: Vec<[f64; 6]>,
+    },
+    /// Power in a band, `sum |X_k|^2 * df`, from a spectrum or a signal.
+    BandPower {
+        band: FrequencyBand,
+        bins: Option<BandBins>,
+    },
+    /// Linear cross-correlation `c[lag] = sum_t a[t + lag] * b[t]` for
+    /// `lag` in `-max_lag..=max_lag`; `b` is bound in place of `aux`.
+    CrossCorrelate { max_lag: usize, len_b: usize },
 }
 
-/// Output length of a kernel for an input of `n` samples.
 impl GpuKernel {
     /// Lower one plan step. `Err` names the step the GPU cannot run.
     pub fn from_step(step: &PlanStep) -> Result<Option<Self>, String> {
@@ -88,7 +148,7 @@ impl GpuKernel {
                 taps: coeffs.taps.clone(),
             },
             PlanStep::Fft { size, window, .. } => {
-                if *size == 0 || !size.is_power_of_two() || *size > (1 << 16) {
+                if *size == 0 || !size.is_power_of_two() || *size > MAX_DFT_SIZE {
                     return Err(format!(
                         "FFT size {size} is outside the GPU kernel's 1..=65536 power-of-two range"
                     ));
@@ -108,8 +168,26 @@ impl GpuKernel {
                 | ReduceOp::Variance
                 | ReduceOp::Std
                 | ReduceOp::ZeroCrossings
-                | ReduceOp::PeakToPeak => Self::Stats { op: *op },
-                other => return Err(format!("reduce {other:?} has no GPU kernel")),
+                | ReduceOp::PeakToPeak
+                | ReduceOp::Skewness
+                | ReduceOp::Kurtosis
+                | ReduceOp::Slope => Self::Stats { op: *op },
+            },
+            PlanStep::Detrend { order, .. } => Self::Detrend { order: *order },
+            PlanStep::Envelope { .. } => Self::Envelope,
+            PlanStep::Decimate { factor, .. } => Self::Decimate {
+                factor: *factor,
+                sections: Vec::new(),
+            },
+            PlanStep::BandPower { band, .. } => Self::BandPower {
+                band: *band,
+                bins: None,
+            },
+            PlanStep::CrossCorrelate {
+                max_lag_samples, ..
+            } => Self::CrossCorrelate {
+                max_lag: *max_lag_samples,
+                len_b: 0,
             },
             other => {
                 return Err(format!(
@@ -119,6 +197,96 @@ impl GpuKernel {
             }
         };
         Ok(Some(kernel))
+    }
+
+    /// Fix everything that depends on the actual inputs (rates, lengths,
+    /// input kind) and check the CPU runtime's preconditions. `Err` is a
+    /// reason to run the step on the CPU instead.
+    pub fn bind(&self, input: &GpuInput) -> Result<Self, String> {
+        let name = self.name();
+        if input.is_spectrum && !matches!(self, Self::BandPower { .. }) {
+            return Err(format!("{name} needs a time-domain signal input"));
+        }
+        if input.len < self.min_input_len() {
+            return Err(format!(
+                "{name} needs at least {} samples, got {}",
+                self.min_input_len(),
+                input.len
+            ));
+        }
+        Ok(match self {
+            Self::Decimate { factor, .. } => {
+                if *factor == 0 {
+                    return Err("decimate factor 0 is invalid".into());
+                }
+                let sections = if *factor <= 1 {
+                    Vec::new()
+                } else {
+                    use crate::dsp::filter::CascadedBiquad;
+                    use crate::types::{Hertz, SampleRate};
+                    let cutoff = Hertz::new(input.rate as f64 / (2.0 * *factor as f64) * 0.9);
+                    CascadedBiquad::butterworth_lowpass(cutoff, SampleRate::new(input.rate), 8)
+                        .map_err(|e| format!("decimate anti-alias filter: {e}"))?
+                        .sections()
+                        .into_iter()
+                        .map(|s| [s.b0, s.b1, s.b2, 1.0, s.a1, s.a2])
+                        .collect()
+                };
+                Self::Decimate {
+                    factor: *factor,
+                    sections,
+                }
+            }
+            Self::BandPower { band, .. } => {
+                let (size, n_bins) = if input.is_spectrum {
+                    if input.len < 2 {
+                        return Err("band power needs a spectrum of at least 2 bins".into());
+                    }
+                    ((input.len - 1) * 2, input.len)
+                } else {
+                    let size = input.len.next_power_of_two();
+                    if size > MAX_DFT_SIZE {
+                        return Err(format!(
+                            "band power over {} samples needs a {size}-point DFT, above the GPU kernel's 65536",
+                            input.len
+                        ));
+                    }
+                    (size, size / 2 + 1)
+                };
+                let df = input.default_rate as f64 / size as f64;
+                let low = ceil_to_usize(band.low.0 / df).min(n_bins - 1);
+                let high = floor_to_usize(band.high.0 / df).min(n_bins - 1);
+                let (low, high) = if low >= high { (1, 0) } else { (low, high) };
+                Self::BandPower {
+                    band: *band,
+                    bins: Some(BandBins {
+                        from_spectrum: input.is_spectrum,
+                        size: size as u32,
+                        low: low as u32,
+                        high: high as u32,
+                        df,
+                    }),
+                }
+            }
+            Self::CrossCorrelate { max_lag, .. } => {
+                let len_b = input
+                    .second_len
+                    .ok_or("cross-correlation needs a second input signal")?;
+                if len_b == 0 {
+                    return Err("cross-correlation needs a non-empty second signal".into());
+                }
+                let max_lag = if *max_lag == usize::MAX {
+                    input.len.max(len_b) - 1
+                } else {
+                    *max_lag
+                };
+                if max_lag > (u32::MAX / 4) as usize {
+                    return Err(format!("cross-correlation max lag {max_lag} is too large"));
+                }
+                Self::CrossCorrelate { max_lag, len_b }
+            }
+            other => other.clone(),
+        })
     }
 
     /// Short name for receipts and logs.
@@ -132,17 +300,53 @@ impl GpuKernel {
             Self::Fir { .. } => "fir",
             Self::Spectrum { .. } => "spectrum",
             Self::Stats { .. } => "stats",
+            Self::Detrend { .. } => "detrend",
+            Self::Envelope => "envelope",
+            Self::Decimate { .. } => "decimate",
+            Self::BandPower { .. } => "band_power",
+            Self::CrossCorrelate { .. } => "cross_correlate",
         }
     }
 
-    /// Number of `f32` values written for an `n`-sample input.
+    /// Number of `f32` values the step produces for an `n`-sample input.
     pub fn output_len(&self, n: usize) -> usize {
         match self {
             Self::Diff => n.saturating_sub(1),
             Self::Spectrum { size, .. } => *size as usize / 2 + 1,
             Self::Stats { .. } => STATS_LEN,
+            Self::BandPower { .. } => 1,
+            Self::Decimate { factor, .. } if *factor > 1 => n.div_ceil(*factor),
+            Self::CrossCorrelate { max_lag, .. } => 2 * max_lag + 1,
             _ => n,
         }
+    }
+
+    /// Size of the output buffer in `f32`s: the output, then any workspace
+    /// the kernel needs after it.
+    pub fn buffer_len(&self, n: usize) -> usize {
+        match self {
+            // Complex FFT workspace of the padded length.
+            Self::Envelope => n + 2 * n.max(1).next_power_of_two(),
+            _ => self.output_len(n),
+        }
+    }
+
+    /// Sample rate of the output signal for an input at `rate`.
+    pub fn output_rate(&self, rate: u32) -> u32 {
+        match self {
+            Self::Decimate { factor, .. } if *factor > 0 => rate / *factor as u32,
+            _ => rate,
+        }
+    }
+
+    /// The kernel produces a scalar (see [`GpuKernel::finish_scalar`]).
+    pub fn is_scalar(&self) -> bool {
+        matches!(self, Self::Stats { .. } | Self::BandPower { .. })
+    }
+
+    /// The kernel binds a second signal register at binding 3.
+    pub fn takes_second_input(&self) -> bool {
+        matches!(self, Self::CrossCorrelate { .. })
     }
 
     /// Minimum input length the CPU runtime accepts for this step.
@@ -150,6 +354,8 @@ impl GpuKernel {
         match self {
             Self::ZScore => 2,
             Self::Stats { op: ReduceOp::Std } => 2,
+            Self::Stats { op: ReduceOp::Kurtosis } => 4,
+            Self::Detrend { order } if *order > 0 => 2,
             _ => 1,
         }
     }
@@ -161,12 +367,21 @@ impl GpuKernel {
         match self {
             Self::ElementWise { .. } | Self::Fir { .. } => per_sample(n),
             Self::Diff => per_sample(n.saturating_sub(1)),
-            Self::Spectrum { .. } => per_sample(self.output_len(n)),
-            Self::Cumsum | Self::ZScore | Self::Iir { .. } | Self::Stats { .. } => 1,
+            Self::Spectrum { .. } | Self::CrossCorrelate { .. } => per_sample(self.output_len(n)),
+            Self::Cumsum
+            | Self::ZScore
+            | Self::Iir { .. }
+            | Self::Stats { .. }
+            | Self::Detrend { .. }
+            | Self::Envelope
+            | Self::Decimate { .. }
+            | Self::BandPower { .. } => 1,
         }
     }
 
     /// Contents of the `aux` binding (never empty: WebGPU rejects 0-byte bindings).
+    /// Kernels that [take a second input](GpuKernel::takes_second_input) bind
+    /// that register there instead.
     pub fn aux(&self) -> Vec<f32> {
         let v: Vec<f32> = match self {
             Self::Fir { taps } => taps.iter().map(|&t| t as f32).collect(),
@@ -180,24 +395,44 @@ impl GpuKernel {
         }
     }
 
-    /// The `params` uniform: `[n, aux_len, size, scale_bits]`.
-    pub fn params(&self, n: usize) -> [u32; 4] {
-        let aux_len = match self {
-            Self::Fir { taps } => taps.len(),
-            Self::Spectrum { window, .. } => window.len(),
-            _ => 0,
-        } as u32;
+    /// The `params` uniform: `[n, aux_len, size, scale_bits, p4, p5, p6, p7]`.
+    pub fn params(&self, n: usize) -> [u32; PARAMS_LEN] {
+        let mut p = [n as u32, 0, 0, 0, 0, 0, 0, 0];
         match self {
+            Self::Fir { taps } => p[1] = taps.len() as u32,
             Self::Spectrum {
                 size,
+                window,
                 coherent_gain,
-                ..
             } => {
                 let scale = 1.0 / (coherent_gain * libm_sqrt(*size as f64));
-                [n as u32, aux_len, *size, (scale as f32).to_bits()]
+                p[1] = window.len() as u32;
+                p[2] = *size;
+                p[3] = (scale as f32).to_bits();
             }
-            _ => [n as u32, aux_len, 0, 0],
+            Self::Detrend { order } => p[2] = u32::from(*order > 0),
+            Self::Envelope => {
+                let size = n.max(1).next_power_of_two();
+                p[2] = size as u32;
+                p[1] = size.trailing_zeros();
+            }
+            Self::Decimate { factor, .. } => p[2] = (*factor).max(1) as u32,
+            Self::BandPower { bins: Some(b), .. } => {
+                p[1] = u32::from(b.from_spectrum);
+                p[2] = b.size;
+                p[3] = (b.df as f32).to_bits();
+                p[4] = b.low;
+                p[5] = b.high;
+                let scale = 1.0 / libm_sqrt(b.size as f64);
+                p[6] = (scale as f32).to_bits();
+            }
+            Self::CrossCorrelate { max_lag, len_b } => {
+                p[1] = *len_b as u32;
+                p[2] = *max_lag as u32;
+            }
+            _ => {}
         }
+        p
     }
 
     /// The compute shader for this kernel, entry point `main`.
@@ -218,6 +453,7 @@ impl GpuKernel {
                 "    if (i < params.n) {\n        var acc: f32 = 0.0;\n        let taps = min(params.aux_len, i + 1u);\n        for (var j = 0u; j < taps; j++) {\n            acc += aux[j] * input[i - j];\n        }\n        output[i] = acc;\n    }\n",
             )),
             Self::Spectrum { .. } => s.push_str(&per_sample_main(SPECTRUM_BODY)),
+            Self::CrossCorrelate { .. } => s.push_str(&per_sample_main(XCORR_BODY)),
             Self::Cumsum => {
                 s.push_str(&reduce_helpers());
                 s.push_str(CUMSUM_MAIN);
@@ -230,10 +466,54 @@ impl GpuKernel {
                 s.push_str(&reduce_helpers());
                 s.push_str(STATS_MAIN);
             }
-            Self::Iir { sections } => s.push_str(&iir_main(sections)),
+            Self::Detrend { .. } => {
+                s.push_str(&reduce_helpers());
+                s.push_str(DETREND_MAIN);
+            }
+            Self::BandPower { .. } => {
+                s.push_str(&reduce_helpers());
+                s.push_str(BAND_POWER_MAIN);
+            }
+            Self::Envelope => s.push_str(ENVELOPE_MAIN),
+            Self::Iir { sections } => s.push_str(&iir_main(sections, false)),
+            Self::Decimate { sections, .. } => s.push_str(&iir_main(sections, true)),
         }
         s
     }
+
+    /// Turn a scalar kernel's output into the value the CPU runtime reports
+    /// for an `n`-sample input.
+    #[cfg(feature = "std")]
+    pub fn finish_scalar(
+        &self,
+        data: &[f64],
+        n: usize,
+    ) -> Option<crate::types::UncertainValue<f64>> {
+        match self {
+            Self::Stats { op } => reduce_from_stats(*op, data, n),
+            Self::BandPower { .. } => Some(crate::types::UncertainValue::from_ci(
+                *data.first()?,
+                0.0,
+                0.95,
+                1,
+            )),
+            _ => None,
+        }
+    }
+}
+
+fn ceil_to_usize(x: f64) -> usize {
+    // `f64::ceil` needs std; saturating casts match `x.ceil() as usize`.
+    let t = x as usize;
+    if (t as f64) < x {
+        t + 1
+    } else {
+        t
+    }
+}
+
+fn floor_to_usize(x: f64) -> usize {
+    x as usize
 }
 
 /// Turn the [`STATS_LEN`] values a `Stats` kernel wrote into the scalar the
@@ -250,8 +530,9 @@ pub fn reduce_from_stats(
         return None;
     }
     let nf = n as f64;
-    let [sum, sum_sq, max, min, crossings, dev2, sq_dev2] = [
-        stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], stats[6],
+    let [sum, sum_sq, max, min, crossings, dev2, sq_dev2, dev3, dev4, xy] = [
+        stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], stats[6], stats[7], stats[8],
+        stats[9],
     ];
     let mean = sum / nf;
     let sample_var = dev2 / (n - 1).max(1) as f64;
@@ -276,7 +557,30 @@ pub fn reduce_from_stats(
             let var_sq = sq_dev2 / (n - 1).max(1) as f64;
             (rms, (var_sq / nf).sqrt() / (2.0 * rms).max(1e-10))
         }
-        _ => return None,
+        ReduceOp::Skewness => {
+            // Runtime::reduce: population moments, 0 for a constant signal.
+            let std = (dev2 / nf).sqrt();
+            let skew = if std == 0.0 {
+                0.0
+            } else {
+                dev3 / nf / (std * std * std)
+            };
+            (skew, generic_se)
+        }
+        ReduceOp::Kurtosis => {
+            // dsp::statistics::compute_kurtosis: excess kurtosis, se sqrt(24/n).
+            if n < 4 {
+                return None;
+            }
+            let m2 = dev2 / nf;
+            (dev4 / nf / (m2 * m2) - 3.0, (24.0 / nf).sqrt())
+        }
+        ReduceOp::Slope => {
+            // Least-squares slope against the sample index; the index
+            // spread sum (i - (n-1)/2)^2 is n(n^2-1)/12 exactly.
+            let den = nf * (nf * nf - 1.0) / 12.0;
+            (if den == 0.0 { 0.0 } else { xy / den }, generic_se)
+        }
     };
     Some(UncertainValue::from_mean_se(value, se, n))
 }
@@ -315,6 +619,10 @@ struct Params {
     aux_len: u32,
     size: u32,
     scale_bits: u32,
+    p4: u32,
+    p5: u32,
+    p6: u32,
+    p7: u32,
 }
 
 @group(0) @binding(0) var<storage, read> input: array<f32>;
@@ -464,16 +772,31 @@ fn main(@builtin(local_invocation_id) lid3: vec3<u32>) {
     let crossings = wg_sum(lid, zc);
     let mean = total / f32(n);
     let mean_sq = total_sq / f32(n);
+    let x_mean = f32(n - 1u) * 0.5;
     var d: f32 = 0.0;
     var q: f32 = 0.0;
+    var d3: f32 = 0.0;
+    var d4: f32 = 0.0;
+    var xy: f32 = 0.0;
     for (var i = lid; i < n; i += 64u) {
         let x = input[i];
-        d += (x - mean) * (x - mean);
+        let e = x - mean;
+        let e2 = e * e;
+        d += e2;
         q += (x * x - mean_sq) * (x * x - mean_sq);
+        d3 += e2 * e;
+        d4 += e2 * e2;
+        xy += (f32(i) - x_mean) * e;
     }
     let dev2 = wg_sum(lid, d);
     let sq_dev2 = wg_sum(lid, q);
+    let dev3 = wg_sum(lid, d3);
+    let dev4 = wg_sum(lid, d4);
+    let slope_num = wg_sum(lid, xy);
     if (lid == 0u) {
+        output[7] = dev3;
+        output[8] = dev4;
+        output[9] = slope_num;
         output[0] = total;
         output[1] = total_sq;
         output[2] = top;
@@ -485,7 +808,154 @@ fn main(@builtin(local_invocation_id) lid3: vec3<u32>) {
 }
 ";
 
-fn iir_main(sections: &[[f64; 6]]) -> String {
+const XCORR_BODY: &str = "    let max_lag = params.size;
+    if (i <= 2u * max_lag) {
+        // lag = i - max_lag; c[lag] = sum_t a[t + lag] * b[t] over valid t.
+        let lag = i32(i) - i32(max_lag);
+        let na = i32(params.n);
+        let nb = i32(params.aux_len);
+        let t0 = max(0, -lag);
+        let t1 = min(nb, na - lag);
+        var acc: f32 = 0.0;
+        for (var t = t0; t < t1; t++) {
+            acc += input[u32(t + lag)] * aux[u32(t)];
+        }
+        output[i] = acc;
+    }
+";
+
+const DETREND_MAIN: &str = "@compute @workgroup_size(64)
+fn main(@builtin(local_invocation_id) lid3: vec3<u32>) {
+    let lid = lid3.x;
+    let n = params.n;
+    let nf = f32(n);
+    var s: f32 = 0.0;
+    for (var i = lid; i < n; i += 64u) { s += input[i]; }
+    let mean = wg_sum(lid, s) / nf;
+    let x_mean = (nf - 1.0) * 0.5;
+    var xy: f32 = 0.0;
+    for (var i = lid; i < n; i += 64u) { xy += (f32(i) - x_mean) * (input[i] - mean); }
+    let num = wg_sum(lid, xy);
+    // sum (i - x_mean)^2 = n (n^2 - 1) / 12
+    let slope = select(0.0, num / (nf * (nf * nf - 1.0) / 12.0), params.size != 0u);
+    let intercept = mean - slope * x_mean;
+    for (var i = lid; i < n; i += 64u) {
+        output[i] = input[i] - (intercept + slope * f32(i));
+    }
+}
+";
+
+const BAND_POWER_MAIN: &str = "@compute @workgroup_size(64)
+fn main(@builtin(local_invocation_id) lid3: vec3<u32>) {
+    let lid = lid3.x;
+    let size = params.size;
+    let low = params.p4;
+    let high = params.p5;
+    let scale = bitcast<f32>(params.p6);
+    var acc: f32 = 0.0;
+    for (var k = low + lid; k <= high; k += 64u) {
+        if (params.aux_len == 1u) {
+            // Input is already a magnitude spectrum.
+            acc += input[k] * input[k];
+        } else {
+            // Rectangular-window DFT bin of the zero-padded signal.
+            let len = min(params.n, size);
+            var re: f32 = 0.0;
+            var im: f32 = 0.0;
+            for (var t = 0u; t < len; t++) {
+                let theta = -6.2831853071795864 * f32((k * t) % size) / f32(size);
+                re += input[t] * cos(theta);
+                im += input[t] * sin(theta);
+            }
+            let mag = sqrt(re * re + im * im) * scale;
+            acc += mag * mag;
+        }
+    }
+    let total = wg_sum(lid, acc);
+    if (lid == 0u) {
+        output[0] = total * bitcast<f32>(params.scale_bits);
+    }
+}
+";
+
+/// Radix-2 FFT envelope in one workgroup. The complex workspace lives in the
+/// output buffer after the `n` output samples; `storageBarrier` orders the
+/// butterfly stages.
+const ENVELOPE_MAIN: &str = "fn bit_rev(i: u32, bits: u32) -> u32 {
+    if (bits == 0u) { return 0u; }
+    return reverseBits(i) >> (32u - bits);
+}
+
+fn ws_get(base: u32, j: u32) -> vec2<f32> {
+    return vec2<f32>(output[base + 2u * j], output[base + 2u * j + 1u]);
+}
+
+fn ws_set(base: u32, j: u32, v: vec2<f32>) {
+    output[base + 2u * j] = v.x;
+    output[base + 2u * j + 1u] = v.y;
+}
+
+fn fft_stages(lid: u32, base: u32, size: u32, sign: f32) {
+    for (var len = 2u; len <= size; len = len << 1u) {
+        let half = len >> 1u;
+        for (var b = lid; b < size / 2u; b += 64u) {
+            let k = b % half;
+            let i = (b / half) * len + k;
+            let j = i + half;
+            let theta = sign * 6.2831853071795864 * f32(k) / f32(len);
+            let w = vec2<f32>(cos(theta), sin(theta));
+            let u = ws_get(base, i);
+            let v = ws_get(base, j);
+            let t = vec2<f32>(w.x * v.x - w.y * v.y, w.x * v.y + w.y * v.x);
+            ws_set(base, i, u + t);
+            ws_set(base, j, u - t);
+        }
+        storageBarrier();
+    }
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(local_invocation_id) lid3: vec3<u32>) {
+    let lid = lid3.x;
+    let n = params.n;
+    let size = params.size;
+    let bits = params.aux_len;
+    let base = n;
+    // Load in bit-reversed order, zero-padded to `size`.
+    for (var i = lid; i < size; i += 64u) {
+        let x = select(0.0, input[min(i, n - 1u)], i < n);
+        ws_set(base, bit_rev(i, bits), vec2<f32>(x, 0.0));
+    }
+    storageBarrier();
+    fft_stages(lid, base, size, -1.0);
+    // Analytic signal: keep DC and Nyquist, double positive, zero negative.
+    let half = size / 2u;
+    for (var k = lid; k < size; k += 64u) {
+        if (k > half) {
+            ws_set(base, k, vec2<f32>(0.0, 0.0));
+        } else if (k > 0u && k < half) {
+            ws_set(base, k, 2.0 * ws_get(base, k));
+        }
+    }
+    storageBarrier();
+    for (var i = lid; i < size; i += 64u) {
+        let j = bit_rev(i, bits);
+        if (i < j) {
+            let a = ws_get(base, i);
+            ws_set(base, i, ws_get(base, j));
+            ws_set(base, j, a);
+        }
+    }
+    storageBarrier();
+    fft_stages(lid, base, size, 1.0);
+    let inv = 1.0 / f32(size);
+    for (var t = lid; t < n; t += 64u) {
+        output[t] = length(ws_get(base, t)) * inv;
+    }
+}
+";
+
+fn iir_main(sections: &[[f64; 6]], decimate: bool) -> String {
     // The recurrence is sequential, so one invocation walks the signal and
     // carries every section's state; cascading per sample equals running
     // each section over the whole signal in turn.
@@ -507,7 +977,12 @@ fn iir_main(sections: &[[f64; 6]]) -> String {
             a2 = wgsl_f32(a2),
         ));
     }
-    s.push_str("        output[i] = y;\n    }\n}\n");
+    if decimate {
+        // Keep every `params.size`-th filtered sample.
+        s.push_str("        if (i % params.size == 0u) {\n            output[i / params.size] = y;\n        }\n    }\n}\n");
+    } else {
+        s.push_str("        output[i] = y;\n    }\n}\n");
+    }
     s
 }
 
@@ -515,6 +990,7 @@ fn iir_main(sections: &[[f64; 6]]) -> String {
 mod tests {
     use super::*;
     use crate::compile::plan::{FirCoeffs, IirCoeffs, RegisterId, WindowCoeffs};
+    use crate::types::FrequencyBand;
 
     fn all_kernels() -> Vec<GpuKernel> {
         let r = RegisterId(0);
@@ -598,10 +1074,64 @@ mod tests {
                 op,
             });
         }
-        steps
+        for op in [ReduceOp::Skewness, ReduceOp::Kurtosis, ReduceOp::Slope] {
+            steps.push(PlanStep::Reduce {
+                input: r,
+                output: r,
+                op,
+            });
+        }
+        for order in [0, 1] {
+            steps.push(PlanStep::Detrend {
+                input: r,
+                output: r,
+                order,
+            });
+        }
+        steps.push(PlanStep::Envelope {
+            input: r,
+            output: r,
+        });
+        for factor in [1, 4] {
+            steps.push(PlanStep::Decimate {
+                input: r,
+                output: r,
+                factor,
+            });
+        }
+        steps.push(PlanStep::CrossCorrelate {
+            input_a: r,
+            input_b: r,
+            output: r,
+            max_lag_samples: 20,
+        });
+        let input = GpuInput {
+            len: 300,
+            rate: 1000,
+            is_spectrum: false,
+            second_len: Some(250),
+            default_rate: 1000,
+        };
+        let mut kernels: Vec<GpuKernel> = steps
             .iter()
-            .map(|s| GpuKernel::from_step(s).unwrap().unwrap())
-            .collect()
+            .map(|s| GpuKernel::from_step(s).unwrap().unwrap().bind(&input).unwrap())
+            .collect();
+        let band = PlanStep::BandPower {
+            input: r,
+            output: r,
+            band: FrequencyBand::new(4.0, 12.0),
+        };
+        let bp = GpuKernel::from_step(&band).unwrap().unwrap();
+        kernels.push(bp.bind(&input).unwrap());
+        kernels.push(
+            bp.bind(&GpuInput {
+                len: 129,
+                is_spectrum: true,
+                ..input
+            })
+            .unwrap(),
+        );
+        kernels
     }
 
     /// Every kernel the GPU path can emit must parse and validate as WGSL
@@ -630,19 +1160,39 @@ mod tests {
     #[test]
     fn unsupported_steps_name_themselves() {
         let r = RegisterId(0);
-        let err = GpuKernel::from_step(&PlanStep::Envelope {
+        let err = GpuKernel::from_step(&PlanStep::MedianFilter {
             input: r,
             output: r,
+            kernel_size: 5,
         })
         .unwrap_err();
-        assert!(err.contains("Envelope"), "{err}");
-        let err = GpuKernel::from_step(&PlanStep::Reduce {
-            input: r,
-            output: r,
+        assert!(err.contains("MedianFilter"), "{err}");
+        // Inputs the CPU runtime would reject, or the kernel cannot take,
+        // are refused at bind time with a reason.
+        let input = GpuInput {
+            len: 3,
+            rate: 1000,
+            is_spectrum: false,
+            second_len: None,
+            default_rate: 1000,
+        };
+        let kurt = GpuKernel::Stats {
             op: ReduceOp::Kurtosis,
-        })
-        .unwrap_err();
-        assert!(err.contains("Kurtosis"), "{err}");
+        };
+        assert!(kurt.bind(&input).unwrap_err().contains("at least 4"));
+        let xcorr = GpuKernel::CrossCorrelate {
+            max_lag: 3,
+            len_b: 0,
+        };
+        assert!(xcorr.bind(&input).unwrap_err().contains("second input"));
+        let spectrum_in = GpuInput {
+            is_spectrum: true,
+            ..input
+        };
+        assert!(GpuKernel::Envelope
+            .bind(&spectrum_in)
+            .unwrap_err()
+            .contains("time-domain"));
     }
 
     /// The host-side formulas must reproduce the CPU runtime's scalars when
@@ -669,6 +1219,13 @@ mod tests {
                 .iter()
                 .map(|x| (x * x - mean_sq).powi(2))
                 .sum::<f64>(),
+            samples.iter().map(|x| (x - mean).powi(3)).sum::<f64>(),
+            samples.iter().map(|x| (x - mean).powi(4)).sum::<f64>(),
+            samples
+                .iter()
+                .enumerate()
+                .map(|(i, x)| (i as f64 - (n - 1) as f64 / 2.0) * (x - mean))
+                .sum::<f64>(),
         ];
         let signal = crate::types::DynSignal::new("s", samples.clone(), 1000, 0);
         for op in [
@@ -681,6 +1238,9 @@ mod tests {
             ReduceOp::Std,
             ReduceOp::ZeroCrossings,
             ReduceOp::PeakToPeak,
+            ReduceOp::Skewness,
+            ReduceOp::Kurtosis,
+            ReduceOp::Slope,
         ] {
             let plan = crate::compile::ExecutionPlan {
                 steps: vec![

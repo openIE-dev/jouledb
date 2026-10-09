@@ -52,20 +52,18 @@ pub fn cross_correlate(
     let norm = 1.0 / fft_size as f64;
     let corr: Vec<f64> = cross.iter().map(|c| c.re * norm).collect();
 
-    // Rearrange: output[0] = lag 0, output[1] = lag 1, etc.
-    // For negative lags, they're at the end of the FFT output
-    let mut result = Vec::with_capacity(2 * max_lag + 1);
-
-    // Negative lags
-    for i in (fft_size - max_lag)..fft_size {
-        result.push(corr[i]);
-    }
-    // Zero and positive lags
-    for i in 0..=max_lag.min(fft_size - 1) {
-        result.push(corr[i]);
-    }
-
-    Ok(result)
+    // Output index j holds lag j - max_lag. Lag k sits at corr[k mod fft_size]
+    // (negative lags at the end). Lags beyond n - 1 have no overlapping
+    // samples, so they are exactly 0 (and would otherwise wrap around).
+    let lag_value = |lag: isize| -> f64 {
+        if lag.unsigned_abs() >= n {
+            0.0
+        } else {
+            corr[lag.rem_euclid(fft_size as isize) as usize]
+        }
+    };
+    let max_lag = max_lag as isize;
+    Ok((-max_lag..=max_lag).map(lag_value).collect())
 }
 
 /// Compute normalized cross-correlation (Pearson)
@@ -330,6 +328,25 @@ mod tests {
     use super::*;
     use approx::assert_relative_eq;
     use core::f64::consts::PI;
+
+    #[test]
+    fn cross_correlation_lags_beyond_the_signal_are_zero() {
+        let a = [1.0, 2.0, 3.0];
+        let b = [0.5, -1.0];
+        // max_lag larger than the FFT size used to panic.
+        let corr = cross_correlate(&a, &b, Some(9)).unwrap();
+        assert_eq!(corr.len(), 19);
+        let direct = |lag: isize| -> f64 {
+            (0..b.len() as isize)
+                .filter_map(|t| a.get((t + lag) as usize).filter(|_| t + lag >= 0).map(|x| x * b[t as usize]))
+                .sum()
+        };
+        for (j, v) in corr.iter().enumerate() {
+            let lag = j as isize - 9;
+            assert!((v - direct(lag)).abs() < 1e-12, "lag {lag}: {v} vs {}", direct(lag));
+        }
+        assert_eq!(cross_correlate(&a, &b, None).unwrap().len(), 5);
+    }
 
     #[test]
     fn test_autocorrelation() {

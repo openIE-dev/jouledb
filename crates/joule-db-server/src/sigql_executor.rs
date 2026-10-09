@@ -15,7 +15,7 @@ use joule_db_query::ast::Value;
 use joule_db_query::executor::TableStorage;
 use sigql::ast::FromClause;
 use sigql::compile::Target;
-use sigql::compile::gpu::GpuKernel;
+use sigql::compile::gpu::{GpuInput, GpuKernel};
 use sigql::runtime::{OutputValue, Runtime, RuntimeConfig};
 use sigql::types::DynSignal;
 use std::sync::Arc;
@@ -321,8 +321,9 @@ impl GpuContext {
 enum GpuValue {
     Signal { buf: wgpu::Buffer, len: usize, rate: u32, channel: String, start_ns: i64 },
     Spectrum { buf: wgpu::Buffer, len: usize },
-    /// Raw statistics for a reduce step, turned into the scalar on readback.
-    Stats { buf: wgpu::Buffer, op: sigql::compile::ReduceOp, n: usize },
+    /// Raw output of a scalar kernel (statistics, band power), turned into
+    /// the scalar on readback by `GpuKernel::finish_scalar`.
+    Scalar { buf: wgpu::Buffer, kernel: GpuKernel, n: usize },
 }
 
 /// Run a whole plan on the GPU, or say why it cannot.
@@ -427,26 +428,53 @@ fn run_on_gpu(
                     (Some(i), Some(o)) => (i, o),
                     _ => return Err(format!("{} has no single input/output register", kernel.name())),
                 };
-                let GpuValue::Signal { buf, len, rate, channel, start_ns } = reg(&regs, input)? else {
-                    return Err(format!("{} needs a time-domain signal input", kernel.name()));
+                let (buf, len, rate, channel, start_ns, is_spectrum) = match reg(&regs, input)? {
+                    GpuValue::Signal { buf, len, rate, channel, start_ns } => {
+                        (buf, len, rate, channel, start_ns, false)
+                    }
+                    GpuValue::Spectrum { buf, len } => (buf, len, 0, String::new(), 0, true),
+                    GpuValue::Scalar { .. } => {
+                        return Err(format!("{} cannot take a scalar input", kernel.name()))
+                    }
                 };
-                if len < kernel.min_input_len() {
-                    return Err(format!("{} needs at least {} samples, got {len}", kernel.name(), kernel.min_input_len()));
-                }
+                let second = match step {
+                    PlanStep::CrossCorrelate { input_b, .. } => match reg(&regs, *input_b)? {
+                        GpuValue::Signal { buf, len, .. } => Some((buf, len)),
+                        _ => return Err("cross-correlation needs two time-domain signals".into()),
+                    },
+                    _ => None,
+                };
+                let kernel = kernel.bind(&GpuInput {
+                    len,
+                    rate,
+                    is_spectrum,
+                    second_len: second.as_ref().map(|(_, l)| *l),
+                    default_rate: RuntimeConfig::default().default_sample_rate,
+                })?;
                 let out_len = kernel.output_len(len);
-                let out = storage((out_len * 4) as u64, kernel.name());
-                bytes_used += (out_len * 4) as u64;
+                let buf_bytes = (kernel.buffer_len(len) * 4) as u64;
+                if buf_bytes > max_bytes {
+                    return Err(format!(
+                        "{} needs a {buf_bytes}-byte buffer, above the adapter's storage binding limit",
+                        kernel.name()
+                    ));
+                }
+                let out = storage(buf_bytes, kernel.name());
+                bytes_used += buf_bytes;
                 let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("sigql-params"),
                     contents: &kernel.params(len).iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>(),
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
-                let aux = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("sigql-aux"),
-                    contents: &kernel.aux().iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>(),
-                    usage: wgpu::BufferUsages::STORAGE,
-                });
-                let pipeline = ctx.pipeline(kernel)?;
+                let aux = match &second {
+                    Some((b, _)) => b.clone(),
+                    None => device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("sigql-aux"),
+                        contents: &kernel.aux().iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>(),
+                        usage: wgpu::BufferUsages::STORAGE,
+                    }),
+                };
+                let pipeline = ctx.pipeline(&kernel)?;
                 let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some(kernel.name()),
                     layout: &ctx.layout,
@@ -467,10 +495,15 @@ fn run_on_gpu(
                     pass.dispatch_workgroups(kernel.workgroups(len), 1, 1);
                 }
                 names.push(kernel.name());
-                regs[output.0 as usize] = Some(match kernel {
-                    GpuKernel::Spectrum { .. } => GpuValue::Spectrum { buf: out, len: out_len },
-                    GpuKernel::Stats { op } => GpuValue::Stats { buf: out, op: *op, n: len },
-                    _ => GpuValue::Signal { buf: out, len: out_len, rate, channel, start_ns },
+                regs[output.0 as usize] = Some(if matches!(kernel, GpuKernel::Spectrum { .. }) {
+                    GpuValue::Spectrum { buf: out, len: out_len }
+                } else if kernel.is_scalar() {
+                    GpuValue::Scalar { buf: out, kernel, n: len }
+                } else if matches!(kernel, GpuKernel::CrossCorrelate { .. }) {
+                    // Runtime::cross_correlate names and times its output so.
+                    GpuValue::Signal { buf: out, len: out_len, rate, channel: "cross_correlation".into(), start_ns: 0 }
+                } else {
+                    GpuValue::Signal { buf: out, len: out_len, rate: kernel.output_rate(rate), channel, start_ns }
                 });
             }
             (other, None) => {
@@ -487,7 +520,7 @@ fn run_on_gpu(
     for (name, value) in &stores {
         let (src, len) = match value {
             GpuValue::Signal { buf, len, .. } | GpuValue::Spectrum { buf, len } => (buf, *len),
-            GpuValue::Stats { buf, .. } => (buf, sigql::compile::gpu::STATS_LEN),
+            GpuValue::Scalar { buf, kernel, n } => (buf, kernel.output_len(*n)),
         };
         let bytes = (len.max(1) * 4) as u64;
         let staging = device.create_buffer(&wgpu::BufferDescriptor {
@@ -532,9 +565,10 @@ fn run_on_gpu(
                 OutputValue::Signal(DynSignal::new(channel, data, rate, start_ns))
             }
             GpuValue::Spectrum { .. } => OutputValue::Spectrum(data),
-            GpuValue::Stats { op, n, .. } => OutputValue::Scalar(
-                sigql::compile::gpu::reduce_from_stats(op, &data, n)
-                    .ok_or_else(|| format!("reduce {op:?} on {n} samples has no GPU result"))?,
+            GpuValue::Scalar { kernel, n, .. } => OutputValue::Scalar(
+                kernel
+                    .finish_scalar(&data, n)
+                    .ok_or_else(|| format!("{} on {n} samples has no GPU result", kernel.name()))?,
             ),
         };
         outputs.insert(name, out);
@@ -1122,6 +1156,18 @@ mod tests {
         amorphic
     }
 
+    fn add_signal(amorphic: &Arc<AmorphicTableStorage>, name: &str, samples: &[f64]) {
+        use joule_db_query::executor::TableStorage;
+        amorphic.create_table(name, &["value".to_string()]).unwrap();
+        for &v in samples {
+            let row = joule_db_query::executor::RowData::new(
+                vec!["value".into()],
+                vec![joule_db_query::ast::Value::Float(v)],
+            );
+            amorphic.insert(name, &row).unwrap();
+        }
+    }
+
     fn numbers(resp: &QueryResponse) -> Vec<f64> {
         let col = resp
             .columns
@@ -1155,6 +1201,8 @@ mod tests {
             })
             .collect();
         let amorphic = signal_table("bench_sig", &samples);
+        // A second, shorter signal for cross-correlation.
+        add_signal(&amorphic, "bench_ref", &samples[17..257]);
         let queries = [
             "FROM bench.sig TRANSFORM abs()",
             "FROM bench.sig TRANSFORM diff()",
@@ -1172,6 +1220,23 @@ mod tests {
             "FROM bench.sig AGGREGATE { p: peak_to_peak }",
             "FROM bench.sig AGGREGATE { z: zero_crossings }",
             "FROM bench.sig TRANSFORM abs() AGGREGATE { m: mean }",
+            "FROM bench.sig AGGREGATE { s: skewness }",
+            "FROM bench.sig TRANSFORM abs() AGGREGATE { s: skewness }",
+            "FROM bench.sig AGGREGATE { k: kurtosis }",
+            "FROM bench.sig AGGREGATE { s: slope }",
+            "FROM bench.sig TRANSFORM cumsum() AGGREGATE { s: slope }",
+            "FROM bench.sig TRANSFORM detrend()",
+            "FROM bench.sig TRANSFORM cumsum(), detrend()",
+            "FROM bench.sig TRANSFORM envelope()",
+            "FROM bench.sig TRANSFORM hilbert()",
+            "FROM bench.sig TRANSFORM decimate(4)",
+            "FROM bench.sig TRANSFORM decimate(1)",
+            "FROM bench.sig AGGREGATE { p: band_power(4Hz..12Hz) }",
+            "FROM bench.sig AGGREGATE { p: band_power(100Hz..140Hz) }",
+            "FROM bench.sig TRANSFORM fft() AGGREGATE { p: band_power(4Hz..12Hz) }",
+            "FROM bench.sig AS a, bench.ref AS b CORRELATE { x: cross_correlation(a, b, max_lag: 20ms) }",
+            "FROM bench.sig AS a, bench.ref AS b CORRELATE { x: cross_correlation(a, b) }",
+            "FROM bench.sig, bench.ref CORRELATE { x: cross_correlation(ref, sig, max_lag: 5ms) }",
         ];
         let gpu = gpu_context();
         for sql in queries {
@@ -1192,7 +1257,18 @@ mod tests {
                     assert!(auto.warnings.iter().any(|w| w.contains("WGSL kernel")), "{:?}", auto.warnings);
                     assert_eq!(auto.columns, cpu.columns, "{sql}");
                     let (a, b) = (numbers(&auto), numbers(&cpu));
+                    assert!(!b.is_empty(), "{sql}: no output");
                     assert_eq!(a.len(), b.len(), "{sql}");
+                    // Everything but the computed values (names, timestamps,
+                    // confidence, sample counts) is identical.
+                    assert_eq!(auto.rows.len(), cpu.rows.len(), "{sql}");
+                    for (ra, rc) in auto.rows.iter().zip(&cpu.rows) {
+                        for (c, name) in cpu.columns.iter().enumerate() {
+                            if !["value", "magnitude", "lower_bound", "upper_bound"].contains(&name.as_str()) {
+                                assert_eq!(ra[c], rc[c], "{sql}: column {name}");
+                            }
+                        }
+                    }
                     let scale = b.iter().fold(1.0f64, |m, v| m.max(v.abs()));
                     for (i, (x, y)) in a.iter().zip(&b).enumerate() {
                         assert!(
@@ -1225,7 +1301,7 @@ mod tests {
         let samples: Vec<f64> = (0..128).map(|i| (i as f64 * 0.2).sin()).collect();
         let amorphic = signal_table("env_sig", &samples);
         let resp = execute_sigql_with(
-            "FROM env.sig TRANSFORM envelope()",
+            "FROM env.sig TRANSFORM interpolate(2)",
             &amorphic,
             Instant::now(),
             Target::WebGpu,
@@ -1233,7 +1309,7 @@ mod tests {
         .unwrap();
         assert_eq!(resp.device_target.as_deref(), Some("cpu"));
         assert!(
-            resp.warnings.iter().any(|w| w.contains("Envelope has no GPU kernel")
+            resp.warnings.iter().any(|w| w.contains("Interpolate has no GPU kernel")
                 || w.contains("no wgpu adapter")),
             "{:?}",
             resp.warnings

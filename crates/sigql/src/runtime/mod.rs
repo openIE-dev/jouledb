@@ -891,11 +891,9 @@ impl Runtime {
         signal_b: &DynSignal<f64>,
         max_lag_samples: usize,
     ) -> Result<DynSignal<f64>, RuntimeError> {
-        let corr = dsp::correlation::cross_correlate(
-            &signal_a.samples,
-            &signal_b.samples,
-            Some(max_lag_samples),
-        )
+        // usize::MAX: the query gave no max_lag, so use every lag.
+        let max_lag = (max_lag_samples != usize::MAX).then_some(max_lag_samples);
+        let corr = dsp::correlation::cross_correlate(&signal_a.samples, &signal_b.samples, max_lag)
         .map_err(|e| RuntimeError::DspError(e))?;
 
         Ok(DynSignal::new(
