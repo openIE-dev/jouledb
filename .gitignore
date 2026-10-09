@@ -4,4 +4,3 @@
 *.bak
 *.tmp
 .DS_Store
-Cargo.lock

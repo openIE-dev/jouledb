@@ -48,30 +48,28 @@ jobs:
         with:
           shared-key: engine-linux
 
-      # Cargo.lock is gitignored, so each run resolves the newest compatible
-      # versions (resolver 3 honours rust-version).
-      - name: Resolve dependencies
-        run: cargo generate-lockfile
-
+      # Cargo.lock is committed: every cargo step runs with --locked so CI
+      # builds exactly the dependency versions that were tested and fails if
+      # Cargo.toml and Cargo.lock drift apart. Bump with `cargo update`.
       - name: cargo check (workspace, all targets)
-        run: cargo check --workspace --all-targets
+        run: cargo check --workspace --all-targets --locked
 
       - name: cargo test (workspace)
-        run: cargo test --workspace --no-fail-fast
+        run: cargo test --workspace --no-fail-fast --locked
 
       - name: SigQL no_std typecheck
-        run: cargo check -p sigql --no-default-features --features no_std
+        run: cargo check -p sigql --no-default-features --features no_std --locked
 
       - name: Windows typecheck (joule-energy-rt)
         run: |
           rustup target add x86_64-pc-windows-gnu --toolchain "$RUST_TOOLCHAIN"
-          cargo check -p joule-energy-rt --target x86_64-pc-windows-gnu
+          cargo check -p joule-energy-rt --target x86_64-pc-windows-gnu --locked
 
       # Not blocking yet: the existing tree has clippy findings. Shown so new
       # code does not add more; make it blocking once the backlog is cleared.
       - name: cargo clippy (non-blocking)
         continue-on-error: true
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --workspace --all-targets --locked
 
   macos:
     name: macOS arm64 (Metal, Core ML, fabric)
@@ -101,10 +99,10 @@ jobs:
           system_profiler SPDisplaysDataType || true
 
       - name: joule-metal-rt tests
-        run: cargo test -p joule-metal-rt -- --nocapture
+        run: cargo test -p joule-metal-rt --locked -- --nocapture
 
       - name: joule-ane-rt tests
-        run: cargo test -p joule-ane-rt -- --nocapture
+        run: cargo test -p joule-ane-rt --locked -- --nocapture
 
       - name: joule-db-server fabric tests
-        run: "cargo test -p joule-db-server --lib fabric:: -- --nocapture"
+        run: "cargo test -p joule-db-server --locked --lib fabric:: -- --nocapture"
