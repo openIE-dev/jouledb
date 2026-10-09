@@ -4278,6 +4278,7 @@ dependencies = [
  "joule-db-local",
  "joule-db-query",
  "joule-db-viz",
+ "joule-energy-rt",
  "joule-metal-rt",
  "joule-runtime",
  "jsonwebtoken",

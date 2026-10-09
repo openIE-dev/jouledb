@@ -7,6 +7,11 @@
 //! [`CostModel::choose`] routes to the cheapest known candidate by energy,
 //! with time as the tie-breaker.
 //!
+//! Energy means measured incremental joules (above the idle baseline, see
+//! [`crate::power_meter`]) when every compared candidate has a measured
+//! reading; otherwise the flat-watts estimate, which ranks exactly like time.
+//! Each entry records its `energy_source`.
+//!
 //! Exploration is bounded: with no history the static preference runs
 //! (`no_history`); once one candidate in a bucket is measured, each
 //! unmeasured candidate is tried exactly once (`explore`); after that one
@@ -67,6 +72,9 @@ pub struct Route {
     pub requested: Candidate,
     /// Size bucket used for the lookup.
     pub bucket: u32,
+    /// How measured candidates were compared (`None` for `no_history`,
+    /// first-time `explore`, `only_candidate`).
+    pub ranked_by: Option<RankedBy>,
 }
 
 impl Route {
@@ -100,12 +108,35 @@ pub struct RouteReceipt {
     /// `no_history`, `only_candidate`; `+<device>_error` when the chosen
     /// device failed and the fallback ran.
     pub route_reason: String,
-    /// Energy of this run (`watts x seconds` unless measured).
+    /// Energy of this run: total measured joules over the job window (all
+    /// rails / package), or `watts x seconds` for an estimate.
     pub joules: f64,
+    /// Joules above the idle baseline (equals `joules` for an estimate).
+    #[serde(default)]
+    pub incremental_joules: f64,
     pub seconds: f64,
+    /// `joules / seconds`.
     pub watts: f64,
-    /// `estimate` or the name of a measured source.
+    /// `powermetrics`, `rapl`, `emi`, or `estimate`.
     pub energy_source: String,
+    /// `measured`, `interpolated`, or `estimate`.
+    #[serde(default)]
+    pub energy_confidence: String,
+    /// Mean per-device watts over the job window (measured), or the estimate
+    /// watts on the device that ran.
+    #[serde(default)]
+    pub cpu_watts: Option<f64>,
+    #[serde(default)]
+    pub gpu_watts: Option<f64>,
+    #[serde(default)]
+    pub ane_watts: Option<f64>,
+    /// Idle baseline subtracted for `incremental_joules`, watts.
+    #[serde(default)]
+    pub baseline_watts: Option<f64>,
+    /// What the cost model ranked by for this decision: `incremental_joules`
+    /// (all candidates measured) or `time` (some estimate).
+    #[serde(default)]
+    pub ranked_by: String,
     /// One-time setup this call paid (GPU pipeline compile), not included
     /// in `joules` / `seconds`.
     pub setup_seconds: Option<f64>,
@@ -114,8 +145,9 @@ pub struct RouteReceipt {
 impl RouteReceipt {
     /// One-line, key=value rendering for logs and test output.
     pub fn line(&self) -> String {
+        let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
         format!(
-            "op={} bucket={} requested_device={} device={} backend={} fallback={} route_reason={} joules={:.6e} seconds={:.6} watts={:.2} energy_source={} setup_s={}",
+            "op={} bucket={} requested_device={} device={} backend={} fallback={} route_reason={} ranked_by={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.2} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} setup_s={}",
             self.op,
             self.size_bucket,
             self.requested_device,
@@ -123,21 +155,73 @@ impl RouteReceipt {
             self.backend,
             self.fallback,
             self.route_reason,
+            self.ranked_by,
             self.joules,
+            self.incremental_joules,
             self.seconds,
             self.watts,
             self.energy_source,
+            self.energy_confidence,
+            w(self.cpu_watts),
+            w(self.gpu_watts),
+            w(self.ane_watts),
+            w(self.baseline_watts),
             self.setup_seconds.map(|s| format!("{s:.4}")).unwrap_or_else(|| "none".into())
         )
     }
 }
 
 /// Observed cost of one `(op, bucket, candidate)`.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Observed {
     pub runs: u64,
+    /// Running joules: measured totals, or `watts x seconds` estimates.
     pub joules: f64,
     pub seconds: f64,
+    /// Running measured incremental joules; `None` until a measured run.
+    #[serde(default)]
+    pub incremental_joules: Option<f64>,
+    /// Source of the latest observation.
+    #[serde(default = "estimate_label")]
+    pub energy_source: String,
+}
+
+fn estimate_label() -> String {
+    "estimate".into()
+}
+
+/// How [`CostModel::choose`] compared candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RankedBy {
+    /// Every candidate had measured incremental joules.
+    IncrementalJoules,
+    /// Some candidate only had an estimate: flat watts, i.e. time.
+    Time,
+}
+
+impl RankedBy {
+    pub fn label(&self) -> &'static str {
+        match self {
+            RankedBy::IncrementalJoules => "incremental_joules",
+            RankedBy::Time => "time",
+        }
+    }
+}
+
+/// Order two observations: by measured incremental joules when both have
+/// them (2% tie band, then time), else by time.
+fn compare(a: &Observed, b: &Observed, by: RankedBy) -> std::cmp::Ordering {
+    match (by, a.incremental_joules, b.incremental_joules) {
+        (RankedBy::IncrementalJoules, Some(x), Some(y)) => {
+            let scale = x.abs().max(y.abs()).max(f64::MIN_POSITIVE);
+            if (x - y).abs() <= ENERGY_TIE * scale {
+                a.seconds.total_cmp(&b.seconds)
+            } else {
+                x.total_cmp(&y)
+            }
+        }
+        _ => a.seconds.total_cmp(&b.seconds),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -152,6 +236,14 @@ struct State {
     costs: HashMap<Key, Observed>,
     /// Decisions per `(op, bucket)`, for the periodic explore schedule.
     calls: HashMap<(String, u32), u64>,
+}
+
+fn ranked_by(measured: &[(Candidate, Observed)]) -> RankedBy {
+    if measured.iter().all(|(_, o)| o.incremental_joules.is_some()) {
+        RankedBy::IncrementalJoules
+    } else {
+        RankedBy::Time
+    }
 }
 
 /// Size bucket: `ceil(log2(size))`, so 64K and 1M land in buckets 16 and 20.
@@ -211,25 +303,81 @@ impl CostModel {
         self.state.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    /// Record (or inject) an observed cost.
+    /// Record (or inject) an estimated cost (`joules = watts x seconds`).
     pub fn record(&self, op: &str, size: usize, candidate: &Candidate, seconds: f64, joules: f64) {
+        self.record_cost(op, size, candidate, seconds, joules, None, "estimate");
+    }
+
+    /// Record a job's energy as returned by the power meter.
+    pub fn record_energy(&self, op: &str, size: usize, candidate: &Candidate, e: &crate::power_meter::JobEnergy) {
+        let incremental = e.is_measured().then_some(e.incremental_joules);
+        self.record_cost(op, size, candidate, e.seconds, e.joules, incremental, &e.source);
+    }
+
+    /// Record (or inject) a cost; `incremental` is `Some` only for a
+    /// measured reading.
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_cost(
+        &self,
+        op: &str,
+        size: usize,
+        candidate: &Candidate,
+        seconds: f64,
+        joules: f64,
+        incremental: Option<f64>,
+        source: &str,
+    ) {
         let key = Key { op: op.to_string(), bucket: size_bucket(size), candidate: candidate.clone() };
         {
             let mut state = self.lock();
-            let entry = state.costs.entry(key).or_insert(Observed { runs: 0, joules, seconds });
+            let entry = state.costs.entry(key).or_insert(Observed {
+                runs: 0,
+                joules,
+                seconds,
+                incremental_joules: None,
+                energy_source: source.to_string(),
+            });
             if entry.runs > 0 {
                 entry.joules += EWMA * (joules - entry.joules);
                 entry.seconds += EWMA * (seconds - entry.seconds);
             }
+            if let Some(inc) = incremental {
+                entry.incremental_joules = Some(match entry.incremental_joules {
+                    Some(prev) => prev + EWMA * (inc - prev),
+                    None => inc,
+                });
+            }
+            entry.energy_source = source.to_string();
             entry.runs += 1;
         }
         self.save();
     }
 
+    /// Cheapest measured candidate by the energy rule and by time alone,
+    /// without counting a decision. `None` until every candidate is measured.
+    pub fn rankings(&self, op: &str, size: usize, candidates: &[Candidate]) -> Option<(Candidate, Candidate, RankedBy)> {
+        let bucket = size_bucket(size);
+        let state = self.lock();
+        let measured: Option<Vec<(Candidate, Observed)>> = candidates
+            .iter()
+            .map(|c| {
+                state
+                    .costs
+                    .get(&Key { op: op.to_string(), bucket, candidate: c.clone() })
+                    .map(|o| (c.clone(), o.clone()))
+            })
+            .collect();
+        let measured = measured.filter(|m| !m.is_empty())?;
+        let by = ranked_by(&measured);
+        let energy = measured.iter().min_by(|(_, a), (_, b)| compare(a, b, by))?.0.clone();
+        let time = measured.iter().min_by(|(_, a), (_, b)| compare(a, b, RankedBy::Time))?.0.clone();
+        Some((energy, time, by))
+    }
+
     /// The running cost of `candidate` for `op` at `size`, if measured.
     pub fn observed(&self, op: &str, size: usize, candidate: &Candidate) -> Option<Observed> {
         let key = Key { op: op.to_string(), bucket: size_bucket(size), candidate: candidate.clone() };
-        self.lock().costs.get(&key).copied()
+        self.lock().costs.get(&key).cloned()
     }
 
     /// Pick a candidate for `op` at `size`. `candidates[0]` is the static
@@ -257,6 +405,7 @@ impl CostModel {
             reason,
             requested: requested.clone(),
             bucket,
+            ranked_by: None,
         };
         if candidates.len() == 1 {
             return route(requested.clone(), RouteReason::OnlyCandidate);
@@ -273,7 +422,7 @@ impl CostModel {
                 state
                     .costs
                     .get(&Key { op: op.to_string(), bucket, candidate: c.clone() })
-                    .map(|o| (c.clone(), *o))
+                    .map(|o| (c.clone(), o.clone()))
             })
             .collect();
         if measured.is_empty() {
@@ -283,19 +432,13 @@ impl CostModel {
             return route(unmeasured.clone(), RouteReason::Explore);
         }
         let mut ranked = measured;
-        ranked.sort_by(|(_, a), (_, b)| {
-            let scale = a.joules.abs().max(b.joules.abs()).max(f64::MIN_POSITIVE);
-            if (a.joules - b.joules).abs() <= ENERGY_TIE * scale {
-                a.seconds.total_cmp(&b.seconds)
-            } else {
-                a.joules.total_cmp(&b.joules)
-            }
-        });
+        let by = ranked_by(&ranked);
+        ranked.sort_by(|(_, a), (_, b)| compare(a, b, by));
         drop(state);
         if self.explore_every > 0 && call % self.explore_every == 0 {
-            return route(ranked[1].0.clone(), RouteReason::Explore);
+            return Route { ranked_by: Some(by), ..route(ranked[1].0.clone(), RouteReason::Explore) };
         }
-        route(ranked[0].0.clone(), RouteReason::CostModelCheaper)
+        Route { ranked_by: Some(by), ..route(ranked[0].0.clone(), RouteReason::CostModelCheaper) }
     }
 
     fn save(&self) {
@@ -309,7 +452,7 @@ impl CostModel {
                 bucket: k.bucket,
                 device: k.candidate.device.clone(),
                 backend: k.candidate.backend.clone(),
-                cost: *v,
+                cost: v.clone(),
             })
             .collect();
         if let Ok(text) = serde_json::to_string(&rows) {
@@ -389,14 +532,22 @@ mod tests {
         assert_eq!(large.chosen, gpu());
         assert_eq!(large.reason_label(), "cost_model_gpu_cheaper");
         assert_eq!(large.fallback, Candidate::cpu());
-        // Energy is primary: faster but hungrier loses.
-        model.record("op", 100, &Candidate::cpu(), 0.001, 1.0);
-        model.record("op", 100, &gpu(), 0.0005, 2.0);
-        assert_eq!(model.choose("op", 100, &both).chosen, Candidate::cpu());
+        // Measured energy is primary: faster but hungrier loses.
+        model.record_cost("op", 100, &Candidate::cpu(), 0.001, 1.5, Some(1.0), "powermetrics");
+        model.record_cost("op", 100, &gpu(), 0.0005, 2.5, Some(2.0), "powermetrics");
+        let r = model.choose("op", 100, &both);
+        assert_eq!(r.chosen, Candidate::cpu());
+        assert_eq!(r.ranked_by, Some(RankedBy::IncrementalJoules));
         // Within the energy tie band, time decides.
-        model.record("tie", 100, &Candidate::cpu(), 0.002, 1.0);
-        model.record("tie", 100, &gpu(), 0.001, 1.01);
+        model.record_cost("tie", 100, &Candidate::cpu(), 0.002, 1.0, Some(1.0), "powermetrics");
+        model.record_cost("tie", 100, &gpu(), 0.001, 1.0, Some(1.01), "powermetrics");
         assert_eq!(model.choose("tie", 100, &both).chosen, gpu());
+        // Estimates are flat watts x time: they rank like time.
+        model.record("est", 100, &Candidate::cpu(), 0.001, 1.0);
+        model.record("est", 100, &gpu(), 0.0005, 2.0);
+        let r = model.choose("est", 100, &both);
+        assert_eq!(r.chosen, gpu());
+        assert_eq!(r.ranked_by, Some(RankedBy::Time));
     }
 
     #[test]
@@ -448,5 +599,33 @@ mod tests {
         let r = model.choose("z", 4096, &[gpu(), Candidate::cpu()]);
         assert_eq!(r.reason_label(), "cost_model_cpu_cheaper");
         assert_eq!(model.observed("z", 4096, &gpu()).unwrap().runs, 1);
+    }
+
+    #[test]
+    fn measured_incremental_joules_can_overrule_time() {
+        let mut model = CostModel::new();
+        model.explore_every = 0;
+        let cpu = Candidate::cpu();
+        let both = [gpu(), cpu.clone()];
+        // GPU slower (1.5 ms vs 1.2 ms) but draws far less above idle.
+        model.record_cost("sigql:iir", 65536, &cpu, 0.0012, 0.060, Some(0.030), "powermetrics");
+        model.record_cost("sigql:iir", 65536, &gpu(), 0.0015, 0.050, Some(0.006), "powermetrics");
+        let (by_energy, by_time, by) = model.rankings("sigql:iir", 65536, &both).expect("measured");
+        assert_eq!((by_energy, by_time, by), (gpu(), cpu.clone(), RankedBy::IncrementalJoules));
+        let r = model.choose("sigql:iir", 65536, &both);
+        assert_eq!(r.chosen, gpu());
+        assert_eq!(r.reason_label(), "cost_model_gpu_cheaper");
+        // One candidate only estimated: no mixing of measured and estimated
+        // joules; time decides.
+        model.record("sigql:iir", 1 << 20, &cpu, 0.010, 0.05);
+        model.record_cost("sigql:iir", 1 << 20, &gpu(), 0.012, 0.03, Some(0.001), "powermetrics");
+        let r = model.choose("sigql:iir", 1 << 20, &both);
+        assert_eq!((r.chosen, r.ranked_by), (cpu.clone(), Some(RankedBy::Time)));
+        // A later measured run upgrades the entry.
+        model.record_cost("sigql:iir", 1 << 20, &cpu, 0.010, 0.2, Some(0.1), "powermetrics");
+        let r = model.choose("sigql:iir", 1 << 20, &both);
+        assert_eq!((r.chosen, r.ranked_by), (gpu(), Some(RankedBy::IncrementalJoules)));
+        let o = model.observed("sigql:iir", 1 << 20, &cpu).expect("observed");
+        assert_eq!(o.energy_source, "powermetrics");
     }
 }

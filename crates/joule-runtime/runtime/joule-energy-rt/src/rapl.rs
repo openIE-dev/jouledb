@@ -82,6 +82,25 @@ impl RAPLReader {
         }
     }
 
+    /// Read core (PP0) energy in joules, if the package exposes a `core`
+    /// subdomain.
+    pub fn read_core_energy(&self) -> Result<Option<f64>> {
+        let Some(base) = self.package_energy_path.parent() else { return Ok(None) };
+        for i in 0..4 {
+            let dir = base.join(format!("intel-rapl:0:{i}"));
+            let is_core = fs::read_to_string(dir.join("name")).is_ok_and(|n| n.trim() == "core");
+            if is_core {
+                let content = fs::read_to_string(dir.join("energy_uj"))?;
+                let uj = content
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|e| Error::Parse(format!("Failed to parse core energy: {}", e)))?;
+                return Ok(Some(uj / 1_000_000.0));
+            }
+        }
+        Ok(None)
+    }
+
     /// Read total energy (package + DRAM if available)
     pub fn read_total_energy(&self) -> Result<f64> {
         let package = self.read_package_energy()?;

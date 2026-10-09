@@ -127,6 +127,7 @@ joule-db-gpu = { workspace = true }
 joule-runtime = { workspace = true }
 joule-metal-rt = { workspace = true }
 joule-ane-rt = { workspace = true }
+joule-energy-rt = { workspace = true }
 
 # Energy receipt ledger (blockchain-anchored attestation)
 joule-db-ledger = { workspace = true, features = ["http"] }

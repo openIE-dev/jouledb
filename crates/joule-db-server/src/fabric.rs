@@ -76,10 +76,25 @@ pub struct EnergyReceipt {
     /// `coreml-ane`, `coreml`, `metal`, `wgpu`, or `cpu`. The kernel that
     /// produced `value`.
     pub backend: String,
-    /// Estimated joules for this dispatch. Reporting only.
+    /// Joules for this dispatch: measured over the job window (all
+    /// CPU/GPU/ANE rails, or package counters) or `watts x seconds` for an
+    /// estimate. Reporting only.
     pub joules: f64,
-    /// Watts used to derive `joules` (`snapshot.power_watts`, default 5).
+    /// Joules above the idle baseline (equals `joules` for an estimate).
+    pub incremental_joules: f64,
+    /// `joules / seconds` (the snapshot watts, default 5, for an estimate).
     pub watts: f64,
+    /// Job seconds the energy covers (setup excluded).
+    pub seconds: f64,
+    /// `measured`, `interpolated` (shorter than a sample interval, so
+    /// apportioned from overlapping samples), or `estimate`.
+    pub energy_confidence: String,
+    /// Mean per-device watts over the job window.
+    pub cpu_watts: Option<f64>,
+    pub gpu_watts: Option<f64>,
+    pub ane_watts: Option<f64>,
+    /// Idle baseline subtracted for `incremental_joules`, watts.
+    pub baseline_watts: Option<f64>,
     /// Fallback processor. Always a real device (`cpu`, `gpu`, `npu`, `tpu`,
     /// `lpu`). Never empty.
     ///
@@ -93,8 +108,8 @@ pub struct EnergyReceipt {
     /// For HDC similarity: the sum of all `n x k` dot products (checksum).
     pub value: f64,
     pub algorithm: String,
-    /// Where `joules` came from: `powermetrics` (measured ANE power while the
-    /// op ran on the Neural Engine) or `estimate` (watts snapshot x time).
+    /// Where `joules` came from: `powermetrics`, `rapl`, `emi` (measured), or
+    /// `estimate` (watts snapshot x time).
     pub energy_source: String,
     /// `MLComputePlan` summary (`layout:op@device`) when the Core ML lane ran.
     pub placement: Option<String>,
@@ -112,8 +127,9 @@ pub struct EnergyReceipt {
 impl EnergyReceipt {
     /// One-line, key=value rendering for logs and test output.
     pub fn line(&self) -> String {
+        let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
         format!(
-            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} watts={:.4} energy_source={} placement={} setup_ms={} setup_joules={}",
+            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} placement={} setup_ms={} setup_joules={}",
             self.requested_device,
             self.device,
             self.backend,
@@ -122,8 +138,15 @@ impl EnergyReceipt {
             self.algorithm,
             self.value,
             self.joules,
+            self.incremental_joules,
+            self.seconds,
             self.watts,
             self.energy_source,
+            self.energy_confidence,
+            w(self.cpu_watts),
+            w(self.gpu_watts),
+            w(self.ane_watts),
+            w(self.baseline_watts),
             self.placement.as_deref().unwrap_or("none"),
             self.setup_ms
                 .map(|v| format!("{v:.3}"))
@@ -538,8 +561,16 @@ fn dispatch_sum_costed(
     let route = model.choose(&op, values.len(), &[gpu, Candidate::cpu()]);
     let mut receipt = dispatch_sum_on(values, algorithm, route.chosen.device == "cpu", host);
     let ran = Candidate::new(receipt.device.clone(), receipt.backend.clone());
-    let seconds = receipt.joules / receipt.watts.max(f64::MIN_POSITIVE);
-    model.record(&op, values.len(), &ran, seconds, receipt.joules);
+    let measured = receipt.energy_source != "estimate";
+    model.record_cost(
+        &op,
+        values.len(),
+        &ran,
+        receipt.seconds,
+        receipt.joules,
+        measured.then_some(receipt.incremental_joules),
+        &receipt.energy_source,
+    );
     receipt.route_reason = route.reason_label();
     if ran.device == route.chosen.device {
         receipt.fallback = route.fallback.device.clone();
@@ -560,23 +591,31 @@ fn dispatch_sum_on(
     let hints = advisor.advise(&snap);
     let preferred = smart_preferred(algorithm, &hints, &snap, host);
 
-    let started = Instant::now();
+    let meter = meter_for(host);
+    let span = meter.begin();
     let (value, backend, reported, executed, preferred_ran) =
         execute(values, preferred, force_cpu, host);
     let fallback = fallback_processor(preferred_ran, executed, host);
-    let elapsed = started.elapsed().as_secs_f64().max(1e-6);
-    let joules = snap.power_watts.max(0.0) * elapsed;
+    let device = if backend == "cpu" { "cpu" } else { "gpu" };
+    let e = meter.finish(span, std::time::Duration::ZERO, device, snap.power_watts);
 
     EnergyReceipt {
         device: reported.to_string(),
         requested_device: preferred.to_string(),
         backend: backend.to_string(),
-        joules,
-        watts: snap.power_watts,
+        joules: e.joules,
+        incremental_joules: e.incremental_joules,
+        watts: e.watts,
+        seconds: e.seconds,
+        energy_confidence: e.confidence.clone(),
+        cpu_watts: e.cpu_watts,
+        gpu_watts: e.gpu_watts,
+        ane_watts: e.ane_watts,
+        baseline_watts: e.baseline_watts,
         fallback: fallback.to_string(),
         value,
         algorithm: algorithm.to_string(),
-        energy_source: "estimate".to_string(),
+        energy_source: e.source.clone(),
         placement: None,
         route_reason: if force_cpu {
             "force_cpu".to_string()
@@ -894,9 +933,15 @@ fn dispatch_hdc_on(
 
     // CPU reference: the CPU lane's result and the check for every
     // accelerator result. Its time is the CPU lane's per-job time.
+    let meter = meter_for(host);
+    let cpu_span = meter.begin();
     let cpu_started = Instant::now();
     let cpu_ref = joule_ane_rt::cpu_dot_scores(queries, memory, d);
     let cpu_s = cpu_started.elapsed().as_secs_f64();
+    let cpu_end = Instant::now();
+    cpu_span.close(cpu_end);
+    // GPU kernel window: (span, end, setup to skip).
+    let mut gpu_window: Option<(crate::power_meter::Span, Instant, std::time::Duration)> = None;
 
     let decision = route_hdc(n, k, d, preferred, force_cpu, host);
     let bucket = ShapeBucket::of(n, k, d);
@@ -943,7 +988,11 @@ fn dispatch_hdc_on(
         && !force_cpu
         && matches!(preferred, DeviceTarget::Npu | DeviceTarget::Gpu)
     {
+        let gpu_span = meter.begin();
         if let Ok((scores, kernel_s, gpu_setup_s)) = run_gpu_hdc(queries, memory, d, host) {
+            let gpu_end = Instant::now();
+            gpu_span.close(gpu_end);
+            gpu_window = Some((gpu_span, gpu_end, std::time::Duration::from_secs_f64(gpu_setup_s.max(0.0))));
             setup_s += gpu_setup_s;
             if scores == cpu_ref {
                 chosen = Some((
@@ -980,10 +1029,50 @@ fn dispatch_hdc_on(
         .filter(|_| backend == "coreml-ane")
         .and_then(|o| o.power.clone());
     let watts_estimate = snap.power_watts.max(0.0);
-    let (joules, watts, energy_source) = match measured {
-        Some(p) => (p.joules_per_prediction, p.mean_ane_watts, "powermetrics"),
-        None => (watts_estimate * job_s, snap.power_watts, "estimate"),
+    let energy = match (measured, backend) {
+        (Some(p), _) => match p.rails {
+            // Shared sampler: all rails over the prediction loop, per prediction.
+            Some(rails) => {
+                let per = p.window_s / p.predictions.max(1) as f64;
+                crate::power_meter::JobEnergy {
+                    source: "powermetrics".into(),
+                    confidence: p.confidence.into(),
+                    seconds: per,
+                    joules: rails.total() * per,
+                    incremental_joules: p.incremental_joules_per_prediction.unwrap_or(rails.total() * per),
+                    watts: rails.total(),
+                    cpu_watts: Some(rails.cpu_w),
+                    gpu_watts: Some(rails.gpu_w),
+                    ane_watts: Some(rails.ane_w),
+                    dram_watts: None,
+                    baseline_watts: p
+                        .incremental_joules_per_prediction
+                        .map(|inc| ((rails.total() * per - inc) / per).max(0.0)),
+                }
+            }
+            // One-off powermetrics run: ANE rail only, no baseline.
+            None => crate::power_meter::JobEnergy {
+                source: "powermetrics".into(),
+                confidence: p.confidence.into(),
+                seconds: job_s,
+                joules: p.joules_per_prediction,
+                incremental_joules: p.joules_per_prediction,
+                watts: p.mean_ane_watts,
+                cpu_watts: None,
+                gpu_watts: None,
+                ane_watts: Some(p.mean_ane_watts),
+                dram_watts: None,
+                baseline_watts: None,
+            },
+        },
+        (None, "metal") => match gpu_window {
+            Some((span, end, skip)) => meter.finish_at(span, end, skip, "gpu", watts_estimate),
+            None => crate::power_meter::JobEnergy::estimate("gpu", watts_estimate, job_s),
+        },
+        (None, "cpu") => meter.finish_at(cpu_span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate),
+        (None, _) => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),
     };
+    let (joules, watts, energy_source) = (energy.joules, energy.watts, energy.source.clone());
     let (setup_ms, setup_joules) = if setup_s > 0.0 {
         (Some(setup_s * 1000.0), Some(watts_estimate * setup_s))
     } else {
@@ -1006,11 +1095,18 @@ fn dispatch_hdc_on(
             requested_device: preferred.to_string(),
             backend: backend.to_string(),
             joules,
+            incremental_joules: energy.incremental_joules,
             watts,
+            seconds: energy.seconds,
+            energy_confidence: energy.confidence.clone(),
+            cpu_watts: energy.cpu_watts,
+            gpu_watts: energy.gpu_watts,
+            ane_watts: energy.ane_watts,
+            baseline_watts: energy.baseline_watts,
             fallback: fallback.to_string(),
             value,
             algorithm: algorithm.to_string(),
-            energy_source: energy_source.to_string(),
+            energy_source,
             placement,
             route_reason,
             setup_ms,
@@ -1024,6 +1120,21 @@ fn dispatch_hdc_on(
         plan,
         attempts,
     })
+}
+
+/// The power meter for `host`: the process meter for a live host; the
+/// labelled estimate for an injected descriptor host (nothing real ran).
+fn meter_for(host: &HostProfile) -> &'static crate::power_meter::Meter {
+    static ESTIMATE: crate::power_meter::Meter = crate::power_meter::Meter::Estimate;
+    if host.live_gpu { crate::power_meter::Meter::global() } else { &ESTIMATE }
+}
+
+fn executed_device_label(d: DeviceTarget) -> &'static str {
+    match d {
+        DeviceTarget::Gpu => "gpu",
+        DeviceTarget::Npu => "npu",
+        _ => "cpu",
+    }
 }
 
 fn algorithm_for_sql(sql: &str) -> AlgorithmType {
@@ -1834,4 +1945,87 @@ mod tests {
             assert_eq!(second.receipt.route_reason, "ane_placement_cached_off_ane");
         }
     }
+
+    /// Mean of a receipt field over the receipts of one device.
+    fn power_row(job: &str, size: usize, rs: &[&EnergyReceipt]) {
+        if rs.is_empty() {
+            return;
+        }
+        let n = rs.len() as f64;
+        let mean = |f: &dyn Fn(&EnergyReceipt) -> f64| rs.iter().map(|r| f(r)).sum::<f64>() / n;
+        let opt = |f: &dyn Fn(&EnergyReceipt) -> Option<f64>| {
+            let v: Vec<f64> = rs.iter().filter_map(|r| f(r)).collect();
+            if v.is_empty() { "none".to_string() } else { format!("{:.3}", v.iter().sum::<f64>() / v.len() as f64) }
+        };
+        let conf: Vec<&str> = rs.iter().map(|r| r.energy_confidence.as_str()).collect();
+        eprintln!(
+            "POWER-TABLE job={job} size={size} device={} backend={} runs={} ms={:.3} J={:.4e} incr_J={:.4e} W={:.2} cpu_w={} gpu_w={} ane_w={} base_w={} source={} confidence={:?}",
+            rs[0].device,
+            rs[0].backend,
+            rs.len(),
+            mean(&|r| r.seconds) * 1e3,
+            mean(&|r| r.joules),
+            mean(&|r| r.incremental_joules),
+            mean(&|r| r.watts),
+            opt(&|r| r.cpu_watts),
+            opt(&|r| r.gpu_watts),
+            opt(&|r| r.ane_watts),
+            opt(&|r| r.baseline_watts),
+            rs[0].energy_source,
+            conf
+        );
+    }
+
+    /// Mac live (run by hand): measured CPU/GPU/ANE watts and joules for a
+    /// cost-routed GPU sum and an HDC job on the ANE, Metal and CPU.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    #[ignore]
+    fn measured_power_live_fabric() {
+        use crate::cost_model::{Candidate, CostModel};
+        let meter = crate::power_meter::Meter::global();
+        eprintln!("POWER meter={}", meter.source());
+        // Let the sampler collect idle history for the baseline.
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let host = live_profile();
+        for n in [1usize << 20, 1 << 24] {
+            let values: Vec<f64> = (0..n).map(|i| (i % 1000) as f64 * 0.5).collect();
+            let mut model = CostModel::new();
+            model.explore_every = 2;
+            let rs: Vec<EnergyReceipt> =
+                (0..12).map(|_| dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model)).collect();
+            for r in &rs {
+                eprintln!("POWER sum n={n} {}", r.line());
+                assert_processor(&r.device);
+                assert_processor(&r.fallback);
+            }
+            for dev in ["gpu", "cpu"] {
+                power_row("sum", n, &rs.iter().skip(1).filter(|r| r.device == dev).collect::<Vec<_>>());
+            }
+            let op = format!("fabric:sum:{}", AlgorithmType::Scan);
+            if let Some((e, t, by)) = model.rankings(&op, n, &[Candidate::new("gpu", "metal"), Candidate::cpu()]) {
+                eprintln!(
+                    "POWER-ROUTE job=sum size={n} ranked_by={} energy_choice={} time_choice={} flipped={}",
+                    by.label(),
+                    e.device,
+                    t.device,
+                    e != t
+                );
+            }
+        }
+        let d = 2048;
+        let (q, m) = (bipolar(64 * d, 7), bipolar(1024 * d, 9));
+        let mut no_ane = live_profile();
+        no_ane.ane = None;
+        for _ in 0..2 {
+            let ane = dispatch_hdc_on(&q, &m, d, false, &host).expect("ane");
+            let metal = dispatch_hdc_on(&q, &m, d, false, &no_ane).expect("metal");
+            let cpu = dispatch_hdc_on(&q, &m, d, true, &host).expect("cpu");
+            for (label, out) in [("ane", &ane), ("metal", &metal), ("cpu", &cpu)] {
+                eprintln!("POWER hdc lane={label} {}", out.receipt.line());
+                power_row("hdc_64x1024x2048", 64 * 1024, &[&out.receipt]);
+            }
+        }
+    }
 }
+

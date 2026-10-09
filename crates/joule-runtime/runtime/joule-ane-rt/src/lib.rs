@@ -26,12 +26,14 @@
 pub mod model;
 mod pb;
 pub mod power;
+pub mod sampler;
 
 #[cfg(target_os = "macos")]
 mod coreml;
 
 pub use model::{ModelShape, write_mlpackage};
 pub use power::{PowerMeasurement, powermetrics_available};
+pub use sampler::{Confidence, PowerRing, PowerSampler, RailSample, Rails, WindowEnergy};
 
 /// Largest d-tile for which FP16 dot products of +-1 vectors are exact.
 pub const EXACT_TILE_DIM: usize = 2048;

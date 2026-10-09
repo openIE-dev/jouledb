@@ -32,6 +32,13 @@ pub struct PowerMeasurement {
     pub samples: usize,
     pub predictions: u64,
     pub window_s: f64,
+    /// Mean CPU/GPU/ANE watts over the window (shared sampler only).
+    pub rails: Option<crate::sampler::Rails>,
+    /// All-rail joules above the idle baseline, per prediction (shared
+    /// sampler only).
+    pub incremental_joules_per_prediction: Option<f64>,
+    /// `measured` or `interpolated`.
+    pub confidence: &'static str,
 }
 
 /// Parse `powermetrics` text output into samples.
@@ -128,6 +135,9 @@ pub fn measure<E>(
     if !powermetrics_available() {
         return Ok(None);
     }
+    if let Some(sampler) = crate::sampler::PowerSampler::global() {
+        return measure_shared(sampler, interval_ms, samples, work);
+    }
     let child = Command::new("/usr/bin/sudo")
         .args([
             "-n",
@@ -190,6 +200,47 @@ pub fn measure<E>(
         samples: parsed.len(),
         predictions,
         window_s,
+        rails: None,
+        incremental_joules_per_prediction: None,
+        confidence: "measured",
+    }))
+}
+
+/// [`measure`] against the shared long-lived sampler: no per-call
+/// powermetrics startup. Runs `work` for about `interval_ms x samples`
+/// (at least 0.2 s) and integrates the ring over that window.
+#[cfg(target_os = "macos")]
+fn measure_shared<E>(
+    sampler: &crate::sampler::PowerSampler,
+    interval_ms: u32,
+    samples: u32,
+    mut work: impl FnMut() -> Result<(), E>,
+) -> Result<Option<PowerMeasurement>, E> {
+    use std::time::{Duration, Instant};
+    let window = Duration::from_millis(u64::from(interval_ms) * u64::from(samples)).max(Duration::from_millis(200));
+    let started = Instant::now();
+    let mut predictions = 0u64;
+    while started.elapsed() < window || predictions == 0 {
+        work()?;
+        predictions += 1;
+        if started.elapsed() > Duration::from_secs(15) {
+            break;
+        }
+    }
+    let ended = Instant::now();
+    let wait = Duration::from_millis(u64::from(sampler.interval_ms) * 6 + 100);
+    let Some(w) = sampler.window(started, ended, wait) else { return Ok(None) };
+    let reps = predictions as f64;
+    Ok(Some(PowerMeasurement {
+        source: "powermetrics",
+        mean_ane_watts: w.watts.ane_w,
+        joules_per_prediction: w.joules.ane_w / reps,
+        samples: w.samples,
+        predictions,
+        window_s: w.seconds,
+        rails: Some(w.watts),
+        incremental_joules_per_prediction: Some(w.incremental.total() / reps),
+        confidence: w.confidence.label(),
     }))
 }
 

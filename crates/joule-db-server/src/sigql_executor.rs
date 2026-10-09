@@ -176,7 +176,7 @@ pub fn execute_sigql_routed(
     let plan = sigql::compile(&query, Target::Simd)
         .map_err(|e| QueryErrorResponse::execution_error(&format!("SigQL compile: {}", e)))?;
     let sources = load_sources(&query, amorphic);
-    run_routed(&plan, &sources, start, model)
+    run_routed(&plan, &sources, start, model, crate::power_meter::Meter::global())
 }
 
 /// Route a compiled plan by measured cost and run it (see
@@ -186,6 +186,7 @@ fn run_routed(
     sources: &[(String, DynSignal<f64>)],
     start: Instant,
     model: &crate::cost_model::CostModel,
+    meter: &crate::power_meter::Meter,
 ) -> Result<QueryResponse, QueryErrorResponse> {
     use crate::cost_model::{Candidate, RouteReceipt, size_bucket};
     let (op, lowers) = plan_op_kind(plan);
@@ -205,7 +206,7 @@ fn run_routed(
     let mut route_reason = route.reason_label();
     let watts = crate::fabric::routing_watts();
 
-    let began = Instant::now();
+    let span = meter.begin();
     let mut gpu_error = None;
     let mut ran_gpu = None;
     let mut setup = std::time::Duration::ZERO;
@@ -245,10 +246,9 @@ fn run_routed(
     };
     // Pipeline compilation is one-time setup: reported, not charged to the
     // job, so a first GPU run is not judged by its shader compile.
-    let seconds = began.elapsed().saturating_sub(setup).as_secs_f64().max(1e-9);
-    let joules = watts * seconds;
+    let energy = meter.finish(span, setup, &ran.device, watts);
     let setup_seconds = (!setup.is_zero()).then(|| setup.as_secs_f64());
-    model.record(&op, size, &ran, seconds, joules);
+    model.record_energy(&op, size, &ran, &energy);
     // The next real processor: the route's fallback when the chosen device
     // ran; the processor that actually ran when it did not.
     let fallback = if ran == route.chosen { route.fallback.device.clone() } else { ran.device.clone() };
@@ -260,14 +260,21 @@ fn run_routed(
         backend: ran.backend.clone(),
         fallback,
         route_reason,
-        joules,
-        seconds,
-        watts,
-        energy_source: "estimate".into(),
+        ranked_by: route.ranked_by.map(|b| b.label().to_string()).unwrap_or_else(|| "none".into()),
+        joules: energy.joules,
+        incremental_joules: energy.incremental_joules,
+        seconds: energy.seconds,
+        watts: energy.watts,
+        energy_source: energy.source.clone(),
+        energy_confidence: energy.confidence.clone(),
+        cpu_watts: energy.cpu_watts,
+        gpu_watts: energy.gpu_watts,
+        ane_watts: energy.ane_watts,
+        baseline_watts: energy.baseline_watts,
         setup_seconds,
     };
-    response.energy_joules = Some(joules);
-    response.power_watts = Some(watts);
+    response.energy_joules = Some(energy.joules);
+    response.power_watts = Some(energy.watts);
     response.energy_receipt = Some(receipt);
     Ok(response)
 }
@@ -1940,9 +1947,10 @@ mod tests {
         for (cpu_j, gpu_j) in [(1e-4, 1e-2), (1e-2, 1e-4)] {
             let mut model = CostModel::new();
             model.explore_every = 0;
-            model.record("sigql:iir", samples.len(), &Candidate::cpu(), 1e-3, cpu_j);
+            // Injected measured incremental joules, equal times: energy decides.
+            model.record_cost("sigql:iir", samples.len(), &Candidate::cpu(), 1e-3, cpu_j, Some(cpu_j), "injected");
             if let Some(gpu) = &gpu {
-                model.record("sigql:iir", samples.len(), gpu, 1e-3, gpu_j);
+                model.record_cost("sigql:iir", samples.len(), gpu, 1e-3, gpu_j, Some(gpu_j), "injected");
             }
             let resp = execute_sigql_routed(sql, &amorphic, Instant::now(), &model).unwrap();
             let r = receipt(&resp);
@@ -2021,7 +2029,8 @@ mod tests {
             model.explore_every = 0;
             let mut receipts = Vec::new();
             for _ in 0..8 {
-                let resp = run_routed(&plan, &sources, Instant::now(), &model).unwrap();
+                let resp =
+                    run_routed(&plan, &sources, Instant::now(), &model, crate::power_meter::Meter::global()).unwrap();
                 receipts.push(receipt(&resp));
             }
             let cpu = model.observed("sigql:iir", n, &Candidate::cpu()).unwrap();
@@ -2033,26 +2042,28 @@ mod tests {
                 assert_real(&r.fallback);
             }
             match gpu {
-                Some(gpu) => {
-                    let gpu_wins = gpu.joules < cpu.joules;
+                Some(gpu_cost) => {
+                    let ctx = gpu_context().unwrap();
+                    let both = [Candidate::new("gpu", ctx.backend.clone()), Candidate::cpu()];
+                    let (by_energy, by_time, by) = model.rankings("sigql:iir", n, &both).unwrap();
                     eprintln!(
-                        "LIVE n={n} measured cpu {:.3e} J / {:.3} ms, gpu {:.3e} J / {:.3} ms -> {} cheaper",
+                        "LIVE n={n} cpu {:.3e} J (incr {:?}) / {:.3} ms [{}], gpu {:.3e} J (incr {:?}) / {:.3} ms [{}] -> ranked_by={} energy={} time={}",
                         cpu.joules,
+                        cpu.incremental_joules,
                         cpu.seconds * 1e3,
-                        gpu.joules,
-                        gpu.seconds * 1e3,
-                        if gpu_wins { "gpu" } else { "cpu" }
+                        cpu.energy_source,
+                        gpu_cost.joules,
+                        gpu_cost.incremental_joules,
+                        gpu_cost.seconds * 1e3,
+                        gpu_cost.energy_source,
+                        by.label(),
+                        by_energy.device,
+                        by_time.device
                     );
-                    // The final decision follows the final measurement.
                     let last = receipts.last().unwrap();
                     assert!(last.route_reason.starts_with("cost_model_"), "{}", last.line());
-                    let cheaper = if gpu_wins { "gpu" } else { "cpu" };
-                    // Ties within 2% go to the faster one, so only check
-                    // clear wins.
-                    let rel = (gpu.joules - cpu.joules).abs() / gpu.joules.max(cpu.joules);
-                    if rel > 0.02 {
-                        assert_eq!(last.device, cheaper, "{}", last.line());
-                    }
+                    // The next decision follows the recorded costs.
+                    assert_eq!(model.choose("sigql:iir", n, &both).chosen, by_energy);
                 }
                 None => assert!(receipts.iter().all(|r| r.device == "cpu")),
             }
@@ -2188,4 +2199,72 @@ mod tests {
         assert!(response.truncated);
         assert!(!response.warnings.is_empty());
     }
+
+    /// Mac live (run by hand): measured per-device watts and joules for
+    /// 64K and 1M IIR, and whether measured energy changes the time-only
+    /// routing decision.
+    #[test]
+    #[ignore]
+    fn measured_power_live_iir() {
+        use crate::cost_model::{Candidate, CostModel, RouteReceipt};
+        let meter = crate::power_meter::Meter::global();
+        eprintln!("POWER meter={}", meter.source());
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        for n in [1usize << 16, 1 << 20] {
+            let (plan, sources) = long_plan("FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)", &long_signal(n));
+            let mut model = CostModel::new();
+            // Alternate so both devices keep fresh measurements.
+            model.explore_every = 2;
+            let rs: Vec<RouteReceipt> = (0..16)
+                .map(|_| receipt(&run_routed(&plan, &sources, Instant::now(), &model, meter).unwrap()))
+                .collect();
+            for r in &rs {
+                eprintln!("POWER iir n={n} {}", r.line());
+                assert_real(&r.fallback);
+            }
+            for dev in ["gpu", "cpu"] {
+                // Skip runs that paid real setup (the first GPU call's pipeline compile).
+                let v: Vec<&RouteReceipt> =
+                    rs.iter().filter(|r| r.device == dev && r.setup_seconds.unwrap_or(0.0) < 1e-3).collect();
+                if v.is_empty() {
+                    continue;
+                }
+                let k = v.len() as f64;
+                let mean = |f: &dyn Fn(&RouteReceipt) -> f64| v.iter().map(|r| f(r)).sum::<f64>() / k;
+                let opt = |f: &dyn Fn(&RouteReceipt) -> Option<f64>| {
+                    let x: Vec<f64> = v.iter().filter_map(|r| f(r)).collect();
+                    if x.is_empty() { "none".to_string() } else { format!("{:.3}", x.iter().sum::<f64>() / x.len() as f64) }
+                };
+                let conf: Vec<&str> = v.iter().map(|r| r.energy_confidence.as_str()).collect();
+                eprintln!(
+                    "POWER-TABLE job=iir_bandpass size={n} device={dev} backend={} runs={} ms={:.3} J={:.4e} incr_J={:.4e} W={:.2} cpu_w={} gpu_w={} ane_w={} base_w={} source={} confidence={:?}",
+                    v[0].backend,
+                    v.len(),
+                    mean(&|r| r.seconds) * 1e3,
+                    mean(&|r| r.joules),
+                    mean(&|r| r.incremental_joules),
+                    mean(&|r| r.watts),
+                    opt(&|r| r.cpu_watts),
+                    opt(&|r| r.gpu_watts),
+                    opt(&|r| r.ane_watts),
+                    opt(&|r| r.baseline_watts),
+                    v[0].energy_source,
+                    conf
+                );
+            }
+            if let Ok(ctx) = gpu_context() {
+                let both = [Candidate::new("gpu", ctx.backend.clone()), Candidate::cpu()];
+                if let Some((e, t, by)) = model.rankings("sigql:iir", n, &both) {
+                    eprintln!(
+                        "POWER-ROUTE job=iir_bandpass size={n} ranked_by={} energy_choice={} time_choice={} flipped={}",
+                        by.label(),
+                        e.device,
+                        t.device,
+                        e != t
+                    );
+                }
+            }
+        }
+    }
 }
+
