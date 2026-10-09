@@ -57,53 +57,74 @@ impl FeatureStores {
     }
 
     /// Attach a durable engine and hydrate the in-memory series from it.
-    pub fn with_timeseries(store: Arc<CoreEngineStore>) -> Self {
+    ///
+    /// Fails if the persisted series cannot be read back, so a server never
+    /// starts claiming durability over data it could not load.
+    pub fn with_timeseries(store: Arc<CoreEngineStore>) -> Result<Self, String> {
         let stores = Self::new();
         let persist = TimeSeriesPersistence::new(Arc::clone(&store));
-        if let Ok(metrics) = persist.list_metrics() {
+        let metrics = persist
+            .list_metrics()
+            .map_err(|e| format!("list persisted time series: {e}"))?;
+        {
             let ts = write_lock(&stores.timeseries);
             for metric in metrics {
-                if let Ok(points) = persist.query(&metric, i64::MIN, i64::MAX) {
-                    for point in points {
-                        ts.write(
-                            &metric,
-                            DataPoint {
-                                timestamp: point.timestamp,
-                                value: point.value,
-                                tags: point.tags,
-                            },
-                        );
-                    }
+                let points = persist
+                    .query(&metric, i64::MIN, i64::MAX)
+                    .map_err(|e| format!("load time series '{metric}': {e}"))?;
+                for point in points {
+                    ts.write(
+                        &metric,
+                        DataPoint {
+                            timestamp: point.timestamp,
+                            value: point.value,
+                            tags: point.tags,
+                        },
+                    );
                 }
             }
         }
-        Self {
+        Ok(Self {
             ts_store: Some(store),
             ..stores
-        }
+        })
+    }
+
+    /// Whether time series survive a restart (a durable engine is attached).
+    pub fn timeseries_durable(&self) -> bool {
+        self.ts_store.is_some()
     }
 }
 
-fn persist_ts_point(stores: &FeatureStores, metric: &str, point: &DataPoint) {
+/// Write one point through to the durable store and fsync it. No-op (Ok) when
+/// no durable store is attached.
+fn persist_ts_point(stores: &FeatureStores, metric: &str, point: &DataPoint) -> Result<(), String> {
     let Some(store) = &stores.ts_store else {
-        return;
+        return Ok(());
     };
     let persist = TimeSeriesPersistence::new(Arc::clone(store));
-    if persist.register_metric(metric).is_err() {
-        return;
-    }
-    let _ = persist.write(
-        metric,
-        PersistedDataPoint {
-            timestamp: point.timestamp,
-            value: point.value,
-            tags: point.tags.clone(),
-        },
-    );
-    let _ = store.sync();
+    persist
+        .register_metric(metric)
+        .map_err(|e| e.to_string())?;
+    persist
+        .write(
+            metric,
+            PersistedDataPoint {
+                timestamp: point.timestamp,
+                value: point.value,
+                tags: point.tags.clone(),
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    store.sync().map_err(|e| e.to_string())
 }
 
-fn persisted_points(stores: &FeatureStores, metric: &str, start: i64, end: i64) -> Option<Vec<DataPoint>> {
+fn persisted_points(
+    stores: &FeatureStores,
+    metric: &str,
+    start: i64,
+    end: i64,
+) -> Option<Vec<DataPoint>> {
     let store = stores.ts_store.as_ref()?;
     let persist = TimeSeriesPersistence::new(Arc::clone(store));
     let points = persist.query(metric, start, end).ok()?;
@@ -263,10 +284,17 @@ fn exec_ts_write(
         value,
         tags,
     };
+    // Durable first: if the write cannot reach disk, report it and leave the
+    // in-memory series unchanged rather than acknowledge a point that a
+    // restart would lose.
+    persist_ts_point(stores, metric, &point).map_err(|e| {
+        QueryErrorResponse::execution_error(&format!(
+            "TSWRITE {metric}: durable write failed: {e}"
+        ))
+    })?;
     let ts = write_lock(&stores.timeseries);
-    ts.write(metric, point.clone());
+    ts.write(metric, point);
     drop(ts);
-    persist_ts_point(stores, metric, &point);
 
     Ok(ok_response(start, Some(1)))
 }
@@ -446,14 +474,21 @@ fn exec_ts_delete(
         .ok_or_else(|| QueryErrorResponse::syntax_error("TSDELETE requires: metric", 1, 1))?
         .trim();
 
+    if let Some(store) = &stores.ts_store {
+        let persist = TimeSeriesPersistence::new(Arc::clone(store));
+        persist
+            .delete_metric(metric)
+            .map_err(|e| e.to_string())
+            .and_then(|_| store.sync().map_err(|e| e.to_string()))
+            .map_err(|e| {
+                QueryErrorResponse::execution_error(&format!(
+                    "TSDELETE {metric}: durable delete failed: {e}"
+                ))
+            })?;
+    }
     let ts = write_lock(&stores.timeseries);
     let deleted = ts.delete_metric(metric);
     drop(ts);
-    if let Some(store) = &stores.ts_store {
-        let persist = TimeSeriesPersistence::new(Arc::clone(store));
-        let _ = persist.delete_metric(metric);
-        let _ = store.sync();
-    }
 
     Ok(ok_response(start, if deleted { Some(1) } else { Some(0) }))
 }

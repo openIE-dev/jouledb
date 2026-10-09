@@ -720,6 +720,13 @@ impl Server {
         let raft_is_leader = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
         let mut base_executor = SimpleQueryExecutor::with_amorphic(amorphic.clone());
+        // Time series (TSWRITE/TSQUERY, MCP jouledb://timeseries) live in their
+        // own durable B-tree next to the amorphic store, so they survive a
+        // restart like SQL tables do.
+        let ts_path = std::path::Path::new(&config.db_path).join(query::TIMESERIES_FILE);
+        base_executor
+            .attach_timeseries_store(&ts_path)
+            .map_err(|e| format!("Failed to open time-series store: {e}"))?;
         base_executor.set_timeout_config(config.query_timeout_ms, config.slow_query_threshold_ms);
         base_executor.set_max_result_rows(config.max_result_rows);
         if let Some(ref rbac) = rbac_manager {

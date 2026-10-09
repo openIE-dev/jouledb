@@ -312,6 +312,9 @@ fn save_grant_to_amorphic(amorphic: &AmorphicTableStorage, sql: &str) {
     amorphic.insert_rbac_meta(&json);
 }
 
+/// File name of the durable time-series store inside a database directory.
+pub const TIMESERIES_FILE: &str = "timeseries.wdb";
+
 /// Query executor backed by DurableAmorphicStore for persistent SQL tables,
 /// with HolographicKV adapter for backward-compatible `holographic`/`kv` tables.
 /// Supports MVCC transactions via `MvccTableStorage`.
@@ -411,13 +414,41 @@ impl SimpleQueryExecutor {
             .expect("Failed to open database");
         let amorphic = Arc::new(AmorphicTableStorage::new(store));
         let mut exec = Self::with_amorphic(amorphic);
-        let ts_path = path.join("timeseries.wdb");
-        if let Ok(engine) = joule_db_features::CoreEngineStore::open(&ts_path) {
-            exec.feature_stores = Arc::new(crate::features_bridge::FeatureStores::with_timeseries(
-                Arc::new(engine),
-            ));
+        if let Err(e) = exec.attach_timeseries_store(path.join(TIMESERIES_FILE)) {
+            tracing::warn!("time series stay in memory only: {e}");
         }
         exec
+    }
+
+    /// Back the feature stores' time series with a durable B-tree file.
+    ///
+    /// Opens (or creates) `path`, replays every persisted series into the
+    /// in-memory store, and from then on `TSWRITE`/`TSDELETE` write through to
+    /// disk and `fsync` before they return. Reopening the same file in a new
+    /// process sees the same series. The server calls this with
+    /// `{db_path}/timeseries.wdb`.
+    pub fn attach_timeseries_store(
+        &mut self,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<(), String> {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("create {}: {e}", parent.display()))?;
+            }
+        }
+        let engine = joule_db_features::CoreEngineStore::open(path)
+            .map_err(|e| format!("open {}: {e}", path.display()))?;
+        self.feature_stores = Arc::new(
+            crate::features_bridge::FeatureStores::with_timeseries(Arc::new(engine))?,
+        );
+        Ok(())
+    }
+
+    /// Whether time series written through this executor survive a restart.
+    pub fn timeseries_durable(&self) -> bool {
+        self.feature_stores.ts_store.is_some()
     }
 
     /// Create executor with an existing AmorphicTableStorage (production path).
