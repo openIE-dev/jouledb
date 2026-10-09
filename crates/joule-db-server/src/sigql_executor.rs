@@ -187,10 +187,15 @@ struct GpuContext {
     queue: wgpu::Queue,
     /// "<adapter name> via <backend>", for receipts.
     adapter: String,
+    /// The adapter is a CPU rasterizer (lavapipe, SwiftShader, WARP).
+    cpu_adapter: bool,
     layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
     /// Compiled pipelines keyed by (WGSL source, entry point).
     pipelines: std::sync::Mutex<std::collections::HashMap<(String, &'static str), wgpu::ComputePipeline>>,
+    /// The device can write GPU timestamps at compute-pass boundaries
+    /// (used for per-pass profiles).
+    timestamps: bool,
 }
 
 /// What a GPU run did, for the response.
@@ -232,10 +237,11 @@ async fn open_gpu() -> Result<GpuContext, String> {
         .await
         .map_err(|e| format!("no wgpu adapter: {e}"))?;
     let info = adapter.get_info();
+    let timestamps = adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY);
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("sigql-webgpu"),
-            required_features: wgpu::Features::empty(),
+            required_features: if timestamps { wgpu::Features::TIMESTAMP_QUERY } else { wgpu::Features::empty() },
             required_limits: wgpu::Limits::default(),
             memory_hints: Default::default(),
             trace: wgpu::Trace::default(),
@@ -280,13 +286,28 @@ async fn open_gpu() -> Result<GpuContext, String> {
         device,
         queue,
         adapter: format!("{} via {:?}", info.name, info.backend),
+        cpu_adapter: info.device_type == wgpu::DeviceType::Cpu,
         layout,
         pipeline_layout,
         pipelines: std::sync::Mutex::new(std::collections::HashMap::new()),
+        timestamps,
     })
 }
 
 impl GpuContext {
+    /// Adapter-specific tuning of a bound kernel. A CPU rasterizer has a
+    /// few wide lanes, so the chunked IIR uses about `sqrt(n)` chunks
+    /// (measured fastest on lavapipe); a GPU keeps the default ~64-sample
+    /// chunks (measured fastest on an M5 Max).
+    fn tune(&self, kernel: GpuKernel, n: usize) -> GpuKernel {
+        if self.cpu_adapter {
+            let target = (n as f64).sqrt().ceil() as usize;
+            kernel.with_iir_chunk_target(n, target)
+        } else {
+            kernel
+        }
+    }
+
     /// Compile (or reuse) the pipeline for one entry point of a kernel's
     /// WGSL, surfacing WGSL errors.
     fn pipeline(&self, wgsl: &str, entry: &'static str, label: &str) -> Result<wgpu::ComputePipeline, String> {
@@ -445,13 +466,16 @@ fn run_on_gpu(
                     },
                     _ => None,
                 };
-                let kernel = kernel.bind(&GpuInput {
+                let kernel = ctx.tune(
+                    kernel.bind(&GpuInput {
+                        len,
+                        rate,
+                        is_spectrum,
+                        second_len: second.as_ref().map(|(_, l)| *l),
+                        default_rate: RuntimeConfig::default().default_sample_rate,
+                    })?,
                     len,
-                    rate,
-                    is_spectrum,
-                    second_len: second.as_ref().map(|(_, l)| *l),
-                    default_rate: RuntimeConfig::default().default_sample_rate,
-                })?;
+                );
                 let out_len = kernel.output_len(len);
                 let buf_bytes = (kernel.buffer_len(len) * 4) as u64;
                 if buf_bytes > max_bytes {
@@ -1358,11 +1382,10 @@ mod tests {
         "FROM bench.sig TRANSFORM decimate(4)",
     ];
 
-    /// The chunked parallel IIR matches the CPU runtime over a long signal
-    /// (2^20 samples), where any error in the carried chunk states would
-    /// show up and accumulate.
-    #[test]
-    fn sigql_webgpu_long_iir_matches_cpu() {
+    /// The chunked IIR (prefix-scan carry) matches the CPU runtime over
+    /// `n` samples, where any error in the carried chunk states would show
+    /// up and accumulate.
+    fn long_iir_parity(n: usize) {
         let ctx = match gpu_context() {
             Ok(ctx) => ctx,
             Err(reason) => {
@@ -1374,7 +1397,7 @@ mod tests {
                 return;
             }
         };
-        let samples = long_signal(1 << 20);
+        let samples = long_signal(n);
         for sql in LONG_IIR_QUERIES {
             let (plan, sources) = long_plan(sql, &samples);
             let cpu = signal_output(&cpu_run(&plan, &sources));
@@ -1398,18 +1421,54 @@ mod tests {
         }
     }
 
-    /// Kernel-only time (submit to completion, buffers resident) of one
-    /// shader's dispatches, best of `reps` after a warm-up.
-    fn time_kernel(
+    #[test]
+    fn sigql_webgpu_long_iir_matches_cpu() {
+        long_iir_parity(1 << 20);
+    }
+
+    #[test]
+    fn sigql_webgpu_4m_iir_matches_cpu() {
+        long_iir_parity(1 << 22);
+    }
+
+    /// One IIR shader set up for benchmarking: buffers resident, pipelines
+    /// compiled.
+    struct BenchKernel {
+        bind: wgpu::BindGroup,
+        out: wgpu::Buffer,
+        pipelines: Vec<(&'static str, wgpu::ComputePipeline, u32)>,
+        read_floats: usize,
+        wgsl: String,
+        params: [u32; 8],
+        aux: Vec<f32>,
+        out_floats: usize,
+    }
+
+    fn bench_kernel(
         ctx: &GpuContext,
-        wgsl: &str,
+        wgsl: String,
         passes: &[(&'static str, u32)],
+        samples: &[f64],
+        out_floats: usize,
+        read_floats: usize,
+        params: [u32; 8],
+        aux: Vec<f32>,
+    ) -> BenchKernel {
+        let pipelines = passes
+            .iter()
+            .map(|(entry, groups)| (*entry, ctx.pipeline(&wgsl, entry, "bench").unwrap(), *groups))
+            .collect();
+        let (bind, out) = bench_bind(ctx, samples, out_floats, params, &aux);
+        BenchKernel { bind, out, pipelines, read_floats, wgsl, params, aux, out_floats }
+    }
+
+    fn bench_bind(
+        ctx: &GpuContext,
         samples: &[f64],
         out_floats: usize,
         params: [u32; 8],
         aux: &[f32],
-        reps: usize,
-    ) -> std::time::Duration {
+    ) -> (wgpu::BindGroup, wgpu::Buffer) {
         use wgpu::util::DeviceExt;
         let device = &ctx.device;
         let bytes = |v: &[f32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
@@ -1421,7 +1480,7 @@ mod tests {
         let out = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("bench-out"),
             size: (out_floats.max(1) * 4) as u64,
-            usage: wgpu::BufferUsages::STORAGE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
         let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1444,90 +1503,250 @@ mod tests {
                 wgpu::BindGroupEntry { binding: 3, resource: aux.as_entire_binding() },
             ],
         });
-        let pipelines: Vec<_> = passes
-            .iter()
-            .map(|(entry, groups)| (ctx.pipeline(wgsl, entry, "bench").unwrap(), *groups))
-            .collect();
-        let run = || {
-            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        (bind, out)
+    }
+
+    /// Submit `range` of the kernel's passes and wait; returns the wall time.
+    fn bench_submit(ctx: &GpuContext, k: &BenchKernel, bind: &wgpu::BindGroup, range: std::ops::Range<usize>) -> std::time::Duration {
+        let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes: None });
+            pass.set_bind_group(0, bind, &[]);
+            for (_, p, g) in &k.pipelines[range] {
+                pass.set_pipeline(p);
+                pass.dispatch_workgroups(*g, 1, 1);
+            }
+        }
+        let t = Instant::now();
+        ctx.queue.submit([encoder.finish()]);
+        let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
+        t.elapsed()
+    }
+
+    fn best_of<F: FnMut() -> std::time::Duration>(reps: usize, mut f: F) -> std::time::Duration {
+        f();
+        (0..reps).map(|_| f()).min().unwrap()
+    }
+
+    /// Kernel only: every pass in one submission, buffers resident.
+    fn kernel_time(ctx: &GpuContext, k: &BenchKernel, reps: usize) -> std::time::Duration {
+        best_of(reps, || bench_submit(ctx, k, &k.bind, 0..k.pipelines.len()))
+    }
+
+    /// End to end: upload (f64 -> f32), every pass, readback of the output.
+    fn e2e_time(ctx: &GpuContext, k: &BenchKernel, samples: &[f64], reps: usize) -> std::time::Duration {
+        best_of(reps, || {
+            let t = Instant::now();
+            let (bind, out) = bench_bind(ctx, samples, k.out_floats, k.params, &k.aux);
+            let staging = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("bench-staging"),
+                size: (k.read_floats.max(1) * 4) as u64,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
             {
-                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: None,
-                    timestamp_writes: None,
-                });
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes: None });
                 pass.set_bind_group(0, &bind, &[]);
-                for (p, g) in &pipelines {
+                for (_, p, g) in &k.pipelines {
                     pass.set_pipeline(p);
                     pass.dispatch_workgroups(*g, 1, 1);
                 }
             }
-            let t = Instant::now();
+            encoder.copy_buffer_to_buffer(&out, 0, &staging, 0, (k.read_floats.max(1) * 4) as u64);
             ctx.queue.submit([encoder.finish()]);
-            let _ = device.poll(wgpu::PollType::wait_indefinitely());
+            staging.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+            let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
+            let data: Vec<f32> = staging
+                .slice(..)
+                .get_mapped_range()
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .collect();
+            std::hint::black_box(data.iter().map(|&v| v as f64).collect::<Vec<f64>>());
             t.elapsed()
-        };
-        run();
-        (0..reps).map(|_| run()).min().unwrap()
+        })
     }
 
-    /// Timing of the chunked IIR against the old single-invocation shader
-    /// and the CPU runtime. Run with
+    /// GPU time per pass from timestamps written at each compute pass's
+    /// start and end, all passes in one submission; best of `reps`. `None`
+    /// when the adapter has no timestamp queries.
+    fn gpu_pass_times(ctx: &GpuContext, k: &BenchKernel, reps: usize) -> Option<Vec<(&'static str, f64)>> {
+        if !ctx.timestamps {
+            return None;
+        }
+        let count = 2 * k.pipelines.len() as u32;
+        let set = ctx.device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: Some("bench-ts"),
+            ty: wgpu::QueryType::Timestamp,
+            count,
+        });
+        let resolve = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("bench-ts-resolve"),
+            size: count as u64 * 8,
+            usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+        let period = ctx.queue.get_timestamp_period() as f64; // ns per tick
+        let mut best: Option<Vec<f64>> = None;
+        for _ in 0..=reps {
+            let read = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("bench-ts-read"),
+                size: count as u64 * 8,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            for (i, (_, p, g)) in k.pipelines.iter().enumerate() {
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: Some(wgpu::ComputePassTimestampWrites {
+                        query_set: &set,
+                        beginning_of_pass_write_index: Some(2 * i as u32),
+                        end_of_pass_write_index: Some(2 * i as u32 + 1),
+                    }),
+                });
+                pass.set_bind_group(0, &k.bind, &[]);
+                pass.set_pipeline(p);
+                pass.dispatch_workgroups(*g, 1, 1);
+            }
+            encoder.resolve_query_set(&set, 0..count, &resolve, 0);
+            encoder.copy_buffer_to_buffer(&resolve, 0, &read, 0, count as u64 * 8);
+            ctx.queue.submit([encoder.finish()]);
+            read.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+            let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
+            let ticks: Vec<u64> = read
+                .slice(..)
+                .get_mapped_range()
+                .chunks_exact(8)
+                .map(|b| u64::from_le_bytes(b.try_into().unwrap()))
+                .collect();
+            let times: Vec<f64> = ticks
+                .chunks_exact(2)
+                .map(|t| t[1].saturating_sub(t[0]) as f64 * period / 1e6)
+                .collect();
+            best = Some(match best {
+                None => times,
+                Some(b) if times.iter().sum::<f64>() < b.iter().sum::<f64>() => times,
+                Some(b) => b,
+            });
+        }
+        best.map(|t| k.pipelines.iter().map(|(name, _, _)| *name).zip(t).collect())
+    }
+
+    /// Per-pass GPU profile, scan levels grouped: `"chunk_state 0.012, ..."`
+    /// plus the total, in ms.
+    fn pass_profile(ctx: &GpuContext, k: &BenchKernel, reps: usize) -> (String, f64) {
+        let Some(times) = gpu_pass_times(ctx, k, reps) else {
+            return ("no timestamp queries on this adapter".into(), f64::NAN);
+        };
+        let mut groups: Vec<(String, f64)> = Vec::new();
+        for (name, t) in times {
+            let label = if name.starts_with("scan_") { "scan".to_string() } else { name.to_string() };
+            match groups.last_mut() {
+                Some((l, acc)) if *l == label => *acc += t,
+                _ => groups.push((label, t)),
+            }
+        }
+        let total: f64 = groups.iter().map(|(_, t)| t).sum();
+        let levels = k.pipelines.iter().filter(|(n, _, _)| n.starts_with("scan_") && *n != "scan_block").count();
+        let text = groups
+            .iter()
+            .map(|(l, t)| {
+                if l == "scan" {
+                    format!("scan(block+{levels} levels) {t:.3} ({:.0}%)", 100.0 * t / total)
+                } else {
+                    format!("{l} {t:.3} ({:.0}%)", 100.0 * t / total)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        (text, total)
+    }
+
+    fn iir_kernel(sql: &str, n: usize, chunks: Option<sigql::compile::gpu::IirChunks>) -> GpuKernel {
+        let (plan, _) = long_plan(sql, &[0.0]);
+        let step = plan
+            .steps
+            .iter()
+            .find(|s| matches!(s, sigql::compile::PlanStep::IirFilter { .. }))
+            .unwrap();
+        let bound = GpuKernel::from_step(step)
+            .unwrap()
+            .unwrap()
+            .bind(&GpuInput { len: n, rate: 1000, is_spectrum: false, second_len: None, default_rate: 1000 })
+            .unwrap();
+        match (bound, chunks) {
+            (GpuKernel::Iir { sections, .. }, Some(c)) => GpuKernel::Iir { sections, chunks: Some(c) },
+            (k, _) => k,
+        }
+    }
+
+    /// Release benchmark of the IIR kernels: the Phase C chunked shader
+    /// (serial carry, ~sqrt(16n) chunks), the prefix-scan shader, and the
+    /// CPU runtime; kernel-only and end-to-end, best of 5; plus a per-pass
+    /// profile and a chunk-length sweep. Run with
     /// `cargo test --release -p joule-db-server --lib sigql_iir_timing -- --ignored --nocapture`.
     #[test]
     #[ignore = "benchmark"]
     fn sigql_iir_timing() {
-        use sigql::compile::gpu::sequential_iir_wgsl;
+        use sigql::compile::gpu::{serial_carry_iir_wgsl, IirChunks};
         let ctx = gpu_context().expect("a wgpu adapter");
         eprintln!("adapter: {}", ctx.adapter);
-        for n in [1usize << 16, 1 << 20] {
+        let reps = 5;
+        let ms = |d: std::time::Duration| d.as_secs_f64() * 1e3;
+        let mk = |kernel: &GpuKernel, wgsl: String, passes: Vec<(&'static str, u32)>, samples: &[f64]| {
+            let n = samples.len();
+            bench_kernel(ctx, wgsl, &passes, samples, kernel.buffer_len(n), kernel.output_len(n), kernel.params(n), kernel.aux())
+        };
+        for n in [1usize << 16, 1 << 20, 1 << 22] {
             let samples = long_signal(n);
             for sql in ["FROM bench.sig TRANSFORM lowpass(50Hz)", "FROM bench.sig TRANSFORM bandpass(4Hz, 12Hz)"] {
+                let tree = ctx.tune(iir_kernel(sql, n, None), n);
+                let GpuKernel::Iir { sections, chunks: Some(tc) } = &tree else { panic!("{tree:?}") };
+                // Phase C: ~sqrt(16 n) chunks (capped 8192), serial carry.
+                let old_chunks = IirChunks::with_chunks(sections, n, ((16.0 * n as f64).sqrt().ceil() as usize).min(8192));
+                let old = iir_kernel(sql, n, Some(old_chunks.clone()));
+                let groups = old_chunks.chunks.div_ceil(64);
+                let old_b = mk(&old, serial_carry_iir_wgsl(sections), vec![("chunk_state", groups), ("carry", 1), ("main", groups)], &samples);
+                let tree_b = mk(&tree, tree.wgsl(), tree.passes(n), &samples);
+                let (old_k, old_e) = (kernel_time(ctx, &old_b, reps), e2e_time(ctx, &old_b, &samples, reps));
+                let (tree_k, tree_e) = (kernel_time(ctx, &tree_b, reps), e2e_time(ctx, &tree_b, &samples, reps));
+                let floor = best_of(reps, || bench_submit(ctx, &tree_b, &tree_b.bind, 0..0));
                 let (plan, sources) = long_plan(sql, &samples);
-                let step = plan
-                    .steps
-                    .iter()
-                    .find(|s| matches!(s, sigql::compile::PlanStep::IirFilter { .. }))
-                    .unwrap();
-                let kernel = GpuKernel::from_step(step)
-                    .unwrap()
-                    .unwrap()
-                    .bind(&GpuInput { len: n, rate: 1000, is_spectrum: false, second_len: None, default_rate: 1000 })
-                    .unwrap();
-                let GpuKernel::Iir { sections, chunks: Some(chunks) } = &kernel else {
-                    panic!("not a chunked iir: {kernel:?}")
-                };
-                let reps = 5;
-                let new = time_kernel(ctx, &kernel.wgsl(), &kernel.passes(n), &samples, kernel.buffer_len(n), kernel.params(n), &kernel.aux(), reps);
-                let old = time_kernel(ctx, &sequential_iir_wgsl(sections), &[("main", 1)], &samples, n, kernel.params(n), &[0.0], 2);
-                let best = |f: &dyn Fn() -> ()| {
-                    f();
-                    (0..reps)
-                        .map(|_| {
-                            let t = Instant::now();
-                            f();
-                            t.elapsed()
-                        })
-                        .min()
-                        .unwrap()
-                };
-                let cpu = best(&|| {
-                    cpu_run(&plan, &sources);
+                let cpu = best_of(reps, || {
+                    let t = Instant::now();
+                    std::hint::black_box(cpu_run(&plan, &sources));
+                    t.elapsed()
                 });
-                let e2e = best(&|| {
-                    execute_plan_webgpu(&plan, &sources).unwrap();
+                let executor = best_of(reps, || {
+                    let t = Instant::now();
+                    std::hint::black_box(execute_plan_webgpu(&plan, &sources).unwrap());
+                    t.elapsed()
                 });
-                let ms = |d: std::time::Duration| d.as_secs_f64() * 1e3;
                 eprintln!(
-                    "TIMING n={n} {sql} sections={} chunks={}x{}: old shader {:.2} ms, chunked shader {:.2} ms ({:.1}x), CPU runtime {:.2} ms, GPU end-to-end (upload+run+readback) {:.2} ms",
+                    "TIMING n={n} {sql} sections={} | chunked(serial carry) {}x{}: kernel {:.3} ms, e2e {:.3} ms | tree {}x{} levels={}: kernel {:.3} ms, e2e {:.3} ms | CPU {:.3} ms | executor e2e {:.3} ms | tree vs chunked kernel {:.1}x | empty submit {:.3} ms",
                     sections.len(),
-                    chunks.chunks,
-                    chunks.chunk_len,
-                    ms(old),
-                    ms(new),
-                    ms(old) / ms(new),
-                    ms(cpu),
-                    ms(e2e),
+                    old_chunks.chunks, old_chunks.chunk_len, ms(old_k), ms(old_e),
+                    tc.chunks, tc.chunk_len, tc.levels, ms(tree_k), ms(tree_e),
+                    ms(cpu), ms(executor), ms(old_k) / ms(tree_k), ms(floor),
                 );
+                for (label, k) in [("chunked", &old_b), ("tree", &tree_b)] {
+                    let (prof, total) = pass_profile(ctx, k, reps);
+                    eprintln!("PROFILE n={n} {sql} {label}: GPU {total:.3} ms = {prof} (ms, timestamps)");
+                }
+                if n >= 1 << 20 {
+                    for len in [16usize, 32, 64, 128, 256, 1024] {
+                        let c = IirChunks::with_chunks(sections, n, n.div_ceil(len));
+                        let k = iir_kernel(sql, n, Some(c.clone()));
+                        let b = mk(&k, k.wgsl(), k.passes(n), &samples);
+                        eprintln!(
+                            "SWEEP n={n} {sql} chunk_len={} chunks={} levels={}: kernel wall {:.3} ms, GPU {:.3} ms",
+                            c.chunk_len, c.chunks, c.levels, ms(kernel_time(ctx, &b, reps)), pass_profile(ctx, &b, reps).1
+                        );
+                    }
+                }
+                let _ = &tree_b.wgsl;
             }
         }
     }

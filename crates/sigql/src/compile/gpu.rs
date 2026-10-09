@@ -73,35 +73,82 @@ pub struct BandBins {
 /// How a biquad cascade is split for the parallel IIR kernel.
 ///
 /// The cascade is linear in its state `s` (two DF2T delays per section):
-/// with zero input, `L` samples map `s` to `M s` with `M = A^L`. So:
+/// with zero input, `L` samples map `s` to `M s` with `M = A^L`, so chunk
+/// `c` maps an entry state to `M s + local[c]`, an affine map with the same
+/// matrix for every full chunk. The true state leaving chunk `c` is the
+/// inclusive prefix `X[c] = sum_{j<=c} M^(c-j) local[j]`, computed as a
+/// two-level tree:
 /// 1. `chunk_state`: every chunk runs from a zero state, in parallel, and
 ///    records where its state ends (`local[c]`);
-/// 2. `carry`: one invocation walks the chunks, `init[c + 1] = M init[c] +
-///    local[c]`, which is the true state entering each chunk;
-/// 3. `main`: every chunk reruns from its true state, in parallel, and
-///    writes its samples. Outputs come from the same recurrence as a
-///    sequential pass; only the entry states pass through `M`.
+/// 2. `scan_block`: each workgroup of [`IIR_SCAN_BLOCK`] chunks scans its
+///    block in workgroup memory (Hillis-Steele, `log2(block)` levels,
+///    `X[c] += M^s X[c - s]`), leaving per-block prefixes and block totals;
+/// 3. `scan_0 .. scan_{levels-1}`: Hillis-Steele over the block totals in
+///    global memory with the block map `M^block`, `ceil(log2 blocks)` levels;
+/// 4. `main`: chunk `c` enters with `X[c - 1]` = its block prefix plus
+///    `M^(offset + 1)` times the previous blocks' total (zero for chunk 0),
+///    and reruns its samples in parallel.
+/// Every matrix power is computed on the host in f64. Outputs come from the
+/// same recurrence as a sequential pass; only the entry states pass through
+/// the powers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IirChunks {
     /// Number of chunks.
     pub chunks: u32,
     /// Samples per chunk (the last one may be shorter).
     pub chunk_len: u32,
-    /// `M = A^chunk_len`, row-major, `2K x 2K` for `K` sections.
-    pub carry: Vec<f64>,
+    /// Levels of the block-total scan, `ceil(log2 blocks)` (0 for one block).
+    pub levels: u32,
+    /// Row-major `2K x 2K` matrices (`K` sections), concatenated: `M^j` for
+    /// `j in 1..=IIR_SCAN_BLOCK`, then `M^(IIR_SCAN_BLOCK * 2^k)` for
+    /// `k in 0..levels`.
+    pub powers: Vec<f64>,
+}
+
+/// Chunks per workgroup-local scan block (the workgroup size).
+pub const IIR_SCAN_BLOCK: usize = WORKGROUP as usize;
+
+/// Most chunks the IIR scan uses (so at most 10 block-total levels).
+pub const MAX_IIR_CHUNKS: usize = 1 << 16;
+
+/// Entry points of the block-total scan levels, by level.
+pub const IIR_SCAN_ENTRIES: [&str; 10] = [
+    "scan_0", "scan_1", "scan_2", "scan_3", "scan_4", "scan_5", "scan_6", "scan_7", "scan_8",
+    "scan_9",
+];
+
+fn mat_mul(a: &[f64], b: &[f64], d: usize) -> Vec<f64> {
+    let mut out = vec![0.0; d * d];
+    for r in 0..d {
+        for c in 0..d {
+            out[r * d + c] = (0..d).map(|q| a[r * d + q] * b[q * d + c]).sum();
+        }
+    }
+    out
 }
 
 impl IirChunks {
-    /// Plan the split of `n` samples for `sections`: about `sqrt(16 n)`
-    /// chunks, so the serial carry (chunks x (2K)^2) stays small next to the
-    /// parallel passes (n / chunks samples each).
+    /// Default split of `n` samples: chunks of about [`IIR_CHUNK_LEN`]
+    /// samples, at least `sqrt(16 n)` chunks for short signals, at most
+    /// [`MAX_IIR_CHUNKS`].
     pub fn plan(sections: &[[f64; 6]], n: usize) -> Self {
         let n = n.max(1);
-        let target = ceil_to_usize(libm_sqrt(16.0 * n as f64)).clamp(1, 8192).min(n);
+        let by_len = n.div_ceil(IIR_CHUNK_LEN);
+        let by_sqrt = ceil_to_usize(libm_sqrt(16.0 * n as f64));
+        Self::with_chunks(sections, n, by_len.max(by_sqrt))
+    }
+
+    /// Split `n` samples into about `target` chunks (benchmarks sweep this).
+    pub fn with_chunks(sections: &[[f64; 6]], n: usize, target: usize) -> Self {
+        let n = n.max(1);
+        let target = target.clamp(1, MAX_IIR_CHUNKS).min(n);
         let chunk_len = n.div_ceil(target);
         let chunks = n.div_ceil(chunk_len);
+        let blocks = chunks.div_ceil(IIR_SCAN_BLOCK);
+        let levels = usize::BITS - (blocks - 1).leading_zeros();
         let d = 2 * sections.len();
-        let mut carry = vec![0.0; d * d];
+        // M = A^L: simulate L zero-input samples from each basis state.
+        let mut m = vec![0.0; d * d];
         for j in 0..d {
             let mut state = vec![0.0f64; d];
             state[j] = 1.0;
@@ -109,16 +156,42 @@ impl IirChunks {
                 cascade_step(sections, 0.0, &mut state);
             }
             for (r, v) in state.iter().enumerate() {
-                carry[r * d + j] = *v;
+                m[r * d + j] = *v;
             }
+        }
+        let mut powers = Vec::with_capacity((IIR_SCAN_BLOCK + levels as usize) * d * d);
+        let mut p = m.clone();
+        for _ in 0..IIR_SCAN_BLOCK {
+            powers.extend_from_slice(&p);
+            p = mat_mul(&p, &m, d);
+        }
+        // M^block, squared per level.
+        let mut q = powers[(IIR_SCAN_BLOCK - 1) * d * d..].to_vec();
+        for _ in 0..levels {
+            powers.extend_from_slice(&q);
+            q = mat_mul(&q, &q, d);
         }
         Self {
             chunks: chunks as u32,
             chunk_len: chunk_len as u32,
-            carry,
+            levels,
+            powers,
         }
     }
+
+    /// Number of scan blocks.
+    pub fn blocks(&self) -> u32 {
+        self.chunks.div_ceil(IIR_SCAN_BLOCK as u32)
+    }
+
+    /// `M = A^chunk_len` (row-major), the per-chunk state map.
+    pub fn carry(&self, sections: usize) -> &[f64] {
+        &self.powers[..(4 * sections * sections).min(self.powers.len())]
+    }
 }
+
+/// Default samples per IIR chunk; see [`IirChunks::plan`].
+pub const IIR_CHUNK_LEN: usize = 64;
 
 /// One sample through the cascade (DF2T per section), as the kernels do.
 fn cascade_step(sections: &[[f64; 6]], x: f64, state: &mut [f64]) -> f64 {
@@ -412,8 +485,25 @@ impl GpuKernel {
                 sections,
                 chunks: Some(c),
                 ..
-            } => self.output_len(n) + 2 * c.chunks as usize * 2 * sections.len(),
+            } => self.output_len(n) + 2 * (c.chunks + c.blocks()) as usize * 2 * sections.len(),
             _ => self.output_len(n),
+        }
+    }
+
+    /// Re-split a bound chunked IIR / decimate kernel into about `target`
+    /// chunks. Adapters with few lanes (a CPU rasterizer such as lavapipe)
+    /// run faster with fewer, longer chunks; other kernels are unchanged.
+    pub fn with_iir_chunk_target(self, n: usize, target: usize) -> Self {
+        match self {
+            Self::Iir { sections, chunks: Some(_) } => {
+                let chunks = Some(IirChunks::with_chunks(&sections, n, target));
+                Self::Iir { sections, chunks }
+            }
+            Self::Decimate { factor, sections, chunks: Some(_) } => {
+                let chunks = Some(IirChunks::with_chunks(&sections, n, target));
+                Self::Decimate { factor, sections, chunks }
+            }
+            other => other,
         }
     }
 
@@ -423,7 +513,15 @@ impl GpuKernel {
         match self {
             Self::Iir { chunks: Some(c), .. } | Self::Decimate { chunks: Some(c), .. } => {
                 let groups = c.chunks.div_ceil(WORKGROUP);
-                vec![("chunk_state", groups), ("carry", 1), ("main", groups)]
+                let mut passes = vec![("chunk_state", groups), ("scan_block", groups)];
+                let block_groups = c.blocks().div_ceil(WORKGROUP);
+                passes.extend(
+                    IIR_SCAN_ENTRIES[..c.levels as usize]
+                        .iter()
+                        .map(|&entry| (entry, block_groups)),
+                );
+                passes.push(("main", groups));
+                passes
             }
             _ => vec![("main", self.workgroups(n))],
         }
@@ -489,7 +587,7 @@ impl GpuKernel {
             Self::Fir { taps } => taps.iter().map(|&t| t as f32).collect(),
             Self::Spectrum { window, .. } => window.iter().map(|&w| w as f32).collect(),
             Self::Iir { chunks: Some(c), .. } | Self::Decimate { chunks: Some(c), .. } => {
-                c.carry.iter().map(|&m| m as f32).collect()
+                c.powers.iter().map(|&m| m as f32).collect()
             }
             _ => Vec::new(),
         };
@@ -591,8 +689,11 @@ impl GpuKernel {
                 s.push_str(BAND_POWER_MAIN);
             }
             Self::Envelope => s.push_str(ENVELOPE_MAIN),
-            Self::Iir { sections, .. } | Self::Decimate { sections, .. } => {
-                s.push_str(&iir_parallel(sections))
+            Self::Iir { sections, chunks } | Self::Decimate { sections, chunks, .. } => {
+                s.push_str(&iir_parallel(
+                    sections,
+                    IirCarry::Scan(chunks.as_ref().map_or(0, |c| c.levels)),
+                ))
             }
         }
         s
@@ -1082,10 +1183,31 @@ pub fn sequential_iir_wgsl(sections: &[[f64; 6]]) -> String {
     s
 }
 
+/// How the chunked IIR shader finds each chunk's entry state.
+#[derive(Debug, Clone, Copy)]
+enum IirCarry {
+    /// One invocation walks the chunks (the Phase C shader; benchmarks only).
+    Serial,
+    /// Prefix scan over this many levels (see [`IirChunks`]).
+    Scan(u32),
+}
+
+/// The chunked IIR shader with the single-invocation `carry` pass it used
+/// before the prefix scan (entries `chunk_state`, `carry`, `main`; dispatch
+/// `carry` as one workgroup). Same bindings, params and aux as the scan
+/// kernel (it reads only the level-0 matrix). Kept for benchmarks.
+pub fn serial_carry_iir_wgsl(sections: &[[f64; 6]]) -> String {
+    let mut s = String::from("// SigQL GPU kernel: iir (serial carry baseline)\n");
+    s.push_str(HEADER);
+    s.push_str(&iir_parallel(sections, IirCarry::Serial));
+    s
+}
+
 /// Chunked parallel IIR / decimate (see [`IirChunks`]). `params.size` is the
 /// output stride (1 for a plain filter); `p4` chunks, `p5` chunk length,
-/// `p6` workspace offset; `aux` holds the carry matrix.
-fn iir_parallel(sections: &[[f64; 6]]) -> String {
+/// `p6` workspace offset (two `chunks x D` regions); `aux` holds the matrix
+/// powers.
+fn iir_parallel(sections: &[[f64; 6]], carry: IirCarry) -> String {
     let store = "        if (i % params.size == 0u) { output[i / params.size] = y; }\n";
     if sections.is_empty() {
         return per_sample_main(&format!(
@@ -1120,7 +1242,13 @@ fn chunk_state(@builtin(global_invocation_id) gid: vec3<u32>) {{
     for (var j = 0u; j < D; j++) {{ output[base + j] = s[j]; }}
 }}
 
-@compute @workgroup_size(1)
+"
+    ));
+    // Where `main` reads chunk c's entry state from.
+    let entry_state: String = match carry {
+        IirCarry::Serial => {
+            s.push_str(&format!(
+                "@compute @workgroup_size(1)
 fn carry() {{
     let local = params.p6;
     let init = params.p6 + params.p4 * D;
@@ -1137,14 +1265,120 @@ fn carry() {{
     }}
 }}
 
+"
+            ));
+            "    let init = params.p6 + params.p4 * D + c * D;
+    for (var j = 0u; j < D; j++) { s[j] = output[init + j]; }
+"
+            .into()
+        }
+        IirCarry::Scan(levels) => {
+            let block = IIR_SCAN_BLOCK;
+            let dd = d * d;
+            // Regions: R0 local states, R1 block prefixes (chunks x D each),
+            // T0/T1 block totals (blocks x D each).
+            s.push_str(&format!(
+                "const BLOCK: u32 = {block}u;
+fn r1() -> u32 {{ return params.p6 + params.p4 * D; }}
+fn t_base(k: u32) -> u32 {{
+    let blocks = (params.p4 + BLOCK - 1u) / BLOCK;
+    return params.p6 + 2u * params.p4 * D + k * blocks * D;
+}}
+
+var<workgroup> tile: array<f32, {tile}>;
+
 @compute @workgroup_size({WORKGROUP})
+fn scan_block(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>) {{
+    let c = gid.x;
+    let t = lid.x;
+    let live = c < params.p4;
+    for (var j = 0u; j < D; j++) {{
+        var v = 0.0;
+        if (live) {{ v = output[params.p6 + c * D + j]; }}
+        tile[t * D + j] = v;
+    }}
+    workgroupBarrier();
+    for (var shift = 1u; shift < BLOCK; shift = shift * 2u) {{
+        var v: array<f32, {d}>;
+        for (var r = 0u; r < D; r++) {{
+            var acc = tile[t * D + r];
+            if (t >= shift) {{
+                // M^shift is entry shift - 1 of the power table.
+                let pow = (shift - 1u) * {dd}u;
+                for (var q = 0u; q < D; q++) {{ acc += aux[pow + r * D + q] * tile[(t - shift) * D + q]; }}
+            }}
+            v[r] = acc;
+        }}
+        workgroupBarrier();
+        for (var r = 0u; r < D; r++) {{ tile[t * D + r] = v[r]; }}
+        workgroupBarrier();
+    }}
+    if (live) {{
+        for (var r = 0u; r < D; r++) {{ output[r1() + c * D + r] = tile[t * D + r]; }}
+    }}
+    if (t == BLOCK - 1u) {{
+        for (var r = 0u; r < D; r++) {{ output[t_base(0u) + wid.x * D + r] = tile[t * D + r]; }}
+    }}
+}}
+
+",
+                tile = block * d,
+            ));
+            for k in 0..levels {
+                let (src, dst) = (k % 2, (k + 1) % 2);
+                let shift = 1u32 << k;
+                let pow = (block + k as usize) * dd;
+                s.push_str(&format!(
+                    "@compute @workgroup_size({WORKGROUP})
+fn scan_{k}(@builtin(global_invocation_id) gid: vec3<u32>) {{
+    let b = gid.x;
+    let blocks = (params.p4 + BLOCK - 1u) / BLOCK;
+    if (b >= blocks) {{ return; }}
+    let src = t_base({src}u);
+    let dst = t_base({dst}u);
+    for (var r = 0u; r < D; r++) {{
+        var acc = output[src + b * D + r];
+        if (b >= {shift}u) {{
+            let prev = src + (b - {shift}u) * D;
+            for (var q = 0u; q < D; q++) {{ acc += aux[{pow}u + r * D + q] * output[prev + q]; }}
+        }}
+        output[dst + b * D + r] = acc;
+    }}
+}}
+
+"
+                ));
+            }
+            // Chunk c enters with X[e], e = c - 1: e's block prefix plus
+            // M^(e % BLOCK + 1) times the total of every earlier block
+            // (inclusive block scan, region T[levels % 2], at block - 1).
+            format!(
+                "    if (c > 0u) {{
+        let e = c - 1u;
+        let b = e / BLOCK;
+        for (var j = 0u; j < D; j++) {{ s[j] = output[r1() + e * D + j]; }}
+        if (b > 0u) {{
+            let tot = t_base({final_region}u) + (b - 1u) * D;
+            let pow = (e % BLOCK) * {dd}u;
+            for (var r = 0u; r < D; r++) {{
+                var acc = s[r];
+                for (var q = 0u; q < D; q++) {{ acc += aux[pow + r * D + q] * output[tot + q]; }}
+                s[r] = acc;
+            }}
+        }}
+    }}
+",
+                final_region = levels % 2
+            )
+        }
+    };
+    s.push_str(&format!(
+        "@compute @workgroup_size({WORKGROUP})
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {{
     let c = gid.x;
     if (c >= params.p4) {{ return; }}
     var s: array<f32, {d}>;
-    let init = params.p6 + params.p4 * D + c * D;
-    for (var j = 0u; j < D; j++) {{ s[j] = output[init + j]; }}
-    let start = c * params.p5;
+{entry_state}    let start = c * params.p5;
     let end = min(params.n, start + params.p5);
     for (var i = start; i < end; i++) {{
         let y = filt(input[i], &s);
@@ -1384,7 +1618,12 @@ mod tests {
             let bound = kernel.bind(&input).unwrap();
             let module = validate_wgsl(bound.name(), &bound.wgsl());
             let passes = bound.passes(input.len);
-            assert_eq!(passes.len(), 3, "{}", bound.name());
+            let levels = match &bound {
+                GpuKernel::Iir { chunks: Some(c), .. } | GpuKernel::Decimate { chunks: Some(c), .. } => c.levels,
+                other => panic!("{other:?} is not chunked"),
+            };
+            assert!(levels >= 1);
+            assert_eq!(passes.len(), 3 + levels as usize, "{}", bound.name());
             for (entry, groups) in passes {
                 assert!(groups >= 1);
                 assert!(
@@ -1395,6 +1634,10 @@ mod tests {
             }
         }
         validate_wgsl("sequential iir", &sequential_iir_wgsl(&sections));
+        let serial = validate_wgsl("serial carry iir", &serial_carry_iir_wgsl(&sections));
+        for entry in ["chunk_state", "carry", "main"] {
+            assert!(serial.entry_points.iter().any(|e| e.name == entry), "{entry}");
+        }
     }
 
     /// Emulating the three passes in f64 reproduces the sequential cascade:
@@ -1412,14 +1655,29 @@ mod tests {
         .map(|s| [s.b0, s.b1, s.b2, 1.0, s.a1, s.a2])
         .collect::<Vec<_>>();
         let d = 2 * sections.len();
-        for n in [1usize, 7, 100, 4097, 50_000] {
+        for (n, target) in [
+            (1usize, None),
+            (7, None),
+            (100, None),
+            (4097, None),
+            (50_000, None),
+            (50_000, Some(3)),
+            (50_000, Some(1000)),
+            (50_000, Some(64)),
+            (50_000, Some(65)),
+            (1 << 16, Some(1 << 16)),
+            (1 << 17, Some(1 << 16)),
+        ] {
             let x: Vec<f64> = (0..n)
                 .map(|i| (i as f64 * 0.013).sin() + 0.3 * (i as f64 * 0.41).cos())
                 .collect();
             let mut st = vec![0.0; d];
             let want: Vec<f64> = x.iter().map(|&v| cascade_step(&sections, v, &mut st)).collect();
 
-            let plan = IirChunks::plan(&sections, n);
+            let plan = match target {
+                Some(t) => IirChunks::with_chunks(&sections, n, t),
+                None => IirChunks::plan(&sections, n),
+            };
             let (p, l) = (plan.chunks as usize, plan.chunk_len as usize);
             assert!(p * l >= n && (p - 1) * l < n, "n={n} p={p} l={l}");
             let local: Vec<Vec<f64>> = (0..p)
@@ -1431,18 +1689,58 @@ mod tests {
                     s
                 })
                 .collect();
-            let mut init = vec![vec![0.0; d]];
-            for c in 0..p - 1 {
-                let prev = &init[c];
-                init.push(
-                    (0..d)
-                        .map(|r| {
-                            local[c][r]
-                                + (0..d).map(|q| plan.carry[r * d + q] * prev[q]).sum::<f64>()
-                        })
-                        .collect(),
-                );
+            let blocks = plan.blocks() as usize;
+            assert_eq!(blocks, p.div_ceil(IIR_SCAN_BLOCK));
+            assert!(1usize << plan.levels >= blocks);
+            assert!(plan.levels == 0 || 1usize << (plan.levels - 1) < blocks);
+            let dd = d * d;
+            let matvec = |m: &[f64], v: &[f64]| -> Vec<f64> {
+                (0..d).map(|r| (0..d).map(|q| m[r * d + q] * v[q]).sum()).collect()
+            };
+            let add = |a: &[f64], b: &[f64]| -> Vec<f64> { a.iter().zip(b).map(|(x, y)| x + y).collect() };
+            // scan_block: Hillis-Steele inside each block with M^shift.
+            let mut prefix = local.clone();
+            let mut shift = 1;
+            while shift < IIR_SCAN_BLOCK {
+                let pow = &plan.powers[(shift - 1) * dd..shift * dd];
+                prefix = (0..p)
+                    .map(|c| {
+                        if c % IIR_SCAN_BLOCK >= shift {
+                            add(&prefix[c], &matvec(pow, &prefix[c - shift]))
+                        } else {
+                            prefix[c].clone()
+                        }
+                    })
+                    .collect();
+                shift *= 2;
             }
+            // Block totals (last chunk of each full block), then scan_k.
+            let mut totals: Vec<Vec<f64>> = (0..blocks)
+                .map(|b| prefix[((b + 1) * IIR_SCAN_BLOCK - 1).min(p - 1)].clone())
+                .collect();
+            for k in 0..plan.levels as usize {
+                let pow = &plan.powers[(IIR_SCAN_BLOCK + k) * dd..(IIR_SCAN_BLOCK + k + 1) * dd];
+                let shift = 1 << k;
+                totals = (0..blocks)
+                    .map(|b| if b >= shift { add(&totals[b], &matvec(pow, &totals[b - shift])) } else { totals[b].clone() })
+                    .collect();
+            }
+            // main's entry state.
+            let init: Vec<Vec<f64>> = (0..p)
+                .map(|c| {
+                    if c == 0 {
+                        return vec![0.0; d];
+                    }
+                    let e = c - 1;
+                    let b = e / IIR_SCAN_BLOCK;
+                    if b == 0 {
+                        prefix[e].clone()
+                    } else {
+                        let off = e % IIR_SCAN_BLOCK;
+                        add(&prefix[e], &matvec(&plan.powers[off * dd..(off + 1) * dd], &totals[b - 1]))
+                    }
+                })
+                .collect();
             let mut got = Vec::with_capacity(n);
             for (c, s0) in init.iter().enumerate() {
                 let mut s = s0.clone();
