@@ -408,12 +408,23 @@ mod http_tests {
     use super::*;
     use std::net::TcpListener;
 
+    /// Never hands the same port to two tests in this binary (bind(0) then
+    /// drop lets the kernel reuse a port while parallel tests start servers).
     fn find_available_port() -> u16 {
-        TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port()
+        use std::collections::HashSet;
+        use std::sync::{Mutex, OnceLock};
+        static GIVEN: OnceLock<Mutex<HashSet<u16>>> = OnceLock::new();
+        let given = GIVEN.get_or_init(Default::default);
+        loop {
+            let port = TcpListener::bind("127.0.0.1:0")
+                .unwrap()
+                .local_addr()
+                .unwrap()
+                .port();
+            if given.lock().unwrap().insert(port) {
+                return port;
+            }
+        }
     }
 
     #[tokio::test]

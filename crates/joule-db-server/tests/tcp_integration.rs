@@ -9,9 +9,23 @@ use std::net::TcpListener;
 use std::time::Duration;
 
 /// Find an available port by binding to port 0
+/// Returns a port no other test in this binary has been handed. Parallel tests
+/// used to race: bind(0) then drop lets the kernel give the same port twice.
 fn find_available_port() -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap().port()
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static GIVEN: OnceLock<Mutex<HashSet<u16>>> = OnceLock::new();
+    let given = GIVEN.get_or_init(Default::default);
+    loop {
+        let port = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        if given.lock().unwrap().insert(port) {
+            return port;
+        }
+    }
 }
 
 /// Create a test server on a random port and return (server, base_url)

@@ -52,9 +52,23 @@ struct DbDonePayload {
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+/// Returns a port no other test in this binary has been handed. Parallel tests
+/// used to race: bind(0) then drop lets the kernel give the same port twice.
 fn find_available_port() -> u16 {
-    let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap().port()
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static GIVEN: OnceLock<Mutex<HashSet<u16>>> = OnceLock::new();
+    let given = GIVEN.get_or_init(Default::default);
+    loop {
+        let port = StdTcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        if given.lock().unwrap().insert(port) {
+            return port;
+        }
+    }
 }
 
 /// Create a JouleDB server with JWP enabled and return (server, http_url, jwp_addr).
