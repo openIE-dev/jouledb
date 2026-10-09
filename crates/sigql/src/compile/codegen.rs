@@ -1522,6 +1522,21 @@ impl SimdGenerator {
 // Helper Functions
 // ============================================================================
 
+/// Output register a step writes, if it has exactly one.
+pub fn step_output(step: &PlanStep) -> Option<RegisterId> {
+    get_output_register(step)
+}
+
+/// Input register a step reads, if it has exactly one.
+pub fn step_input(step: &PlanStep) -> Option<RegisterId> {
+    get_input_register(step)
+}
+
+/// Human-readable name of a plan step (used in fallback reasons).
+pub fn step_label(step: &PlanStep) -> &'static str {
+    step_name(step)
+}
+
 fn step_name(step: &PlanStep) -> &'static str {
     match step {
         PlanStep::LoadSignal { .. } => "LoadSignal",

@@ -197,6 +197,11 @@ pub struct BiquadFilter {
 }
 
 impl BiquadFilter {
+    /// The coefficients this section applies.
+    pub fn coeffs(&self) -> BiquadCoeffs {
+        self.coeffs
+    }
+
     /// Create new filter with given coefficients
     pub fn new(coeffs: BiquadCoeffs) -> Self {
         Self {
@@ -239,6 +244,11 @@ pub struct CascadedBiquad {
 }
 
 impl CascadedBiquad {
+    /// Coefficients of every section, in cascade order.
+    pub fn sections(&self) -> Vec<BiquadCoeffs> {
+        self.sections.iter().map(|s| s.coeffs()).collect()
+    }
+
     /// Create from list of biquad sections
     pub fn new(sections: Vec<BiquadCoeffs>) -> Self {
         Self {

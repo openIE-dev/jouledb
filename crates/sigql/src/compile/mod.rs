@@ -6,6 +6,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 pub mod codegen;
+pub mod gpu;
 pub mod optimize;
 pub mod plan;
 #[cfg(feature = "simd")]
@@ -668,11 +669,13 @@ impl Default for Compiler {
 }
 
 /// Helper to convert CascadedBiquad to IirCoeffs
-fn biquad_to_iir_coeffs(_filter: &crate::dsp::filter::CascadedBiquad) -> IirCoeffs {
-    // Access the internal sections - this is a bit of a hack
-    // In a real implementation, CascadedBiquad would expose its coefficients
+fn biquad_to_iir_coeffs(filter: &crate::dsp::filter::CascadedBiquad) -> IirCoeffs {
     IirCoeffs {
-        sections: Vec::new(), // Will be populated by runtime from DSP module
+        sections: filter
+            .sections()
+            .into_iter()
+            .map(|s| [s.b0, s.b1, s.b2, 1.0, s.a1, s.a2])
+            .collect(),
     }
 }
 

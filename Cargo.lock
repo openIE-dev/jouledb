@@ -6869,6 +6869,7 @@ dependencies = [
  "csv",
  "hound",
  "joule-db-core",
+ "naga",
  "nalgebra",
  "nom 8.0.0",
  "num-complex",

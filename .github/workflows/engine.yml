@@ -57,6 +57,19 @@ jobs:
       - name: cargo test (workspace)
         run: cargo test --workspace --no-fail-fast --locked
 
+      # The workspace tests above run without a GPU, so SigQL takes its honest
+      # CPU fallback. Install Mesa's lavapipe (software Vulkan) and rerun the
+      # SigQL GPU tests with JOULE_REQUIRE_WEBGPU=1: every WGSL kernel must
+      # compile on a real wgpu adapter and match the CPU runtime.
+      - name: SigQL WebGPU on lavapipe (software Vulkan)
+        env:
+          JOULE_REQUIRE_WEBGPU: "1"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers
+          cargo test -p sigql --locked --lib compile::gpu
+          cargo test -p joule-db-server --locked --lib sigql_executor -- --nocapture
+
       - name: SigQL no_std typecheck
         run: cargo check -p sigql --no-default-features --features no_std --locked
 
@@ -106,3 +119,9 @@ jobs:
 
       - name: joule-db-server fabric tests
         run: "cargo test -p joule-db-server --locked --lib fabric:: -- --nocapture"
+
+      # wgpu picks Metal here; the SigQL kernels must compile and match the CPU.
+      - name: SigQL WebGPU on Metal
+        env:
+          JOULE_REQUIRE_WEBGPU: "1"
+        run: cargo test -p joule-db-server --locked --lib sigql_executor -- --nocapture

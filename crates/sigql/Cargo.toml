@@ -75,6 +75,8 @@ criterion = { workspace = true }
 proptest = { workspace = true }
 tempfile = { workspace = true }
 approx = "0.5"
+# Validates the WGSL the GPU path emits (same compiler wgpu uses).
+naga = { version = "29", features = ["wgsl-in"] }
 
 # Benchmarks will be added when implementations are complete
 # [[bench]]
