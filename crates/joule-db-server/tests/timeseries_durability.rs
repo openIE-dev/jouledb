@@ -135,3 +135,126 @@ fn in_memory_executor_reports_non_durable_timeseries() {
     let exec = joule_db_server::query::SimpleQueryExecutor::open(dir.path());
     assert!(exec.timeseries_durable());
 }
+
+/// Writes to run against both a durable server and a memory-only executor.
+/// `meta` is the name the first on-disk format used for its registry, and
+/// `disk` / `disk::io` share a textual prefix; timestamps repeat on purpose.
+const EDGE_WRITES: &[&str] = &[
+    "TSWRITE meta 1 100 src=a",
+    "TSWRITE meta 2 100 src=b",
+    "TSWRITE meta 3 200",
+    "TSWRITE cpu 0.5 100 host=a",
+    "TSWRITE cpu 0.6 100 host=b",
+    "TSWRITE cpu 0.7 100 host=c",
+    "TSWRITE cpu 0.1 -50",
+    "TSWRITE disk 9 300",
+    "TSWRITE disk::io 7 300",
+];
+
+fn series(exec: &Arc<dyn QueryExecutor>, metric: &str) -> Vec<Vec<serde_json::Value>> {
+    run(exec, &format!("TSQUERY {metric} -100000 100000")).rows
+}
+
+fn aggregate(exec: &Arc<dyn QueryExecutor>, metric: &str, agg: &str) -> Vec<Vec<serde_json::Value>> {
+    run(exec, &format!("TSAGGREGATE {metric} -100000 100000 1000000 {agg}")).rows
+}
+
+#[test]
+fn meta_series_and_duplicate_timestamps_survive_restart() {
+    // Reference: the in-memory store, which keeps every point at a repeated
+    // timestamp in write order.
+    let memory: Arc<dyn QueryExecutor> = Arc::new(joule_db_server::query::SimpleQueryExecutor::new());
+    for sql in EDGE_WRITES {
+        run(&memory, sql);
+    }
+    let names = ["cpu", "disk", "disk::io", "meta"];
+    let expected: Vec<_> = names.iter().map(|m| series(&memory, m)).collect();
+    assert_eq!(expected[0].len(), 4, "memory keeps all cpu points: {:?}", expected[0]);
+    assert_eq!(expected[3].len(), 3, "memory keeps all meta points: {:?}", expected[3]);
+    assert_eq!(
+        expected[0][1..].iter().map(|r| r[1].clone()).collect::<Vec<_>>(),
+        vec![json!(0.5), json!(0.6), json!(0.7)],
+        "same-timestamp points in write order"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let server = open_server(&dir);
+        let exec = server.query_executor();
+        for sql in EDGE_WRITES {
+            run(&exec, sql);
+        }
+        assert_eq!(metrics(&exec), names);
+        for (m, want) in names.iter().zip(&expected) {
+            assert_eq!(&series(&exec, m), want, "{m} before restart");
+        }
+    }
+    for round in 0..2 {
+        let server = open_server(&dir);
+        let exec = server.query_executor();
+        // The memory-only executor is the reference for every series.
+        let names = metrics(&memory);
+        assert_eq!(metrics(&exec), names, "restart {round}");
+        for m in &names {
+            assert_eq!(series(&exec, m), series(&memory, m), "{m} after restart {round}");
+            // The rebuilt in-memory store (aggregates) matches the reference.
+            for agg in ["COUNT", "FIRST", "LAST", "SUM"] {
+                assert_eq!(aggregate(&exec, m, agg), aggregate(&memory, m, agg), "{m} {agg}");
+            }
+        }
+        if round == 0 {
+            // Another point at an existing timestamp appends after the others,
+            // and deleting `meta` touches no other series.
+            for sql in ["TSWRITE cpu 0.8 100 host=d", "TSDELETE meta"] {
+                run(&exec, sql);
+                run(&memory, sql);
+            }
+        } else {
+            assert_eq!(names, ["cpu", "disk", "disk::io"]);
+            let cpu = series(&exec, "cpu");
+            assert_eq!(cpu.len(), 5);
+            assert_eq!(cpu.last().unwrap()[1], json!(0.8));
+            assert!(series(&exec, "meta").is_empty());
+        }
+    }
+}
+
+#[test]
+fn first_format_timeseries_file_still_loads() {
+    // tests/fixtures/timeseries_v1.wdb.gz was written by the 7bccd15 code
+    // (keys `__ts__::{metric}::{ts}` and `__ts__::meta::{metric}`), including
+    // a series literally named `meta` and one named `disk::io`.
+    use std::io::Read;
+    let dir = tempfile::tempdir().unwrap();
+    let gz = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/timeseries_v1.wdb.gz")).unwrap();
+    let mut raw = Vec::new();
+    flate2::read::GzDecoder::new(&gz[..]).read_to_end(&mut raw).unwrap();
+    std::fs::write(dir.path().join(TIMESERIES_FILE), raw).unwrap();
+
+    let check = |exec: &Arc<dyn QueryExecutor>| {
+        assert_eq!(metrics(exec), ["cpu", "disk::io", "mem", "meta"]);
+        assert_eq!(
+            series(exec, "cpu"),
+            vec![
+                vec![json!(-5000), json!(-1.25), json!({})],
+                vec![json!(1000), json!(10.5), json!({"host": "a"})],
+                vec![json!(2000), json!(11.5), json!({})],
+            ]
+        );
+        assert_eq!(series(exec, "mem"), vec![vec![json!(1000), json!(512.0), json!({"unit": "mb"})]]);
+        assert_eq!(series(exec, "disk::io"), vec![vec![json!(3000), json!(7.0), json!({})]]);
+        assert_eq!(series(exec, "meta"), vec![vec![json!(4000), json!(99.0), json!({})]]);
+        assert_eq!(aggregate(exec, "cpu", "COUNT")[0][1], json!(3.0));
+    };
+    {
+        let server = open_server(&dir);
+        let exec = server.query_executor();
+        check(&exec);
+        run(&exec, "TSWRITE cpu 12.5 2000");
+    }
+    // Reopen: the migrated file is in the current format and still complete.
+    let server = open_server(&dir);
+    let exec = server.query_executor();
+    assert_eq!(series(&exec, "cpu").len(), 4);
+    assert_eq!(series(&exec, "cpu")[3], vec![json!(2000), json!(12.5), json!({})]);
+}

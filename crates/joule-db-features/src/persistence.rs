@@ -6,7 +6,8 @@
 //! ## Key Formats
 //!
 //! Each feature uses a unique key prefix:
-//! - Time Series: `__ts__::{metric}::{partition}::{timestamp}`
+//! - Time Series: `__tsv2__/m/{metric}` and `__tsv2__/d/{len}{metric}{ts}{seq}`
+//!   (the first format, `__ts__::…`, is migrated by `migrate_legacy`)
 //! - Graph Nodes: `__graph__::node::{id}`
 //! - Graph Edges: `__graph__::edge::{id}` + adjacency indices
 //! - Vector Index: `__vec__::{index}::{id}`
@@ -61,8 +62,24 @@ pub type PersistResult<T> = Result<T, PersistenceError>;
 // Time Series Persistence
 // ============================================================================
 
-const TS_PREFIX: &[u8] = b"__ts__::";
-const TS_META_PREFIX: &[u8] = b"__ts__::meta::";
+/// Keys written by the first durable format (7bccd15). Read only, to migrate.
+///
+/// That format had two flaws: registry keys `__ts__::meta::{metric}` shared a
+/// prefix with the points of a series named `meta`, and the point key
+/// `__ts__::{metric}::{ts}` had no room for two points at one timestamp.
+const TS_V1_PREFIX: &[u8] = b"__ts__::";
+const TS_V1_META_PREFIX: &[u8] = b"__ts__::meta::";
+
+/// Current format. Registry and points live under distinct fixed prefixes, so
+/// no metric name can reach the other keyspace:
+/// - registry: `__tsv2__/m/{metric}`
+/// - point:    `__tsv2__/d/{len u32 BE}{metric}{ts, sign-flipped BE}{seq u64 BE}`
+///
+/// The length prefix keeps `disk` and `disk::io` apart, the sign-flipped
+/// timestamp makes key order equal time order, and `seq` keeps every point
+/// written at the same timestamp, in write order (as the in-memory store does).
+const TS_V2_META_PREFIX: &[u8] = b"__tsv2__/m/";
+const TS_V2_DATA_PREFIX: &[u8] = b"__tsv2__/d/";
 
 /// Persistent time series data point
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,9 +100,21 @@ impl<S: StorageEngine> TimeSeriesPersistence<S> {
         Self { storage }
     }
 
-    /// Write a data point
+    /// Write a data point. A point at a timestamp that already has points is
+    /// kept alongside them (never overwrites), after the existing ones.
     pub fn write(&self, metric: &str, point: PersistedDataPoint) -> PersistResult<()> {
-        let key = self.point_key(metric, point.timestamp);
+        let ts_prefix = Self::ts_prefix(metric, point.timestamp);
+        let mut seq = 0u64;
+        for (key, _) in self.storage.prefix_scan(&ts_prefix)? {
+            let next = Self::key_seq(&key)
+                .and_then(|s| s.checked_add(1))
+                .ok_or_else(|| {
+                    PersistenceError::Storage(format!("bad time-series key for '{metric}'"))
+                })?;
+            seq = seq.max(next);
+        }
+        let mut key = ts_prefix;
+        key.extend_from_slice(&seq.to_be_bytes());
         let value = serde_json::to_vec(&point)
             .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
         self.storage.put(&key, &value)
@@ -99,95 +128,131 @@ impl<S: StorageEngine> TimeSeriesPersistence<S> {
         Ok(())
     }
 
-    /// Query time range
+    /// Query time range (inclusive), ordered by timestamp, then write order.
     pub fn query(
         &self,
         metric: &str,
         start: i64,
         end: i64,
     ) -> PersistResult<Vec<PersistedDataPoint>> {
-        let prefix = self.metric_prefix(metric);
-        let entries = self.storage.prefix_scan(&prefix)?;
-
+        let prefix = Self::data_prefix(metric);
         let mut points = Vec::new();
-        for (key, value) in entries {
-            // Extract timestamp from key
-            if let Some(ts) = self.extract_timestamp(&key, &prefix) {
-                if ts >= start && ts <= end {
-                    let point: PersistedDataPoint = serde_json::from_slice(&value)
-                        .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
-                    points.push(point);
-                }
+        for (key, value) in self.storage.prefix_scan(&prefix)? {
+            let Some(ts) = Self::key_ts(&key, prefix.len()) else {
+                continue;
+            };
+            if ts >= start && ts <= end {
+                let point: PersistedDataPoint = serde_json::from_slice(&value)
+                    .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
+                points.push((ts, Self::key_seq(&key).unwrap_or(0), point));
             }
         }
-
-        points.sort_by_key(|p| p.timestamp);
-        Ok(points)
+        // Backends are not required to scan in key order; restore it.
+        points.sort_by_key(|(ts, seq, _)| (*ts, *seq));
+        Ok(points.into_iter().map(|(_, _, p)| p).collect())
     }
 
     /// List all metrics
     pub fn list_metrics(&self) -> PersistResult<Vec<String>> {
-        let entries = self.storage.prefix_scan(TS_META_PREFIX)?;
         let mut metrics = Vec::new();
-
-        for (key, _) in entries {
-            if let Some(name) = self.extract_metric_name(&key) {
+        for (key, _) in self.storage.prefix_scan(TS_V2_META_PREFIX)? {
+            if let Ok(name) = String::from_utf8(key[TS_V2_META_PREFIX.len()..].to_vec()) {
                 metrics.push(name);
             }
         }
-
+        metrics.sort();
         Ok(metrics)
     }
 
     /// Register a metric (for listing)
     pub fn register_metric(&self, metric: &str) -> PersistResult<()> {
-        let key = [TS_META_PREFIX, metric.as_bytes()].concat();
-        self.storage.put(&key, b"1")
+        self.storage.put(&Self::meta_key(metric), b"1")
     }
 
     /// Delete a metric and all its data
     pub fn delete_metric(&self, metric: &str) -> PersistResult<()> {
-        let prefix = self.metric_prefix(metric);
-        let entries = self.storage.prefix_scan(&prefix)?;
-
-        for (key, _) in entries {
+        for (key, _) in self.storage.prefix_scan(&Self::data_prefix(metric))? {
             self.storage.delete(&key)?;
         }
-
-        // Delete metadata
-        let meta_key = [TS_META_PREFIX, metric.as_bytes()].concat();
-        self.storage.delete(&meta_key)?;
-
+        self.storage.delete(&Self::meta_key(metric))?;
         Ok(())
+    }
+
+    /// Move series written in the first format (`__ts__::…`) to the current
+    /// one, then remove the old keys. Returns how many points moved.
+    ///
+    /// Old keys are classified by value, not by key: a registry entry holds
+    /// `1`, a point holds its JSON. A point key ends in `::` plus eight
+    /// timestamp bytes, so the metric name is everything between the prefix
+    /// and that suffix, even for a series named `meta`. Safe to rerun after a
+    /// crash: new keys are written before any old key is deleted, and the old
+    /// format held at most one point per (metric, timestamp), which always
+    /// lands at seq 0.
+    pub fn migrate_legacy(&self) -> PersistResult<usize> {
+        let legacy = self.storage.prefix_scan(TS_V1_PREFIX)?;
+        if legacy.is_empty() {
+            return Ok(0);
+        }
+        let mut moved = 0;
+        for (key, value) in &legacy {
+            if value.as_slice() == b"1" && key.starts_with(TS_V1_META_PREFIX) {
+                let name = String::from_utf8(key[TS_V1_META_PREFIX.len()..].to_vec())
+                    .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
+                self.register_metric(&name)?;
+                continue;
+            }
+            let body = &key[TS_V1_PREFIX.len()..];
+            if body.len() < 10 || &body[body.len() - 10..body.len() - 8] != b"::" {
+                return Err(PersistenceError::Serialization(format!(
+                    "unrecognised legacy time-series key {key:?}"
+                )));
+            }
+            let metric = String::from_utf8(body[..body.len() - 10].to_vec())
+                .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
+            let point: PersistedDataPoint = serde_json::from_slice(value)
+                .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
+            let mut new_key = Self::ts_prefix(&metric, point.timestamp);
+            new_key.extend_from_slice(&0u64.to_be_bytes());
+            self.storage.put(&new_key, value)?;
+            self.register_metric(&metric)?;
+            moved += 1;
+        }
+        for (key, _) in &legacy {
+            self.storage.delete(key)?;
+        }
+        Ok(moved)
     }
 
     // Helper methods
 
-    fn metric_prefix(&self, metric: &str) -> Vec<u8> {
-        [TS_PREFIX, metric.as_bytes(), b"::"].concat()
+    fn meta_key(metric: &str) -> Vec<u8> {
+        [TS_V2_META_PREFIX, metric.as_bytes()].concat()
     }
 
-    fn point_key(&self, metric: &str, timestamp: i64) -> Vec<u8> {
-        let mut key = self.metric_prefix(metric);
-        key.extend_from_slice(&timestamp.to_be_bytes());
+    fn data_prefix(metric: &str) -> Vec<u8> {
+        let mut key = TS_V2_DATA_PREFIX.to_vec();
+        key.extend_from_slice(&(metric.len() as u32).to_be_bytes());
+        key.extend_from_slice(metric.as_bytes());
         key
     }
 
-    fn extract_timestamp(&self, key: &[u8], prefix: &[u8]) -> Option<i64> {
-        if key.len() >= prefix.len() + 8 {
-            let ts_bytes: [u8; 8] = key[prefix.len()..prefix.len() + 8].try_into().ok()?;
-            Some(i64::from_be_bytes(ts_bytes))
-        } else {
-            None
-        }
+    fn ts_prefix(metric: &str, timestamp: i64) -> Vec<u8> {
+        let mut key = Self::data_prefix(metric);
+        key.extend_from_slice(&((timestamp as u64) ^ (1 << 63)).to_be_bytes());
+        key
     }
 
-    fn extract_metric_name(&self, key: &[u8]) -> Option<String> {
-        if key.starts_with(TS_META_PREFIX) {
-            String::from_utf8(key[TS_META_PREFIX.len()..].to_vec()).ok()
-        } else {
-            None
+    fn key_ts(key: &[u8], prefix_len: usize) -> Option<i64> {
+        if key.len() != prefix_len + 16 {
+            return None;
         }
+        let bytes: [u8; 8] = key[prefix_len..prefix_len + 8].try_into().ok()?;
+        Some((u64::from_be_bytes(bytes) ^ (1 << 63)) as i64)
+    }
+
+    fn key_seq(key: &[u8]) -> Option<u64> {
+        let bytes: [u8; 8] = key.get(key.len().checked_sub(8)?..)?.try_into().ok()?;
+        Some(u64::from_be_bytes(bytes))
     }
 }
 
@@ -813,6 +878,75 @@ mod tests {
 
         let metrics = ts.list_metrics().unwrap();
         assert!(metrics.contains(&"cpu".to_string()));
+    }
+
+    fn pt(timestamp: i64, value: f64) -> PersistedDataPoint {
+        PersistedDataPoint {
+            timestamp,
+            value,
+            tags: HashMap::new(),
+        }
+    }
+
+    fn values(points: &[PersistedDataPoint]) -> Vec<(i64, f64)> {
+        points.iter().map(|p| (p.timestamp, p.value)).collect()
+    }
+
+    #[test]
+    fn timeseries_names_never_reach_internal_keys() {
+        let ts = TimeSeriesPersistence::new(Arc::new(MemoryStorage::new()));
+        for (m, v) in [("meta", 1.0), ("cpu", 2.0), ("disk", 3.0), ("disk::io", 4.0), ("m", 5.0)] {
+            ts.register_metric(m).unwrap();
+            ts.write(m, pt(10, v)).unwrap();
+        }
+        assert_eq!(ts.list_metrics().unwrap(), ["cpu", "disk", "disk::io", "m", "meta"]);
+        for (m, v) in [("meta", 1.0), ("cpu", 2.0), ("disk", 3.0), ("disk::io", 4.0), ("m", 5.0)] {
+            assert_eq!(values(&ts.query(m, i64::MIN, i64::MAX).unwrap()), [(10, v)], "{m}");
+        }
+        ts.delete_metric("meta").unwrap();
+        ts.delete_metric("disk").unwrap();
+        assert_eq!(ts.list_metrics().unwrap(), ["cpu", "disk::io", "m"]);
+        assert_eq!(values(&ts.query("disk::io", 0, 100).unwrap()), [(10, 4.0)]);
+        assert_eq!(values(&ts.query("cpu", 0, 100).unwrap()), [(10, 2.0)]);
+    }
+
+    #[test]
+    fn timeseries_duplicate_timestamps_keep_every_point_in_order() {
+        let ts = TimeSeriesPersistence::new(Arc::new(MemoryStorage::new()));
+        for (t, v) in [(5, 1.0), (5, 2.0), (-7, 0.5), (5, 3.0), (i64::MIN, -1.0), (i64::MAX, 9.0)] {
+            ts.write("x", pt(t, v)).unwrap();
+        }
+        assert_eq!(
+            values(&ts.query("x", i64::MIN, i64::MAX).unwrap()),
+            [(i64::MIN, -1.0), (-7, 0.5), (5, 1.0), (5, 2.0), (5, 3.0), (i64::MAX, 9.0)]
+        );
+        assert_eq!(values(&ts.query("x", -7, 5).unwrap()).len(), 4);
+    }
+
+    #[test]
+    fn timeseries_first_format_migrates() {
+        let storage = Arc::new(MemoryStorage::new());
+        // Raw keys exactly as the first format wrote them.
+        let v1 = |m: &str, t: i64, v: f64| {
+            let key = [b"__ts__::".as_slice(), m.as_bytes(), b"::", &t.to_be_bytes()].concat();
+            storage.put(&key, &serde_json::to_vec(&pt(t, v)).unwrap()).unwrap();
+            storage.put(&[b"__ts__::meta::".as_slice(), m.as_bytes()].concat(), b"1").unwrap();
+        };
+        v1("cpu", 2, 2.0);
+        v1("cpu", -1, 1.0);
+        v1("meta", 3, 3.0);
+        v1("a::b", 4, 4.0);
+        let ts = TimeSeriesPersistence::new(storage.clone());
+        assert_eq!(ts.migrate_legacy().unwrap(), 4);
+        assert!(storage.prefix_scan(b"__ts__::").unwrap().is_empty());
+        assert_eq!(ts.list_metrics().unwrap(), ["a::b", "cpu", "meta"]);
+        assert_eq!(values(&ts.query("cpu", -10, 10).unwrap()), [(-1, 1.0), (2, 2.0)]);
+        assert_eq!(values(&ts.query("meta", -10, 10).unwrap()), [(3, 3.0)]);
+        assert_eq!(values(&ts.query("a::b", -10, 10).unwrap()), [(4, 4.0)]);
+        // Rerunning is a no-op; a new point at a migrated timestamp appends.
+        assert_eq!(ts.migrate_legacy().unwrap(), 0);
+        ts.write("cpu", pt(2, 2.5)).unwrap();
+        assert_eq!(values(&ts.query("cpu", 2, 2).unwrap()), [(2, 2.0), (2, 2.5)]);
     }
 
     #[test]

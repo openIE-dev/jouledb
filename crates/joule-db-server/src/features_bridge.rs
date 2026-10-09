@@ -63,6 +63,15 @@ impl FeatureStores {
     pub fn with_timeseries(store: Arc<CoreEngineStore>) -> Result<Self, String> {
         let stores = Self::new();
         let persist = TimeSeriesPersistence::new(Arc::clone(&store));
+        let migrated = persist
+            .migrate_legacy()
+            .map_err(|e| format!("migrate time series to the current format: {e}"))?;
+        if migrated > 0 {
+            store
+                .sync()
+                .map_err(|e| format!("sync migrated time series: {e}"))?;
+            tracing::info!(points = migrated, "migrated time series to the v2 key format");
+        }
         let metrics = persist
             .list_metrics()
             .map_err(|e| format!("list persisted time series: {e}"))?;
@@ -286,13 +295,15 @@ fn exec_ts_write(
     };
     // Durable first: if the write cannot reach disk, report it and leave the
     // in-memory series unchanged rather than acknowledge a point that a
-    // restart would lose.
+    // restart would lose. The lock spans both writes so concurrent writers
+    // land in the same order on disk and in memory (points sharing a
+    // timestamp keep that order across a restart).
+    let ts = write_lock(&stores.timeseries);
     persist_ts_point(stores, metric, &point).map_err(|e| {
         QueryErrorResponse::execution_error(&format!(
             "TSWRITE {metric}: durable write failed: {e}"
         ))
     })?;
-    let ts = write_lock(&stores.timeseries);
     ts.write(metric, point);
     drop(ts);
 
@@ -474,6 +485,7 @@ fn exec_ts_delete(
         .ok_or_else(|| QueryErrorResponse::syntax_error("TSDELETE requires: metric", 1, 1))?
         .trim();
 
+    let ts = write_lock(&stores.timeseries);
     if let Some(store) = &stores.ts_store {
         let persist = TimeSeriesPersistence::new(Arc::clone(store));
         persist
@@ -486,7 +498,6 @@ fn exec_ts_delete(
                 ))
             })?;
     }
-    let ts = write_lock(&stores.timeseries);
     let deleted = ts.delete_metric(metric);
     drop(ts);
 
