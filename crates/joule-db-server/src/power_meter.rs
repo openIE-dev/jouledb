@@ -273,12 +273,13 @@ impl Meter {
             return Meter::Estimate;
         }
         if let Some(sampler) = PowerSampler::global() {
-            // Wait for the sample that covers a job's end: a few intervals
-            // (powermetrics' real interval is often ~2x the requested one).
+            // Wait for the sample that covers a job's end: real samples are
+            // 19-40 ms whatever `-i` says, so never less than 150 ms (with
+            // 60 ms some receipts fell back to the estimate on M3/M4).
             let ms = std::env::var("JOULE_POWER_WAIT_MS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(u64::from(sampler.interval_ms) * 4 + 40);
+                .unwrap_or((u64::from(sampler.interval_ms) * 4 + 40).max(150));
             return Meter::Sampler { sampler, wait: Duration::from_millis(ms) };
         }
         if let Some(rapl) = Rapl::open() {
