@@ -763,6 +763,16 @@ struct AneOutcome {
     power: Option<joule_ane_rt::PowerMeasurement>,
 }
 
+/// Mean ANE rail power below which the Neural Engine is taken as idle
+/// (powermetrics reports 0 mW when it is not running).
+const ANE_ACTIVE_W: f64 = 0.05;
+
+/// The plan named the Neural Engine but the measured ANE rail stayed idle.
+fn ane_rail_idle(planned: PlannedDevice, power: Option<&joule_ane_rt::PowerMeasurement>) -> bool {
+    planned == PlannedDevice::NeuralEngine
+        && power.is_some_and(|p| p.predictions > 0 && p.confidence != "estimate" && p.mean_ane_watts < ANE_ACTIVE_W)
+}
+
 fn run_ane_lane(
     queries: &[i8],
     memory: &[i8],
@@ -980,8 +990,17 @@ fn dispatch_hdc_on(
                     ));
                     setup_s += outcome.setup_s;
                     remember_placement(&host.placement_cache, bucket, outcome.planned);
+                    // MLComputePlan is a plan, not proof: when the plan names
+                    // the Neural Engine but powermetrics saw the ANE rail idle
+                    // over the measured prediction loop, Core ML ran it on the
+                    // CPU. Say so; never claim the ANE on the plan alone.
+                    let ane_idle = ane_rail_idle(outcome.planned, outcome.power.as_ref());
+                    if ane_idle {
+                        route_reason.push_str("+ane_rail_idle");
+                    }
                     if outcome.scores == cpu_ref {
                         let (device, backend, ran) = match outcome.planned {
+                            PlannedDevice::NeuralEngine if ane_idle => (DeviceTarget::Cpu, "coreml", false),
                             PlannedDevice::NeuralEngine => (DeviceTarget::Npu, "coreml-ane", true),
                             PlannedDevice::Gpu => (DeviceTarget::Gpu, "coreml", false),
                             // `Unknown` is reported as CPU: with CPUAndNeuralEngine
@@ -1048,7 +1067,9 @@ fn dispatch_hdc_on(
     let job_s = job_s.max(1e-9);
     let measured = ane
         .as_ref()
-        .filter(|_| backend == "coreml-ane")
+        // Per-prediction power loop (Core ML on the ANE, or planned there
+        // but run on the CPU with the ANE rail idle).
+        .filter(|_| backend == "coreml-ane" || backend == "coreml")
         .and_then(|o| o.power.clone());
     let watts_estimate = snap.power_watts.max(0.0);
     let energy = match (measured, backend) {
@@ -2070,6 +2091,27 @@ mod tests {
                 power_row("hdc_64x1024x2048", 64 * 1024, &[&out.receipt]);
             }
         }
+    }
+
+    #[test]
+    fn plan_on_neural_engine_with_idle_ane_rail_is_not_claimed_as_ane() {
+        let m = |ane_w: f64, confidence: &'static str| joule_ane_rt::PowerMeasurement {
+            source: "powermetrics",
+            mean_ane_watts: ane_w,
+            joules_per_prediction: 0.0,
+            samples: 10,
+            predictions: 100,
+            window_s: 0.3,
+            rails: None,
+            incremental_joules_per_prediction: None,
+            confidence,
+        };
+        // M3 Ultra / M4 Max, 256x1024x4096: plan says neural_engine, ANE rail 0 W.
+        assert!(ane_rail_idle(PlannedDevice::NeuralEngine, Some(&m(0.0, "measured"))));
+        assert!(!ane_rail_idle(PlannedDevice::NeuralEngine, Some(&m(1.2, "measured"))));
+        // No measurement: the plan stands (never refuse, never guess).
+        assert!(!ane_rail_idle(PlannedDevice::NeuralEngine, None));
+        assert!(!ane_rail_idle(PlannedDevice::Cpu, Some(&m(0.0, "measured"))));
     }
 
     /// Large HDC shapes on a live Mac: `MLComputePlan` placement per Core ML
