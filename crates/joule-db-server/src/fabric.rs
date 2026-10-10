@@ -2072,5 +2072,68 @@ mod tests {
         }
     }
 
+    /// Large HDC shapes on a live Mac: `MLComputePlan` placement per Core ML
+    /// layout, measured ANE watts, and joules of the ANE / Metal / CPU
+    /// lanes, plus what the cached placement then routes.
+    /// `cargo test --release -p joule-db-server --lib ane_fleet_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn ane_fleet_live() {
+        let host = live_profile();
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let mut no_ane = live_profile();
+        no_ane.ane = None;
+        let shapes: Vec<(usize, usize, usize)> = std::env::var("JOULE_ANE_SHAPES")
+            .ok()
+            .map(|v| {
+                v.split(',')
+                    .filter_map(|s| {
+                        let p: Vec<usize> = s.split('x').filter_map(|x| x.parse().ok()).collect();
+                        (p.len() == 3).then(|| (p[0], p[1], p[2]))
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![(64, 1024, 2048), (256, 1024, 4096), (256, 4096, 4096)]);
+        for (n, k, d) in shapes {
+            let shape = format!("{n}x{k}x{d}");
+            let (q, m) = (bipolar(n * d, 7), bipolar(k * d, 9));
+            for layout in [joule_ane_rt::Layout::MatMul, joule_ane_rt::Layout::ChannelsFirstConv] {
+                match joule_ane_rt::hdc_similarity(
+                    &q,
+                    &m,
+                    d,
+                    joule_ane_rt::HdcOptions { layout, power: joule_ane_rt::PowerSampling::OnNeuralEngine },
+                ) {
+                    Ok(run) => eprintln!(
+                        "ANE-PLAN shape={shape} layout={} placement={} predict_ms={:.3} ane_w={} j_per_pred={} lines={:?}",
+                        layout.as_str(),
+                        run.placement.summary(),
+                        run.predict_s * 1e3,
+                        run.power.as_ref().map(|p| format!("{:.3}", p.mean_ane_watts)).unwrap_or_else(|| "none".into()),
+                        run.power
+                            .as_ref()
+                            .map(|p| format!("{:.4e}", p.joules_per_prediction))
+                            .unwrap_or_else(|| "none".into()),
+                        run.placement.lines()
+                    ),
+                    Err(e) => eprintln!("ANE-PLAN shape={shape} layout={} error={e}", layout.as_str()),
+                }
+            }
+            for rep in 0..3 {
+                let ane = dispatch_hdc_on(&q, &m, d, false, &host).expect("ane lane");
+                let metal = dispatch_hdc_on(&q, &m, d, false, &no_ane).expect("metal lane");
+                let cpu = dispatch_hdc_on(&q, &m, d, true, &host).expect("cpu lane");
+                assert_eq!(ane.scores, cpu.scores);
+                assert_eq!(metal.scores, cpu.scores);
+                for (label, out) in [("npu-request", &ane), ("metal", &metal), ("cpu", &cpu)] {
+                    eprintln!(
+                        "ANE-FLEET shape={shape} rep={rep} lane={label} attempts={:?} {}",
+                        out.attempts,
+                        out.receipt.line()
+                    );
+                }
+            }
+        }
+    }
 }
 
