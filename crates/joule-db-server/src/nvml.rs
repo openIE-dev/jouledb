@@ -80,14 +80,18 @@ pub fn between(a: GpuSnapshot, b: GpuSnapshot, seconds: f64, limit_mw: Option<u3
             let j = (y - x) as f64 / 1000.0;
             // Counter updates are coarse: a short job may see one update
             // that covers more than its own window; allow 50 ms of slack.
-            if j <= max * (seconds + 0.05) {
+            if j > 0.0 && j <= max * (seconds + 0.05) {
                 return Some(GpuJoules { joules: j, source: "nvml-energy", note: None });
             }
-            note = Some(format!(
-                "rejected NVML energy {j:.3} J over {:.1} ms (> {:.0} W ceiling)",
-                seconds * 1e3,
-                max
-            ));
+            note = Some(if j == 0.0 {
+                format!("NVML energy counter did not advance in {:.1} ms (coarse updates)", seconds * 1e3)
+            } else {
+                format!(
+                    "rejected NVML energy step {j:.3} J over {:.1} ms (> {:.0} W ceiling; coarse counter update)",
+                    seconds * 1e3,
+                    max
+                )
+            });
         }
     }
     let pa = sane_power_w(a.power_mw, limit_mw);
@@ -101,6 +105,12 @@ pub fn between(a: GpuSnapshot, b: GpuSnapshot, seconds: f64, limit_mw: Option<u3
         (None, None) => None,
     };
     if samples.is_empty() {
+        // A counter that did not advance is still a (zero) reading.
+        if let (Some(x), Some(y)) = (a.energy_mj, b.energy_mj) {
+            if x == y {
+                return Some(GpuJoules { joules: 0.0, source: "nvml-energy", note });
+            }
+        }
         return None;
     }
     let w = samples.iter().sum::<f64>() / samples.len() as f64;
@@ -359,6 +369,11 @@ mod tests {
         let b = GpuSnapshot { energy_mj: Some(1_120), power_mw: Some(590_010) };
         let g = between(a, b, 0.010, limit).expect("reading");
         assert_eq!((g.source, g.joules), ("nvml-energy", 0.12));
+        // Counter not advanced in a short job: the sane power sample is used.
+        let c = GpuSnapshot { energy_mj: Some(1_000), power_mw: Some(10_000) };
+        let g = between(c, c, 0.010, limit).expect("reading");
+        assert_eq!(g.source, "nvml-power");
+        assert!((g.joules - 0.1).abs() < 1e-9 && g.note.unwrap_or_default().contains("did not advance"));
         // No counter: both power samples are absurd -> nothing usable.
         let a = GpuSnapshot { energy_mj: None, power_mw: Some(590_010) };
         assert!(between(a, a, 0.010, limit).is_none());

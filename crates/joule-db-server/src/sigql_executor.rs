@@ -2253,7 +2253,7 @@ mod tests {
                 };
                 let conf: Vec<&str> = v.iter().map(|r| r.energy_confidence.as_str()).collect();
                 eprintln!(
-                    "POWER-TABLE job=iir_bandpass size={n} device={dev} backend={} runs={} ms={:.3} J={:.4e} incr_J={:.4e} W={:.2} cpu_w={} gpu_w={} ane_w={} base_w={} cpu_inc_J={} gpu_inc_J={} source={} rails=[{}] confidence={:?} notes={:?}",
+                    "POWER-TABLE job=iir_bandpass size={n} device={dev} backend={} runs={} ms={:.3} J={:.4e} incr_J={:.4e} W={:.2} cpu_w={} gpu_w={} ane_w={} base_w={} cpu_inc_mJ={} gpu_inc_mJ={} source={} rails=[{}] confidence={:?} notes={:?}",
                     v[0].backend,
                     v.len(),
                     mean(&|r| r.seconds) * 1e3,
