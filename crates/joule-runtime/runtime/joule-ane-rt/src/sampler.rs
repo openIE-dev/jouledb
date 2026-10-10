@@ -123,9 +123,28 @@ pub struct PowerRing {
     samples: VecDeque<RailSample>,
     capacity: usize,
     baseline: Option<(f64, Rails)>,
-    /// Registered job windows `(id, start, end)`; `end = None` while running.
-    jobs: VecDeque<(u64, f64, Option<f64>)>,
+    /// Registered job windows; `end = None` while running.
+    jobs: VecDeque<Job>,
     next_job: u64,
+}
+
+/// A registered job: its window minus `holes` (intervals inside it that
+/// belong to another job, e.g. a CPU verification of its result).
+#[derive(Debug, Clone)]
+struct Job {
+    id: u64,
+    start: f64,
+    end: Option<f64>,
+    holes: Vec<(f64, f64)>,
+}
+
+impl Job {
+    /// Time of this job inside `[s0, s1]` (running jobs count to `s1`).
+    fn overlap(&self, s0: f64, s1: f64) -> f64 {
+        let own = overlap(self.start, self.end.unwrap_or(s1), s0, s1);
+        let holes: f64 = self.holes.iter().map(|h| overlap(h.0, h.1, s0, s1)).sum();
+        (own - holes).max(0.0)
+    }
 }
 
 /// Registered job windows kept for apportioning.
@@ -283,21 +302,32 @@ impl PowerRing {
         }
         let id = self.next_job;
         self.next_job += 1;
-        self.jobs.push_back((id, start, None));
+        self.jobs.push_back(Job { id, start, end: None, holes: Vec::new() });
         id
+    }
+
+    /// `[a, b]` inside job `id` belongs to another job (register that one
+    /// separately): it is neither this job's time nor its energy.
+    pub fn exclude_from_job(&mut self, id: u64, a: f64, b: f64) {
+        if b <= a {
+            return;
+        }
+        if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id) {
+            j.holes.push((a, b));
+        }
     }
 
     /// Forget a job that never finished (it would otherwise count as
     /// running in every later sample).
     pub fn drop_job(&mut self, id: u64) {
-        self.jobs.retain(|j| j.0 != id || j.2.is_some());
+        self.jobs.retain(|j| j.id != id || j.end.is_some());
     }
 
     /// Set a registered job's window (start may move forward past setup).
     pub fn end_job(&mut self, id: u64, start: f64, end: f64) {
-        if let Some(j) = self.jobs.iter_mut().find(|j| j.0 == id) {
-            j.1 = start;
-            j.2 = Some(end);
+        if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id) {
+            j.start = start;
+            j.end = Some(end);
         }
     }
 
@@ -307,7 +337,13 @@ impl PowerRing {
     /// sample (jobs still running count up to the sample end). `None` when
     /// no sample overlaps.
     pub fn integrate_job_with(&self, id: u64, start: f64, end: f64, baseline: Rails) -> Option<WindowEnergy> {
-        let seconds = (end - start).max(0.0);
+        let me = Job {
+            id,
+            start,
+            end: Some(end),
+            holes: self.jobs.iter().find(|j| j.id == id).map(|j| j.holes.clone()).unwrap_or_default(),
+        };
+        let seconds = me.overlap(start, end);
         if seconds == 0.0 {
             return self.integrate_with(start, end, baseline);
         }
@@ -315,16 +351,11 @@ impl PowerRing {
         let mut covered = 0.0;
         let mut used = 0usize;
         for s in &self.samples {
-            let mine = overlap(start, end, s.start, s.end);
+            let mine = me.overlap(s.start, s.end);
             if mine <= 0.0 {
                 continue;
             }
-            let others: f64 = self
-                .jobs
-                .iter()
-                .filter(|j| j.0 != id)
-                .map(|j| overlap(j.1, j.2.unwrap_or(s.end), s.start, s.end))
-                .sum();
+            let others: f64 = self.jobs.iter().filter(|j| j.id != id).map(|j| j.overlap(s.start, s.end)).sum();
             let share = mine / (mine + others);
             incremental.add(&s.rails.above(&baseline).scaled((s.end - s.start) * share));
             covered += mine;
@@ -538,6 +569,13 @@ impl PowerSampler {
         self.with_ring(|r| r.end_job(id, s, e));
     }
 
+    /// `[a, b]` inside job `id` is another job's (see
+    /// [`PowerRing::exclude_from_job`]).
+    pub fn exclude_from_job(&self, id: u64, a: std::time::Instant, b: std::time::Instant) {
+        let (a, b) = (self.at(a), self.at(b));
+        self.with_ring(|r| r.exclude_from_job(id, a, b));
+    }
+
     /// Forget a job that never finished.
     pub fn drop_job(&self, id: u64) {
         self.with_ring(|r| r.drop_job(id));
@@ -735,6 +773,29 @@ mod tests {
         assert!(close(wc.incremental.total(), wt.incremental.total()));
         assert!(close(wc.joules.total(), wt.joules.total()));
         assert_eq!(wc.confidence, Confidence::Measured);
+    }
+
+    #[test]
+    fn verification_inside_a_job_is_billed_to_its_own_job() {
+        let mut r = ring();
+        let base = Rails { cpu_w: 2.0, gpu_w: 0.1, ane_w: 0.0 };
+        // Job 0.0..0.2; its last 100 ms is a CPU cross-check of its result.
+        let job = r.begin_job(0.0);
+        let verify = r.begin_job(0.1);
+        r.end_job(verify, 0.1, 0.2);
+        r.exclude_from_job(job, 0.1, 0.2);
+        r.end_job(job, 0.0, 0.2);
+        let wj = r.integrate_job_with(job, 0.0, 0.2, base).expect("covered");
+        let wv = r.integrate_job_with(verify, 0.1, 0.2, base).expect("covered");
+        let first = r.integrate_with(0.0, 0.1, base).expect("covered");
+        let second = r.integrate_with(0.1, 0.2, base).expect("covered");
+        // The job is charged only its own 100 ms; the verify job the rest.
+        assert!(close(wj.seconds, 0.1), "{wj:?}");
+        assert!(close(wj.joules.total(), first.joules.total()), "{wj:?} vs {first:?}");
+        assert!(close(wv.joules.total(), second.joules.total()), "{wv:?} vs {second:?}");
+        // Nothing lost or double-counted.
+        let all = r.integrate_with(0.0, 0.2, base).expect("covered");
+        assert!(close(wj.joules.total() + wv.joules.total(), all.joules.total()));
     }
 
     #[test]

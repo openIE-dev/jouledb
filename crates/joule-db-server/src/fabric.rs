@@ -95,6 +95,10 @@ pub struct EnergyReceipt {
     pub ane_watts: Option<f64>,
     /// Idle baseline subtracted for `incremental_joules`, watts.
     pub baseline_watts: Option<f64>,
+    /// CPU cross-check of the accelerator result, metered as its own
+    /// `kind=verify` job: not in `joules` / `seconds`.
+    pub verify_joules: Option<f64>,
+    pub verify_seconds: Option<f64>,
     /// Fallback processor. Always a real device (`cpu`, `gpu`, `npu`, `tpu`,
     /// `lpu`). Never empty.
     ///
@@ -129,7 +133,7 @@ impl EnergyReceipt {
     pub fn line(&self) -> String {
         let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
         format!(
-            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} placement={} setup_ms={} setup_joules={}",
+            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} verify_joules={} verify_s={} placement={} setup_ms={} setup_joules={}",
             self.requested_device,
             self.device,
             self.backend,
@@ -147,6 +151,8 @@ impl EnergyReceipt {
             w(self.gpu_watts),
             w(self.ane_watts),
             w(self.baseline_watts),
+            self.verify_joules.map(|j| format!("{j:.6e}")).unwrap_or_else(|| "none".into()),
+            self.verify_seconds.map(|s| format!("{s:.6}")).unwrap_or_else(|| "none".into()),
             self.placement.as_deref().unwrap_or("none"),
             self.setup_ms
                 .map(|v| format!("{v:.3}"))
@@ -592,9 +598,9 @@ fn dispatch_sum_on(
     let preferred = smart_preferred(algorithm, &hints, &snap, host);
 
     let meter = meter_for(host);
-    let span = meter.begin();
+    let mut span = meter.begin();
     let (value, backend, reported, executed, preferred_ran) =
-        execute(values, preferred, force_cpu, host);
+        execute(values, preferred, force_cpu, host, meter, &mut span);
     let fallback = fallback_processor(preferred_ran, executed, host);
     let device = if backend == "cpu" { "cpu" } else { "gpu" };
     let e = meter.finish(span, std::time::Duration::ZERO, device, snap.power_watts);
@@ -612,6 +618,8 @@ fn dispatch_sum_on(
         gpu_watts: e.gpu_watts,
         ane_watts: e.ane_watts,
         baseline_watts: e.baseline_watts,
+        verify_joules: e.verify_joules,
+        verify_seconds: e.verify_seconds,
         fallback: fallback.to_string(),
         value,
         algorithm: algorithm.to_string(),
@@ -666,12 +674,15 @@ fn execute(
     preferred: DeviceTarget,
     force_cpu: bool,
     host: &HostProfile,
+    meter: &crate::power_meter::Meter,
+    span: &mut crate::power_meter::Span,
 ) -> (f64, &'static str, DeviceTarget, DeviceTarget, bool) {
     let gpu_choice = preferred == DeviceTarget::Gpu || preferred == DeviceTarget::Npu;
     if !force_cpu && host.gpu.is_some() && gpu_choice {
         match run_gpu_lane(values, host) {
             Ok((gpu_value, backend)) => {
-                let (ok, cpu_value) = gpu_matches_cpu(values, gpu_value);
+                // The CPU cross-check is its own `verify` job, not the GPU's.
+                let (ok, cpu_value) = meter.verify(span, || gpu_matches_cpu(values, gpu_value));
                 if ok {
                     // NPU was requested but the kernel ran on the GPU. The
                     // reported device is the GPU. `preferred_ran` stays false
@@ -934,12 +945,13 @@ fn dispatch_hdc_on(
     // CPU reference: the CPU lane's result and the check for every
     // accelerator result. Its time is the CPU lane's per-job time.
     let meter = meter_for(host);
-    let cpu_span = meter.begin();
+    let mut cpu_span = meter.begin();
     let cpu_started = Instant::now();
     let cpu_ref = joule_ane_rt::cpu_dot_scores(queries, memory, d);
     let cpu_s = cpu_started.elapsed().as_secs_f64();
     let cpu_end = Instant::now();
-    cpu_span.close(cpu_end);
+    meter.close(&mut cpu_span, cpu_end);
+    let mut cpu_span = Some(cpu_span);
     // GPU kernel window: (span, end, setup to skip).
     let mut gpu_window: Option<(crate::power_meter::Span, Instant, std::time::Duration)> = None;
     // Core ML window (setup skipped), for a Core ML run placed off the ANE.
@@ -956,11 +968,11 @@ fn dispatch_hdc_on(
 
     if decision.try_ane {
         if let Some(lane) = host.ane {
-            let ane_span = meter.begin();
+            let mut ane_span = meter.begin();
             match run_ane_lane(queries, memory, d, lane) {
                 Ok(outcome) => {
                     let ane_end = Instant::now();
-                    ane_span.close(ane_end);
+                    meter.close(&mut ane_span, ane_end);
                     ane_window = Some((
                         ane_span,
                         ane_end,
@@ -998,10 +1010,10 @@ fn dispatch_hdc_on(
         && !force_cpu
         && matches!(preferred, DeviceTarget::Npu | DeviceTarget::Gpu)
     {
-        let gpu_span = meter.begin();
+        let mut gpu_span = meter.begin();
         if let Ok((scores, kernel_s, gpu_setup_s)) = run_gpu_hdc(queries, memory, d, host) {
             let gpu_end = Instant::now();
-            gpu_span.close(gpu_end);
+            meter.close(&mut gpu_span, gpu_end);
             gpu_window = Some((gpu_span, gpu_end, std::time::Duration::from_secs_f64(gpu_setup_s.max(0.0))));
             setup_s += gpu_setup_s;
             if scores == cpu_ref {
@@ -1091,9 +1103,17 @@ fn dispatch_hdc_on(
             }
             None => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),
         },
-        (None, "cpu") => meter.finish_at(cpu_span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate),
+        (None, "cpu") => match cpu_span.take() {
+            Some(span) => meter.finish_at(span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate),
+            None => crate::power_meter::JobEnergy::estimate("cpu", watts_estimate, cpu_s),
+        },
         (None, _) => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),
     };
+    // An accelerator ran: the CPU reference was its check, billed as a
+    // separate `verify` job (never to the accelerator, never dropped).
+    let verify = cpu_span
+        .take()
+        .map(|span| meter.finish_at(span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate));
     let (joules, watts, energy_source) = (energy.joules, energy.watts, energy.source.clone());
     let (setup_ms, setup_joules) = if setup_s > 0.0 {
         (Some(setup_s * 1000.0), Some(watts_estimate * setup_s))
@@ -1125,6 +1145,8 @@ fn dispatch_hdc_on(
             gpu_watts: energy.gpu_watts,
             ane_watts: energy.ane_watts,
             baseline_watts: energy.baseline_watts,
+            verify_joules: verify.as_ref().map(|v| v.joules),
+            verify_seconds: verify.as_ref().map(|v| v.seconds),
             fallback: fallback.to_string(),
             value,
             algorithm: algorithm.to_string(),
@@ -2049,5 +2071,6 @@ mod tests {
             }
         }
     }
+
 }
 

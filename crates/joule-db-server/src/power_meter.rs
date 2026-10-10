@@ -58,6 +58,13 @@ pub struct JobEnergy {
     /// Rejected or degraded readings, and why.
     #[serde(default)]
     pub notes: Option<String>,
+    /// Joules and seconds of verification work inside the job window (a
+    /// CPU cross-check of an accelerator result), metered as its own
+    /// `kind=verify` job and *not* included in `joules` / `seconds`.
+    #[serde(default)]
+    pub verify_joules: Option<f64>,
+    #[serde(default)]
+    pub verify_seconds: Option<f64>,
 }
 
 impl JobEnergy {
@@ -124,6 +131,15 @@ pub struct Span {
     pub start: Instant,
     counters: Option<Counters>,
     job: Option<(&'static PowerSampler, u64)>,
+    /// Verification intervals inside this job (not its time).
+    holes: Vec<(Instant, Instant)>,
+    /// Verification energy already read (counter meters).
+    verified: Vec<JobEnergy>,
+    /// Verification jobs still to read (sampler: after this job's wait).
+    pending: Vec<(Box<Span>, Instant)>,
+    /// Counters read when the job closed (counter meters), so energy read
+    /// later does not include work done after the job.
+    end_counters: Option<Counters>,
 }
 
 impl Span {
@@ -444,7 +460,44 @@ impl Meter {
             Meter::Sampler { sampler, .. } => Some((*sampler, sampler.begin_job(start))),
             _ => None,
         };
-        Span { start, counters, job }
+        Span { start, counters, job, holes: Vec::new(), verified: Vec::new(), pending: Vec::new(), end_counters: None }
+    }
+
+    /// Mark `span` finished at `end` (call right when the work ends) while
+    /// its energy is read later with [`Self::finish_at`]: closes the sampler
+    /// job, and snapshots counter meters so later work is not charged.
+    pub fn close(&self, span: &mut Span, end: Instant) {
+        span.close(end);
+        if let Meter::Rapl(r) = self {
+            span.end_counters = r.0.read();
+        }
+    }
+
+    /// Run `f`, a verification of `span`'s result (e.g. the CPU
+    /// cross-check of a GPU sum), as its own `kind=verify` meter job: its
+    /// time and energy are excluded from `span` (sampler samples are split
+    /// between the two) and reported as `verify_joules`.
+    pub fn verify<T>(&self, span: &mut Span, f: impl FnOnce() -> T) -> T {
+        let v = self.begin();
+        let out = f();
+        let end = Instant::now();
+        if let Some((sampler, id)) = span.job {
+            sampler.exclude_from_job(id, v.start, end);
+        }
+        span.holes.push((v.start, end));
+        match self {
+            // Reading a sampler window waits for its covering sample: do
+            // that after the job, not inside it.
+            Meter::Sampler { .. } => {
+                v.close(end);
+                span.pending.push((Box::new(v), end));
+            }
+            _ => {
+                let e = self.finish_at(v, end, Duration::ZERO, "cpu", VERIFY_ESTIMATE_W);
+                span.verified.push(e);
+            }
+        }
+        out
     }
 
     /// Energy of `[span.start + skip, now]`, where `skip` is one-time setup
@@ -459,8 +512,43 @@ impl Meter {
     /// keeps history, so a job's energy can be read after the fact; counter
     /// meters read their end counter now, so pass `Instant::now()` there).
     pub fn finish_at(&self, mut span: Span, end: Instant, skip: Duration, device: &str, estimate_watts: f64) -> JobEnergy {
+        let holes = std::mem::take(&mut span.holes);
+        let verified = std::mem::take(&mut span.verified);
+        let pending = std::mem::take(&mut span.pending);
+        let mut e = self.finish_job(&mut span, end, skip, device, estimate_watts, &holes, &verified);
+        if !holes.is_empty() {
+            let mut vs: Vec<JobEnergy> = verified;
+            for (v, vend) in pending {
+                vs.push(self.finish_at(*v, vend, Duration::ZERO, "cpu", VERIFY_ESTIMATE_W));
+            }
+            e.verify_joules = Some(vs.iter().map(|v| v.joules).sum());
+            e.verify_seconds = Some(vs.iter().map(|v| v.seconds).sum());
+        }
+        e
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn finish_job(
+        &self,
+        span: &mut Span,
+        end: Instant,
+        skip: Duration,
+        device: &str,
+        estimate_watts: f64,
+        holes: &[(Instant, Instant)],
+        verified: &[JobEnergy],
+    ) -> JobEnergy {
         let start = (span.start + skip).min(end);
-        let seconds = end.saturating_duration_since(start).as_secs_f64().max(1e-9);
+        let hole_s: f64 = holes
+            .iter()
+            .map(|(a, b)| b.min(&end).saturating_duration_since(*a.max(&start)).as_secs_f64())
+            .sum();
+        let seconds = (end.saturating_duration_since(start).as_secs_f64() - hole_s).max(1e-9);
+        // Verification energy on the CPU-side counters (already read).
+        let verify_cpu: f64 = verified
+            .iter()
+            .map(|v| v.joules - if v.source.contains("nvml") { v.gpu_watts.unwrap_or(0.0) * v.seconds } else { 0.0 })
+            .sum();
         let estimate = || JobEnergy::estimate(device, estimate_watts, seconds);
         match self {
             Meter::Sampler { sampler, wait } => match span.job.take() {
@@ -468,18 +556,28 @@ impl Meter {
                 None => estimate(),
             },
             Meter::Rapl(r) => {
-                let (Some(a), Some(b)) = (span.counters, r.0.read()) else { return estimate() };
+                let (Some(a), Some(b)) = (span.counters, span.end_counters.or_else(|| r.0.read())) else {
+                    return estimate();
+                };
                 let mut base = lock(&r.0.baseline);
                 base.job_ended(end, b.package);
                 let range = r.0.reader.range();
                 // The whole span (setup included) is what the counter saw;
                 // charge the job's share by time.
                 let total = end.saturating_duration_since(span.start).as_secs_f64().max(1e-9);
-                let share = seconds / total;
-                let pkg = delta(a.package, b.package, range) * share;
-                let dram = a.dram.zip(b.dram).map(|(x, y)| delta(x, y, range) * share);
-                let core = a.core.zip(b.core).map(|(x, y)| delta(x, y, range) * share);
-                let drm = a.gpu.zip(b.gpu).map(|(x, y)| (y - x).max(0.0) * share);
+                let all_hole_s: f64 = holes.iter().map(|(a, b)| b.saturating_duration_since(*a).as_secs_f64()).sum();
+                let share = seconds / (total - all_hole_s).max(1e-9);
+                // Verification read its own counters: take it off the
+                // window first, then charge the job its share by time.
+                let pkg_all = delta(a.package, b.package, range);
+                let dram_all = a.dram.zip(b.dram).map(|(x, y)| delta(x, y, range));
+                let drm_all = a.gpu.zip(b.gpu).map(|(x, y)| (y - x).max(0.0));
+                let window = pkg_all + dram_all.unwrap_or(0.0) + drm_all.unwrap_or(0.0);
+                let keep = if window > 0.0 { ((window - verify_cpu) / window).clamp(0.0, 1.0) } else { 1.0 };
+                let pkg = pkg_all * keep * share;
+                let dram = dram_all.map(|j| j * keep * share);
+                let core = a.core.zip(b.core).map(|(x, y)| delta(x, y, range) * keep * share);
+                let drm = drm_all.map(|j| j * keep * share);
                 let cpu_side = pkg + dram.unwrap_or(0.0) + drm.unwrap_or(0.0);
                 base.observe_job_power(cpu_side / seconds);
                 let cpu_base = base.watts();
@@ -498,7 +596,7 @@ impl Meter {
                             if let Some(e) = y.energy_mj {
                                 nb.job_ended(end, e as f64 / 1000.0);
                             }
-                            let j = g.joules * share;
+                            let j = g.joules * seconds / total;
                             nb.observe_job_power(j / seconds);
                             let gb = nb.watts();
                             if g.note.is_some() {
@@ -540,6 +638,7 @@ impl Meter {
                     cpu_incremental_joules: Some(cpu_inc),
                     gpu_incremental_joules: nv.map(|v| v.1),
                     notes,
+                    ..Default::default()
                 }
             }
             #[cfg(target_os = "windows")]
@@ -550,7 +649,7 @@ impl Meter {
                 let mut base = lock(&e.0.baseline);
                 base.job_ended(end, b);
                 let total = end.saturating_duration_since(span.start).as_secs_f64().max(1e-9);
-                let joules = (b - a.package).max(0.0) * seconds / total;
+                let joules = ((b - a.package).max(0.0) - verify_cpu).max(0.0) * seconds / total;
                 base.observe_job_power(joules / seconds);
                 let baseline = base.watts();
                 JobEnergy {
@@ -574,6 +673,9 @@ impl Meter {
     }
 }
 
+/// Estimate watts for a verification job when nothing is measured.
+const VERIFY_ESTIMATE_W: f64 = 5.0;
+
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
@@ -596,7 +698,7 @@ fn sampler_energy(sampler: &PowerSampler, id: u64, start: Instant, end: Instant,
         rails: "cpu=powermetrics gpu=powermetrics ane=powermetrics".into(),
         cpu_incremental_joules: Some(w.incremental.cpu_w),
         gpu_incremental_joules: Some(w.incremental.gpu_w),
-        notes: None,
+        ..Default::default()
     })
 }
 
@@ -759,6 +861,61 @@ mod tests {
         assert_eq!(e.rails, "cpu=rapl gpu=none");
         assert!(e.notes.as_deref().unwrap_or("").contains("NVML"), "{e:?}");
         assert!(e.is_measured());
+    }
+
+    #[test]
+    fn verification_is_not_billed_to_the_job() {
+        // Sampler: a 10 W excess over the whole window; half of the job's
+        // window is a CPU cross-check registered as its own verify job.
+        let meter = Meter::Sampler { sampler: injected(11.0, 0.0), wait: Duration::ZERO };
+        let mut span = meter.begin();
+        std::thread::sleep(Duration::from_millis(60));
+        let ok = meter.verify(&mut span, || {
+            std::thread::sleep(Duration::from_millis(60));
+            true
+        });
+        assert!(ok);
+        let total = span.start.elapsed().as_secs_f64();
+        let e = meter.finish(span, Duration::ZERO, "gpu", 5.0);
+        let vj = e.verify_joules.expect("verify joules on the receipt");
+        let vs = e.verify_seconds.expect("verify seconds");
+        assert!(vs >= 0.06 && e.seconds < total - 0.055, "{e:?}");
+        // Job + verify cover the window once: nothing double-billed.
+        assert!((e.seconds + vs - total).abs() < 0.005, "{e:?}");
+        assert!(e.incremental_joules < 10.0 * (e.seconds + 0.045), "{e:?}");
+        assert!(vj > 0.0);
+        // Without verify the same window is billed whole to the job.
+        let span = meter.begin();
+        std::thread::sleep(Duration::from_millis(120));
+        let whole = meter.finish(span, Duration::ZERO, "gpu", 5.0);
+        assert!(whole.verify_joules.is_none());
+        assert!(whole.joules > e.joules + 0.3 * vj, "{whole:?} vs {e:?}");
+
+        // Counters (RAPL): verify reads its own counters; the job keeps the rest.
+        let now = Instant::now();
+        let meter = Meter::counters(Box::new(FakeRapl { start: now, watts: 20.0 }), None).expect("meter");
+        let mut span = meter.begin();
+        std::thread::sleep(Duration::from_millis(40));
+        meter.verify(&mut span, || std::thread::sleep(Duration::from_millis(40)));
+        let e = meter.finish(span, Duration::ZERO, "gpu", 5.0);
+        let vj = e.verify_joules.expect("verify joules");
+        assert!((vj - 20.0 * e.verify_seconds.unwrap_or(0.0)).abs() < 0.1, "{e:?}");
+        assert!((e.joules - 20.0 * e.seconds).abs() < 0.1, "{e:?}");
+        assert!(e.seconds < 0.06, "{e:?}");
+    }
+
+    #[test]
+    fn closed_counter_span_is_not_charged_for_later_work() {
+        let now = Instant::now();
+        let meter = Meter::counters(Box::new(FakeRapl { start: now, watts: 20.0 }), None).expect("meter");
+        let mut span = meter.begin();
+        std::thread::sleep(Duration::from_millis(20));
+        let end = Instant::now();
+        meter.close(&mut span, end);
+        // Other work (e.g. the GPU lane) runs before the energy is read.
+        std::thread::sleep(Duration::from_millis(80));
+        let e = meter.finish_at(span, end, Duration::ZERO, "cpu", 5.0);
+        assert!((e.joules - 20.0 * e.seconds).abs() < 0.05, "{e:?}");
     }
 
     #[test]
