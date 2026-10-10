@@ -942,6 +942,8 @@ fn dispatch_hdc_on(
     cpu_span.close(cpu_end);
     // GPU kernel window: (span, end, setup to skip).
     let mut gpu_window: Option<(crate::power_meter::Span, Instant, std::time::Duration)> = None;
+    // Core ML window (setup skipped), for a Core ML run placed off the ANE.
+    let mut ane_window: Option<(crate::power_meter::Span, Instant, std::time::Duration)> = None;
 
     let decision = route_hdc(n, k, d, preferred, force_cpu, host);
     let bucket = ShapeBucket::of(n, k, d);
@@ -954,8 +956,16 @@ fn dispatch_hdc_on(
 
     if decision.try_ane {
         if let Some(lane) = host.ane {
+            let ane_span = meter.begin();
             match run_ane_lane(queries, memory, d, lane) {
                 Ok(outcome) => {
+                    let ane_end = Instant::now();
+                    ane_span.close(ane_end);
+                    ane_window = Some((
+                        ane_span,
+                        ane_end,
+                        std::time::Duration::from_secs_f64(outcome.setup_s.max(0.0)),
+                    ));
                     setup_s += outcome.setup_s;
                     remember_placement(&host.placement_cache, bucket, outcome.planned);
                     if outcome.scores == cpu_ref {
@@ -1068,6 +1078,14 @@ fn dispatch_hdc_on(
         (None, "metal") => match gpu_window {
             Some((span, end, skip)) => meter.finish_at(span, end, skip, "gpu", watts_estimate),
             None => crate::power_meter::JobEnergy::estimate("gpu", watts_estimate, job_s),
+        },
+        // Core ML placed the op on the CPU or GPU: no ANE power loop ran,
+        // so meter the Core ML call itself.
+        (None, "coreml") => match ane_window {
+            Some((span, end, skip)) => {
+                meter.finish_at(span, end, skip, executed_device_label(executed), watts_estimate)
+            }
+            None => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),
         },
         (None, "cpu") => meter.finish_at(cpu_span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate),
         (None, _) => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),

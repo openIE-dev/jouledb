@@ -560,7 +560,7 @@ impl PowerSampler {
 
     /// Start the process-wide sampler (macOS with passwordless `sudo -n`
     /// only). `JOULE_POWER_SAMPLER=off` disables it;
-    /// `JOULE_POWERMETRICS_INTERVAL_MS` sets the interval (default 20).
+    /// `JOULE_POWERMETRICS_INTERVAL_MS` sets the interval (default 5).
     pub fn global() -> Option<&'static PowerSampler> {
         static GLOBAL: std::sync::OnceLock<Option<&'static PowerSampler>> = std::sync::OnceLock::new();
         *GLOBAL.get_or_init(|| {
@@ -574,7 +574,9 @@ impl PowerSampler {
                 .ok()
                 .and_then(|v| v.parse::<u32>().ok())
                 .filter(|v| *v >= 5)
-                .unwrap_or(20);
+                // `-i 5` gives ~19-23 ms real samples on M3/M4 (`-i 20`
+                // gives ~39 ms); shorter samples split ms-scale jobs better.
+                .unwrap_or(5);
             let sampler: &'static PowerSampler = Box::leak(Box::new(PowerSampler::detached(interval_ms)));
             sampler.spawn_feed().then_some(sampler)
         })

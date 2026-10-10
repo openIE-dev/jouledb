@@ -178,9 +178,14 @@ pub struct Observed {
     /// Running joules: measured totals, or `watts x seconds` estimates.
     pub joules: f64,
     pub seconds: f64,
-    /// Running measured incremental joules; `None` until a measured run.
+    /// Measured incremental joules: the median of the last
+    /// [`RECENT`] measured runs (robust to one noisy power sample, which a
+    /// sub-interval job can absorb whole); `None` until a measured run.
     #[serde(default)]
     pub incremental_joules: Option<f64>,
+    /// The last measured incremental joules, oldest first.
+    #[serde(default)]
+    pub recent_incremental: Vec<f64>,
     /// Source of the latest observation.
     #[serde(default = "estimate_label")]
     pub energy_source: String,
@@ -253,6 +258,8 @@ pub fn size_bucket(size: usize) -> u32 {
 
 /// Relative difference within which two energies count as a tie.
 const ENERGY_TIE: f64 = 0.02;
+/// Measured runs kept per entry for the incremental-joules median.
+pub const RECENT: usize = 9;
 /// Weight of a new observation in the running cost.
 const EWMA: f64 = 0.3;
 
@@ -335,6 +342,7 @@ impl CostModel {
                 joules,
                 seconds,
                 incremental_joules: None,
+                recent_incremental: Vec::new(),
                 energy_source: source.to_string(),
             });
             if entry.runs > 0 {
@@ -342,10 +350,14 @@ impl CostModel {
                 entry.seconds += EWMA * (seconds - entry.seconds);
             }
             if let Some(inc) = incremental {
-                entry.incremental_joules = Some(match entry.incremental_joules {
-                    Some(prev) => prev + EWMA * (inc - prev),
-                    None => inc,
-                });
+                if entry.recent_incremental.len() == RECENT {
+                    entry.recent_incremental.remove(0);
+                }
+                entry.recent_incremental.push(inc);
+                let mut v = entry.recent_incremental.clone();
+                v.sort_by(f64::total_cmp);
+                let m = v.len() / 2;
+                entry.incremental_joules = Some(if v.len() % 2 == 1 { v[m] } else { 0.5 * (v[m - 1] + v[m]) });
             }
             entry.energy_source = source.to_string();
             entry.runs += 1;
@@ -627,5 +639,23 @@ mod tests {
         assert_eq!((r.chosen, r.ranked_by), (gpu(), Some(RankedBy::IncrementalJoules)));
         let o = model.observed("sigql:iir", 1 << 20, &cpu).expect("observed");
         assert_eq!(o.energy_source, "powermetrics");
+    }
+
+    #[test]
+    fn one_noisy_measurement_does_not_flip_the_ranking() {
+        let mut model = CostModel::new();
+        model.explore_every = 0;
+        let cpu = Candidate::cpu();
+        let both = [gpu(), cpu.clone()];
+        for _ in 0..4 {
+            model.record_cost("n", 65536, &cpu, 0.001, 0.02, Some(0.010), "powermetrics");
+            model.record_cost("n", 65536, &gpu(), 0.002, 0.02, Some(0.012), "powermetrics");
+        }
+        // A sub-interval CPU job absorbed a whole noisy sample.
+        model.record_cost("n", 65536, &cpu, 0.001, 0.2, Some(0.150), "powermetrics");
+        assert_eq!(model.choose("n", 65536, &both).chosen, cpu);
+        let o = model.observed("n", 65536, &cpu).expect("observed");
+        assert_eq!(o.incremental_joules, Some(0.010));
+        assert_eq!(o.recent_incremental.len(), 5);
     }
 }
