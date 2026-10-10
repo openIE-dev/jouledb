@@ -136,6 +136,8 @@ struct CounterBaseline {
     /// Recent idle-gap powers, watts.
     gaps: Vec<f64>,
     initial: Option<f64>,
+    /// Lowest power seen over any job window: idle can be no higher.
+    floor: Option<f64>,
     /// Counter and time at the end of the previous job.
     last_end: Option<(Instant, f64)>,
 }
@@ -144,8 +146,17 @@ const GAP_MIN: Duration = Duration::from_millis(50);
 const GAP_KEEP: usize = 16;
 
 impl CounterBaseline {
+    /// Lowest of: the initial idle reading, the recent idle gaps, and every
+    /// job's own power (a baseline above a job's power would zero its
+    /// incremental joules, which is an artifact, not a measurement).
     fn watts(&self) -> Option<f64> {
-        self.gaps.iter().copied().reduce(f64::min).or(self.initial)
+        self.gaps.iter().copied().chain(self.initial).chain(self.floor).reduce(f64::min)
+    }
+
+    fn observe_job_power(&mut self, w: f64) {
+        if w.is_finite() && w >= 0.0 {
+            self.floor = Some(self.floor.map_or(w, |f| f.min(w)));
+        }
     }
 
     /// A job starts at `(t, counter)`: the gap since the previous job's end
@@ -201,11 +212,16 @@ fn read_uj(path: &std::path::Path) -> Option<f64> {
 impl Rapl {
     fn open() -> Option<Self> {
         let reader = joule_energy_rt::rapl::RAPLReader::new().ok()?;
-        let a = reader.read_package_energy().ok()?;
-        let t0 = Instant::now();
-        std::thread::sleep(Duration::from_millis(100));
-        let b = reader.read_package_energy().ok()?;
-        let initial = delta(a, b, reader.max_energy_range()) / t0.elapsed().as_secs_f64();
+        // Idle: the lowest of five 20 ms windows (one window can catch a
+        // burst from process start-up).
+        let mut initial = f64::INFINITY;
+        for _ in 0..5 {
+            let a = reader.read_package_energy().ok()?;
+            let t0 = Instant::now();
+            std::thread::sleep(Duration::from_millis(20));
+            let b = reader.read_package_energy().ok()?;
+            initial = initial.min(delta(a, b, reader.max_energy_range()) / t0.elapsed().as_secs_f64());
+        }
         Some(Rapl {
             reader,
             gpu_energy: drm_gpu_energy(),
@@ -350,6 +366,7 @@ impl Meter {
                 let core = a.core.zip(b.core).map(|(x, y)| delta(x, y, range) * share);
                 let gpu = a.gpu.zip(b.gpu).map(|(x, y)| (y - x).max(0.0) * share);
                 let joules = pkg + dram.unwrap_or(0.0) + gpu.unwrap_or(0.0);
+                base.observe_job_power(joules / seconds);
                 let baseline = base.watts();
                 let incremental = (joules - baseline.unwrap_or(0.0) * seconds).max(0.0);
                 JobEnergy {
@@ -376,6 +393,7 @@ impl Meter {
                 base.job_ended(end, b);
                 let total = end.saturating_duration_since(span.start).as_secs_f64().max(1e-9);
                 let joules = (b - a.package).max(0.0) * seconds / total;
+                base.observe_job_power(joules / seconds);
                 let baseline = base.watts();
                 JobEnergy {
                     source: "emi".into(),
@@ -508,6 +526,11 @@ mod tests {
         b.job_started(t0 + Duration::from_millis(210), 200.0);
         assert!((b.watts().unwrap_or(0.0) - 4.0).abs() < 1e-9);
         assert_eq!(delta(10.0, 2.0, 20.0), 12.0);
+        // A job drawing less than the start-up reading lowers the baseline,
+        // so incremental joules are not clamped to zero.
+        let mut b = CounterBaseline { initial: Some(66.0), ..Default::default() };
+        b.observe_job_power(35.0);
+        assert_eq!(b.watts(), Some(35.0));
     }
 
     #[test]
