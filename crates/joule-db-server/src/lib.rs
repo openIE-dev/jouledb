@@ -29,6 +29,7 @@ pub mod enterprise;
 pub mod error;
 pub mod cost_model;
 pub mod nvml;
+pub mod verify_policy;
 pub mod power_meter;
 pub mod fabric;
 pub mod features_bridge;

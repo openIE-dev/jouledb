@@ -101,6 +101,10 @@ pub struct EnergyReceipt {
     pub verify_seconds: Option<f64>,
     /// Why energy is degraded (e.g. ANE rail unreported on this chip).
     pub energy_notes: Option<String>,
+    /// The accelerator result was cross-checked on the CPU this run.
+    pub verified: bool,
+    /// `always`, `sampled` ([`crate::verify_policy`]), or `none` (CPU ran).
+    pub verify_policy: String,
     /// Fallback processor. Always a real device (`cpu`, `gpu`, `npu`, `tpu`,
     /// `lpu`). Never empty.
     ///
@@ -135,7 +139,7 @@ impl EnergyReceipt {
     pub fn line(&self) -> String {
         let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
         format!(
-            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} verify_joules={} verify_s={} placement={} setup_ms={} setup_joules={}{}",
+            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} verified={} verify_policy={} verify_joules={} verify_s={} placement={} setup_ms={} setup_joules={}{}",
             self.requested_device,
             self.device,
             self.backend,
@@ -153,6 +157,8 @@ impl EnergyReceipt {
             w(self.gpu_watts),
             w(self.ane_watts),
             w(self.baseline_watts),
+            self.verified,
+            self.verify_policy,
             self.verify_joules.map(|j| format!("{j:.6e}")).unwrap_or_else(|| "none".into()),
             self.verify_seconds.map(|s| format!("{s:.6}")).unwrap_or_else(|| "none".into()),
             self.placement.as_deref().unwrap_or("none"),
@@ -602,8 +608,9 @@ fn dispatch_sum_on(
 
     let meter = meter_for(host);
     let mut span = meter.begin();
+    let mut verified = None;
     let (value, backend, reported, executed, preferred_ran) =
-        execute(values, preferred, force_cpu, host, meter, &mut span);
+        execute(values, preferred, force_cpu, host, meter, &mut span, &mut verified);
     let fallback = fallback_processor(preferred_ran, executed, host);
     let device = if backend == "cpu" { "cpu" } else { "gpu" };
     let e = meter.finish(span, std::time::Duration::ZERO, device, snap.power_watts);
@@ -624,6 +631,8 @@ fn dispatch_sum_on(
         verify_joules: e.verify_joules,
         verify_seconds: e.verify_seconds,
         energy_notes: e.notes.clone(),
+        verified: verified == Some(true),
+        verify_policy: if backend == "cpu" { "none".into() } else { crate::verify_policy::Verifier::global().label().into() },
         fallback: fallback.to_string(),
         value,
         algorithm: algorithm.to_string(),
@@ -680,13 +689,30 @@ fn execute(
     host: &HostProfile,
     meter: &crate::power_meter::Meter,
     span: &mut crate::power_meter::Span,
+    verified: &mut Option<bool>,
 ) -> (f64, &'static str, DeviceTarget, DeviceTarget, bool) {
     let gpu_choice = preferred == DeviceTarget::Gpu || preferred == DeviceTarget::Npu;
     if !force_cpu && host.gpu.is_some() && gpu_choice {
         match run_gpu_lane(values, host) {
             Ok((gpu_value, backend)) => {
-                // The CPU cross-check is its own `verify` job, not the GPU's.
-                let (ok, cpu_value) = meter.verify(span, || gpu_matches_cpu(values, gpu_value));
+                // The CPU cross-check is its own `verify` job, not the
+                // GPU's, and sampled per (op, bucket, machine, backend).
+                let verifier = crate::verify_policy::Verifier::global();
+                let key = crate::verify_policy::key(
+                    "fabric:sum",
+                    &crate::cost_model::size_bucket(values.len()).to_string(),
+                    &format!("gpu/{backend}"),
+                );
+                let check = verifier.should_verify(&key);
+                *verified = Some(check);
+                let (ok, cpu_value) = if check {
+                    meter.verify(span, || gpu_matches_cpu(values, gpu_value))
+                } else {
+                    (true, gpu_value)
+                };
+                if !ok {
+                    verifier.record_mismatch(&key);
+                }
                 if ok {
                     // NPU was requested but the kernel ran on the GPU. The
                     // reported device is the GPU. `preferred_ran` stays false
@@ -960,13 +986,21 @@ fn dispatch_hdc_on(
     // CPU reference: the CPU lane's result and the check for every
     // accelerator result. Its time is the CPU lane's per-job time.
     let meter = meter_for(host);
-    let mut cpu_span = meter.begin();
-    let cpu_started = Instant::now();
-    let cpu_ref = joule_ane_rt::cpu_dot_scores(queries, memory, d);
-    let cpu_s = cpu_started.elapsed().as_secs_f64();
-    let cpu_end = Instant::now();
-    meter.close(&mut cpu_span, cpu_end);
-    let mut cpu_span = Some(cpu_span);
+    // The CPU reference runs only when needed: as the CPU lane, or to
+    // verify an accelerator result (sampled, see `verify_policy`).
+    let verifier = crate::verify_policy::Verifier::global();
+    let shape_key = format!("{:?}", ShapeBucket::of(n, k, d));
+    let run_cpu = || {
+        let mut span = meter.begin();
+        let started = Instant::now();
+        let scores = joule_ane_rt::cpu_dot_scores(queries, memory, d);
+        let secs = started.elapsed().as_secs_f64();
+        let end = Instant::now();
+        meter.close(&mut span, end);
+        (scores, span, secs, end)
+    };
+    let mut cpu: Option<(Vec<i32>, crate::power_meter::Span, f64, Instant)> = None;
+    let mut verified = false;
     // GPU kernel window: (span, end, setup to skip).
     let mut gpu_window: Option<(crate::power_meter::Span, Instant, std::time::Duration)> = None;
     // Core ML window (setup skipped), for a Core ML run placed off the ANE.
@@ -996,15 +1030,18 @@ fn dispatch_hdc_on(
                     ));
                     setup_s += outcome.setup_s;
                     remember_placement(&host.placement_cache, bucket, outcome.planned);
-                    // MLComputePlan is a plan, not proof: when the plan names
-                    // the Neural Engine but powermetrics saw the ANE rail idle
-                    // over the measured prediction loop, Core ML ran it on the
-                    // CPU. Say so; never claim the ANE on the plan alone.
                     // Plan names the ANE but powermetrics' ANE rail read 0 W
                     // (unreported on this chip, e.g. M3 Ultra): keep the
                     // plan's device, flag the energy instead.
                     ane_rail_unreported = ane_rail_idle(outcome.planned, outcome.power.as_ref());
-                    if outcome.scores == cpu_ref {
+                    let key = crate::verify_policy::key("fabric:hdc", &shape_key, "ane/coreml");
+                    let check = verifier.should_verify(&key);
+                    let ok = !check || outcome.scores == cpu.get_or_insert_with(|| run_cpu()).0;
+                    if !ok {
+                        verifier.record_mismatch(&key);
+                    }
+                    verified = check && ok;
+                    if ok {
                         let (device, backend, ran) = match outcome.planned {
                             PlannedDevice::NeuralEngine => (DeviceTarget::Npu, "coreml-ane", true),
                             PlannedDevice::Gpu => (DeviceTarget::Gpu, "coreml", false),
@@ -1040,7 +1077,15 @@ fn dispatch_hdc_on(
             meter.close(&mut gpu_span, gpu_end);
             gpu_window = Some((gpu_span, gpu_end, std::time::Duration::from_secs_f64(gpu_setup_s.max(0.0))));
             setup_s += gpu_setup_s;
-            if scores == cpu_ref {
+            let key = crate::verify_policy::key("fabric:hdc", &shape_key, "gpu/metal");
+            let check = verifier.should_verify(&key);
+            let ok = !check || scores == cpu.get_or_insert_with(|| run_cpu()).0;
+            if !ok {
+                verifier.record_mismatch(&key);
+                route_reason.push_str("+gpu_mismatch");
+            }
+            verified = check && ok;
+            if ok {
                 chosen = Some((
                     scores,
                     "metal",
@@ -1052,10 +1097,29 @@ fn dispatch_hdc_on(
         }
     }
 
-    let (scores, backend, executed, preferred_ran, job_s) = chosen.unwrap_or_else(|| {
-        let ran = preferred == DeviceTarget::Cpu;
-        (cpu_ref, "cpu", DeviceTarget::Cpu, ran, cpu_s)
-    });
+    // The CPU lane ran (or the reference was computed for a check).
+    let mut cpu_span: Option<crate::power_meter::Span> = None;
+    let mut cpu_end = Instant::now();
+    let mut cpu_s = 0.0;
+    let (scores, backend, executed, preferred_ran, job_s) = match chosen {
+        Some(c) => {
+            if let Some((_, span, secs, end)) = cpu.take() {
+                cpu_span = Some(span);
+                cpu_end = end;
+                cpu_s = secs;
+            }
+            c
+        }
+        None => {
+            let (scores, span, secs, end) = cpu.take().unwrap_or_else(|| run_cpu());
+            cpu_span = Some(span);
+            cpu_end = end;
+            cpu_s = secs;
+            verified = false;
+            let ran = preferred == DeviceTarget::Cpu;
+            (scores, "cpu", DeviceTarget::Cpu, ran, secs)
+        }
+    };
 
     let fallback = if executed == DeviceTarget::Npu && preferred_ran {
         // After the ANE: the Metal GPU when a GPU lane exists, else the CPU.
@@ -1186,6 +1250,8 @@ fn dispatch_hdc_on(
             ane_watts: energy.ane_watts,
             baseline_watts: energy.baseline_watts,
             energy_notes: energy.notes.clone(),
+            verified,
+            verify_policy: if backend == "cpu" { "none".into() } else { verifier.label().into() },
             verify_joules: verify.as_ref().map(|v| v.joules),
             verify_seconds: verify.as_ref().map(|v| v.seconds),
             fallback: fallback.to_string(),
@@ -2132,6 +2198,61 @@ mod tests {
         // No measurement: the plan stands (never refuse, never guess).
         assert!(!ane_rail_idle(PlannedDevice::NeuralEngine, None));
         assert!(!ane_rail_idle(PlannedDevice::Cpu, Some(&m(0.0, "measured"))));
+    }
+
+    #[test]
+    fn sampled_verification_receipt_fields() {
+        // Own size bucket (2^21) so other tests do not share the schedule.
+        let values: Vec<f64> = (0..(1usize << 21) + 3).map(|i| (i % 7) as f64).collect();
+        let host = m5_max_host();
+        let rs: Vec<EnergyReceipt> =
+            (0..40).map(|_| dispatch_sum_on(&values, AlgorithmType::Scan, false, &host)).collect();
+        let gpu: Vec<&EnergyReceipt> = rs.iter().filter(|r| r.backend != "cpu").collect();
+        assert_eq!(gpu.len(), 40, "descriptor GPU lane runs every time");
+        assert!(gpu.iter().all(|r| r.verify_policy == "sampled"));
+        assert!(gpu[..8].iter().all(|r| r.verified && r.verify_joules.is_some()), "first 8 verified");
+        let later = gpu[8..].iter().filter(|r| r.verified).count();
+        assert!((1..=4).contains(&later), "about 1 in 16 after: {later}");
+        assert!(gpu.iter().filter(|r| !r.verified).all(|r| r.verify_joules.is_none()));
+        assert!(rs[0].line().contains("verified=true verify_policy=sampled"));
+        let cpu = dispatch_sum_on(&values, AlgorithmType::Scan, true, &host);
+        assert_eq!((cpu.verified, cpu.verify_policy.as_str()), (false, "none"));
+    }
+
+    /// Amortized CPU verification cost per job on a live Mac: GPU 16M sum
+    /// and ANE HDC 256x4096x4096, 48 runs each. Run once with
+    /// `JOULE_VERIFY=always` (before) and once with the default (sampled).
+    #[test]
+    #[ignore]
+    fn verify_amortized_live() {
+        let host = live_profile();
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let policy = crate::verify_policy::Verifier::global().label();
+        let report = |job: &str, rs: &[EnergyReceipt]| {
+            let n = rs.len() as f64;
+            let v: f64 = rs.iter().filter_map(|r| r.verify_joules).sum();
+            let j: f64 = rs.iter().map(|r| r.incremental_joules).sum();
+            let checked = rs.iter().filter(|r| r.verified).count();
+            eprintln!(
+                "VERIFY-AMORT job={job} policy={policy} runs={} verified={checked} device={}/{} job_incr_mJ={:.2} verify_mJ_per_job={:.2} verify_mJ_per_check={:.2}",
+                rs.len(),
+                rs[rs.len() - 1].device,
+                rs[rs.len() - 1].backend,
+                j / n * 1e3,
+                v / n * 1e3,
+                if checked > 0 { v / checked as f64 * 1e3 } else { 0.0 }
+            );
+        };
+        let values: Vec<f64> = (0..1usize << 24).map(|i| (i % 7) as f64).collect();
+        let rs: Vec<EnergyReceipt> =
+            (0..48).map(|_| dispatch_sum_on(&values, AlgorithmType::Scan, false, &host)).collect();
+        report("sum_16M_gpu", &rs);
+        let d = 4096;
+        let (q, m) = (bipolar(256 * d, 7), bipolar(4096 * d, 9));
+        let rs: Vec<EnergyReceipt> =
+            (0..48).map(|_| dispatch_hdc_on(&q, &m, d, false, &host).expect("hdc").receipt).collect();
+        eprintln!("VERIFY-LINE {}", rs[1].line());
+        report("hdc_256x4096x4096_ane", &rs);
     }
 
     /// Large HDC shapes on a live Mac: `MLComputePlan` placement per Core ML
