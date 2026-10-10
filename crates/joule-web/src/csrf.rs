@@ -83,18 +83,24 @@ fn generate_random_bytes(len: usize) -> Vec<u8> {
 }
 
 /// Simple hash for entropy mixing (not SHA-256 — avoids cross-module deps).
+///
+/// FNV-1a over the whole input, then splitmix64 per 8-byte word so every
+/// output byte depends on the full 64-bit hash. (The old per-byte version
+/// kept only the low 8 bits of the hash, so two tokens collided about one
+/// time in 256 and `test_synchronizer_rotation` failed intermittently.)
 fn simple_hash(data: &[u8]) -> Vec<u8> {
-    // FNV-1a based expansion to 32 bytes.
-    let mut result = vec![0u8; 32];
-    for (round, byte) in result.iter_mut().enumerate() {
-        let mut hash: u64 = 0xcbf29ce484222325;
-        for &b in data {
-            hash ^= b as u64;
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        hash ^= round as u64;
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for &b in data {
+        hash ^= b as u64;
         hash = hash.wrapping_mul(0x100000001b3);
-        *byte = (hash & 0xFF) as u8;
+    }
+    let mut result = Vec::with_capacity(32);
+    for round in 0..4u64 {
+        let mut z = hash.wrapping_add(0x9e3779b97f4a7c15u64.wrapping_mul(round + 1));
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+        z ^= z >> 31;
+        result.extend_from_slice(&z.to_le_bytes());
     }
     result
 }
@@ -473,6 +479,12 @@ mod tests {
             csrf.validate("session1", &token),
             Err(CsrfError::TokenMismatch)
         );
+    }
+
+    #[test]
+    fn tokens_do_not_collide() {
+        let tokens: std::collections::HashSet<String> = (0..5000).map(|_| generate_token()).collect();
+        assert_eq!(tokens.len(), 5000);
     }
 
     #[test]
