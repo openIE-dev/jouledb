@@ -137,6 +137,17 @@ pub struct RouteReceipt {
     /// (all candidates measured) or `time` (some estimate).
     #[serde(default)]
     pub ranked_by: String,
+    /// Source per rail, e.g. `cpu=rapl gpu=nvml-energy`.
+    #[serde(default)]
+    pub energy_rails: String,
+    /// Incremental joules per side when metered separately (RAPL + NVML).
+    #[serde(default)]
+    pub cpu_incremental_joules: Option<f64>,
+    #[serde(default)]
+    pub gpu_incremental_joules: Option<f64>,
+    /// Readings that were rejected (e.g. absurd NVML power) and why.
+    #[serde(default)]
+    pub energy_notes: Option<String>,
     /// One-time setup this call paid (GPU pipeline compile), not included
     /// in `joules` / `seconds`.
     pub setup_seconds: Option<f64>,
@@ -147,7 +158,7 @@ impl RouteReceipt {
     pub fn line(&self) -> String {
         let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
         format!(
-            "op={} bucket={} requested_device={} device={} backend={} fallback={} route_reason={} ranked_by={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.2} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} setup_s={}",
+            "op={} bucket={} requested_device={} device={} backend={} fallback={} route_reason={} ranked_by={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.2} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} rails=[{}] cpu_inc_j={} gpu_inc_j={} setup_s={}{}",
             self.op,
             self.size_bucket,
             self.requested_device,
@@ -166,7 +177,11 @@ impl RouteReceipt {
             w(self.gpu_watts),
             w(self.ane_watts),
             w(self.baseline_watts),
-            self.setup_seconds.map(|s| format!("{s:.4}")).unwrap_or_else(|| "none".into())
+            self.energy_rails,
+            self.cpu_incremental_joules.map(|j| format!("{j:.6e}")).unwrap_or_else(|| "none".into()),
+            self.gpu_incremental_joules.map(|j| format!("{j:.6e}")).unwrap_or_else(|| "none".into()),
+            self.setup_seconds.map(|s| format!("{s:.4}")).unwrap_or_else(|| "none".into()),
+            self.energy_notes.as_ref().map(|n| format!(" notes=\"{n}\"")).unwrap_or_default()
         )
     }
 }

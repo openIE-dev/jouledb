@@ -1058,6 +1058,8 @@ fn dispatch_hdc_on(
                     baseline_watts: p
                         .incremental_joules_per_prediction
                         .map(|inc| ((rails.total() * per - inc) / per).max(0.0)),
+                    rails: "cpu=powermetrics gpu=powermetrics ane=powermetrics".into(),
+                    ..Default::default()
                 }
             }
             // One-off powermetrics run: ANE rail only, no baseline.
@@ -1073,6 +1075,8 @@ fn dispatch_hdc_on(
                 ane_watts: Some(p.mean_ane_watts),
                 dram_watts: None,
                 baseline_watts: None,
+                rails: "ane=powermetrics".into(),
+                ..Default::default()
             },
         },
         (None, "metal") => match gpu_window {

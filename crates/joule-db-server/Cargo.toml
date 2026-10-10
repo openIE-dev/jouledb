@@ -128,6 +128,8 @@ joule-runtime = { workspace = true }
 joule-metal-rt = { workspace = true }
 joule-ane-rt = { workspace = true }
 joule-energy-rt = { workspace = true }
+# NVML is loaded at run time: no link dependency on NVIDIA libraries.
+libloading = { workspace = true }
 
 # Energy receipt ledger (blockchain-anchored attestation)
 joule-db-ledger = { workspace = true, features = ["http"] }

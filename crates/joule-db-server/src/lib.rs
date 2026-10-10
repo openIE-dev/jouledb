@@ -28,6 +28,7 @@ pub mod energy_executor;
 pub mod enterprise;
 pub mod error;
 pub mod cost_model;
+pub mod nvml;
 pub mod power_meter;
 pub mod fabric;
 pub mod features_bridge;

@@ -271,6 +271,10 @@ fn run_routed(
         gpu_watts: energy.gpu_watts,
         ane_watts: energy.ane_watts,
         baseline_watts: energy.baseline_watts,
+        energy_rails: energy.rails.clone(),
+        cpu_incremental_joules: energy.cpu_incremental_joules,
+        gpu_incremental_joules: energy.gpu_incremental_joules,
+        energy_notes: energy.notes.clone(),
         setup_seconds,
     };
     response.energy_joules = Some(energy.joules);
@@ -351,6 +355,10 @@ struct GpuContext {
     backend: String,
     /// The adapter is a CPU rasterizer (lavapipe, SwiftShader, WARP).
     cpu_adapter: bool,
+    /// Adapter name, PCI vendor and device ids (to find the same GPU in NVML).
+    adapter_name: String,
+    vendor: u32,
+    device_id: u32,
     layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
     /// Compiled pipelines keyed by (WGSL source, entry point).
@@ -367,6 +375,11 @@ struct GpuRun {
     /// Time spent compiling pipelines this run (zero when all were cached):
     /// one-time setup, kept out of the per-job cost.
     setup: std::time::Duration,
+}
+
+/// `(name, PCI vendor id, PCI device id)` of the wgpu adapter SigQL uses.
+pub(crate) fn gpu_adapter_id() -> Option<(String, u32, u32)> {
+    gpu_context().ok().map(|c| (c.adapter_name.clone(), c.vendor, c.device_id))
 }
 
 fn gpu_context() -> Result<&'static GpuContext, String> {
@@ -448,6 +461,9 @@ async fn open_gpu() -> Result<GpuContext, String> {
         immediate_size: 0,
     });
     Ok(GpuContext {
+        adapter_name: info.name.clone(),
+        vendor: info.vendor,
+        device_id: info.device,
         device,
         queue,
         adapter: format!("{} via {:?}", info.name, info.backend),
@@ -2208,7 +2224,7 @@ mod tests {
     fn measured_power_live_iir() {
         use crate::cost_model::{Candidate, CostModel, RouteReceipt};
         let meter = crate::power_meter::Meter::global();
-        eprintln!("POWER meter={}", meter.source());
+        eprintln!("POWER meter={} {}", meter.source(), crate::power_meter::nvml_status());
         std::thread::sleep(std::time::Duration::from_millis(1500));
         for n in [1usize << 16, 1 << 20] {
             let (plan, sources) = long_plan("FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)", &long_signal(n));
@@ -2237,7 +2253,7 @@ mod tests {
                 };
                 let conf: Vec<&str> = v.iter().map(|r| r.energy_confidence.as_str()).collect();
                 eprintln!(
-                    "POWER-TABLE job=iir_bandpass size={n} device={dev} backend={} runs={} ms={:.3} J={:.4e} incr_J={:.4e} W={:.2} cpu_w={} gpu_w={} ane_w={} base_w={} source={} confidence={:?}",
+                    "POWER-TABLE job=iir_bandpass size={n} device={dev} backend={} runs={} ms={:.3} J={:.4e} incr_J={:.4e} W={:.2} cpu_w={} gpu_w={} ane_w={} base_w={} cpu_inc_J={} gpu_inc_J={} source={} rails=[{}] confidence={:?} notes={:?}",
                     v[0].backend,
                     v.len(),
                     mean(&|r| r.seconds) * 1e3,
@@ -2248,8 +2264,12 @@ mod tests {
                     opt(&|r| r.gpu_watts),
                     opt(&|r| r.ane_watts),
                     opt(&|r| r.baseline_watts),
+                    opt(&|r| r.cpu_incremental_joules.map(|j| j * 1e3)),
+                    opt(&|r| r.gpu_incremental_joules.map(|j| j * 1e3)),
                     v[0].energy_source,
-                    conf
+                    v[0].energy_rails,
+                    conf,
+                    v.iter().find_map(|r| r.energy_notes.clone())
                 );
             }
             if let Ok(ctx) = gpu_context() {

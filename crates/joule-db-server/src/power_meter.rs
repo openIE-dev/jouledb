@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 use joule_ane_rt::sampler::PowerSampler;
 
 /// Energy of one job.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct JobEnergy {
     /// `powermetrics`, `rapl`, `emi`, or `estimate`.
     pub source: String,
@@ -46,6 +46,18 @@ pub struct JobEnergy {
     pub dram_watts: Option<f64>,
     /// Idle baseline that was subtracted, watts (all rails).
     pub baseline_watts: Option<f64>,
+    /// Source per rail, e.g. `cpu=rapl gpu=nvml-energy`.
+    #[serde(default)]
+    pub rails: String,
+    /// Incremental joules of the CPU side (package + DRAM) and of the GPU
+    /// (NVML) when they are metered separately.
+    #[serde(default)]
+    pub cpu_incremental_joules: Option<f64>,
+    #[serde(default)]
+    pub gpu_incremental_joules: Option<f64>,
+    /// Rejected or degraded readings, and why.
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 impl JobEnergy {
@@ -70,6 +82,8 @@ impl JobEnergy {
             ane_watts: None,
             dram_watts: None,
             baseline_watts: None,
+            rails: format!("{device}=estimate"),
+            ..Default::default()
         };
         match device {
             "gpu" => e.gpu_watts = Some(watts),
@@ -100,6 +114,7 @@ struct Counters {
     core: Option<f64>,
     dram: Option<f64>,
     gpu: Option<f64>,
+    nvml: Option<crate::nvml::GpuSnapshot>,
 }
 
 /// A started measurement. With the powermetrics sampler the job is
@@ -178,10 +193,62 @@ impl CounterBaseline {
     }
 }
 
-/// Linux RAPL (+ DRM/hwmon GPU energy).
+/// CPU energy counters (joules): RAPL, or a fake in tests.
+pub trait CpuCounters: Send + Sync {
+    fn package(&self) -> Option<f64>;
+    fn core(&self) -> Option<f64>;
+    fn dram(&self) -> Option<f64>;
+    /// Counter wrap range, joules.
+    fn range(&self) -> f64;
+}
+
+impl CpuCounters for joule_energy_rt::rapl::RAPLReader {
+    fn package(&self) -> Option<f64> {
+        self.read_package_energy().ok()
+    }
+    fn core(&self) -> Option<f64> {
+        self.read_core_energy().ok().flatten()
+    }
+    fn dram(&self) -> Option<f64> {
+        self.read_dram_energy().ok().flatten()
+    }
+    fn range(&self) -> f64 {
+        self.max_energy_range()
+    }
+}
+
+/// The NVIDIA GPU rail: NVML readings with their own idle baseline.
+struct NvmlRail {
+    gpu: Box<dyn crate::nvml::GpuEnergy>,
+    limit_mw: Option<u32>,
+    baseline: Mutex<CounterBaseline>,
+}
+
+impl NvmlRail {
+    fn new(gpu: Box<dyn crate::nvml::GpuEnergy>) -> Self {
+        let limit_mw = gpu.limit_mw();
+        // Idle GPU: lowest of three 150 ms windows (the energy counter
+        // updates in coarse steps, so short windows can read zero).
+        let mut initial: Option<f64> = None;
+        for _ in 0..3 {
+            let a = crate::nvml::snapshot(gpu.as_ref());
+            let t0 = Instant::now();
+            std::thread::sleep(Duration::from_millis(150));
+            let b = crate::nvml::snapshot(gpu.as_ref());
+            if let Some(g) = crate::nvml::between(a, b, t0.elapsed().as_secs_f64(), limit_mw) {
+                let w = g.joules / t0.elapsed().as_secs_f64();
+                initial = Some(initial.map_or(w, |i: f64| i.min(w)));
+            }
+        }
+        NvmlRail { gpu, limit_mw, baseline: Mutex::new(CounterBaseline { initial, ..Default::default() }) }
+    }
+}
+
+/// Linux RAPL (+ DRM/hwmon GPU energy, + NVML for NVIDIA GPUs).
 struct Rapl {
-    reader: joule_energy_rt::rapl::RAPLReader,
+    reader: Box<dyn CpuCounters>,
     gpu_energy: Option<std::path::PathBuf>,
+    nvml: Option<NvmlRail>,
     baseline: Mutex<CounterBaseline>,
 }
 
@@ -209,32 +276,70 @@ fn read_uj(path: &std::path::Path) -> Option<f64> {
     std::fs::read_to_string(path).ok()?.trim().parse::<f64>().ok().map(|uj| uj / 1e6)
 }
 
+/// Why NVML was not used (set once at meter detection), for receipts.
+static NVML_STATUS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// `nvml=<library> device=<name> bus=<id>` or `nvml=none (<why>)`.
+pub fn nvml_status() -> &'static str {
+    NVML_STATUS.get().map(String::as_str).unwrap_or("nvml=not probed")
+}
+
 impl Rapl {
     fn open() -> Option<Self> {
         let reader = joule_energy_rt::rapl::RAPLReader::new().ok()?;
+        let nvml = if std::env::var("JOULE_NVML").is_ok_and(|v| v == "0") {
+            let _ = NVML_STATUS.set("nvml=none (disabled by JOULE_NVML=0)".into());
+            None
+        } else {
+            match crate::nvml::Nvml::open(crate::sigql_executor::gpu_adapter_id()) {
+                Ok(n) => {
+                    let _ = NVML_STATUS.set(format!(
+                        "nvml={} device={} bus={}",
+                        crate::nvml::GpuEnergy::library(&n),
+                        crate::nvml::GpuEnergy::name(&n),
+                        crate::nvml::GpuEnergy::bus_id(&n)
+                    ));
+                    Some(Box::new(n) as Box<dyn crate::nvml::GpuEnergy>)
+                }
+                Err(e) => {
+                    let _ = NVML_STATUS.set(format!("nvml=none ({e})"));
+                    None
+                }
+            }
+        };
+        Self::with(Box::new(reader), drm_gpu_energy(), nvml)
+    }
+
+    fn with(
+        reader: Box<dyn CpuCounters>,
+        gpu_energy: Option<std::path::PathBuf>,
+        nvml: Option<Box<dyn crate::nvml::GpuEnergy>>,
+    ) -> Option<Self> {
         // Idle: the lowest of five 20 ms windows (one window can catch a
         // burst from process start-up).
         let mut initial = f64::INFINITY;
         for _ in 0..5 {
-            let a = reader.read_package_energy().ok()?;
+            let a = reader.package()?;
             let t0 = Instant::now();
             std::thread::sleep(Duration::from_millis(20));
-            let b = reader.read_package_energy().ok()?;
-            initial = initial.min(delta(a, b, reader.max_energy_range()) / t0.elapsed().as_secs_f64());
+            let b = reader.package()?;
+            initial = initial.min(delta(a, b, reader.range()) / t0.elapsed().as_secs_f64());
         }
         Some(Rapl {
             reader,
-            gpu_energy: drm_gpu_energy(),
+            gpu_energy,
+            nvml: nvml.map(NvmlRail::new),
             baseline: Mutex::new(CounterBaseline { initial: Some(initial), ..Default::default() }),
         })
     }
 
     fn read(&self) -> Option<Counters> {
         Some(Counters {
-            package: self.reader.read_package_energy().ok()?,
-            core: self.reader.read_core_energy().ok().flatten(),
-            dram: self.reader.read_dram_energy().ok().flatten(),
+            package: self.reader.package()?,
+            core: self.reader.core(),
+            dram: self.reader.dram(),
             gpu: self.gpu_energy.as_deref().and_then(read_uj),
+            nvml: self.nvml.as_ref().map(|n| crate::nvml::snapshot(n.gpu.as_ref())),
         })
     }
 }
@@ -262,6 +367,12 @@ pub struct RaplMeter(Rapl);
 pub struct EmiMeter(Emi);
 
 impl Meter {
+    /// A counter meter over injected CPU counters and an optional GPU
+    /// (fake NVML in tests).
+    pub fn counters(cpu: Box<dyn CpuCounters>, gpu: Option<Box<dyn crate::nvml::GpuEnergy>>) -> Option<Meter> {
+        Rapl::with(cpu, None, gpu).map(|r| Meter::Rapl(Box::new(RaplMeter(r))))
+    }
+
     /// The process-wide meter (chosen once).
     pub fn global() -> &'static Meter {
         static GLOBAL: std::sync::OnceLock<Meter> = std::sync::OnceLock::new();
@@ -318,6 +429,9 @@ impl Meter {
         let counters = match self {
             Meter::Rapl(r) => r.0.read().inspect(|c| {
                 lock(&r.0.baseline).job_started(start, c.package);
+                if let (Some(n), Some(e)) = (&r.0.nvml, c.nvml.and_then(|s| s.energy_mj)) {
+                    lock(&n.baseline).job_started(start, e as f64 / 1000.0);
+                }
             }),
             #[cfg(target_os = "windows")]
             Meter::Emi(e) => e.0.reader.read_cumulative_energy().ok().map(|package| {
@@ -357,7 +471,7 @@ impl Meter {
                 let (Some(a), Some(b)) = (span.counters, r.0.read()) else { return estimate() };
                 let mut base = lock(&r.0.baseline);
                 base.job_ended(end, b.package);
-                let range = r.0.reader.max_energy_range();
+                let range = r.0.reader.range();
                 // The whole span (setup included) is what the counter saw;
                 // charge the job's share by time.
                 let total = end.saturating_duration_since(span.start).as_secs_f64().max(1e-9);
@@ -365,24 +479,67 @@ impl Meter {
                 let pkg = delta(a.package, b.package, range) * share;
                 let dram = a.dram.zip(b.dram).map(|(x, y)| delta(x, y, range) * share);
                 let core = a.core.zip(b.core).map(|(x, y)| delta(x, y, range) * share);
-                let gpu = a.gpu.zip(b.gpu).map(|(x, y)| (y - x).max(0.0) * share);
-                let joules = pkg + dram.unwrap_or(0.0) + gpu.unwrap_or(0.0);
-                base.observe_job_power(joules / seconds);
-                let baseline = base.watts();
-                let incremental = (joules - baseline.unwrap_or(0.0) * seconds).max(0.0);
+                let drm = a.gpu.zip(b.gpu).map(|(x, y)| (y - x).max(0.0) * share);
+                let cpu_side = pkg + dram.unwrap_or(0.0) + drm.unwrap_or(0.0);
+                base.observe_job_power(cpu_side / seconds);
+                let cpu_base = base.watts();
+                drop(base);
+                let cpu_inc = (cpu_side - cpu_base.unwrap_or(0.0) * seconds).max(0.0);
+                // NVML rail: its own counter and baseline.
+                let mut notes = None;
+                let nv = match (&r.0.nvml, a.nvml, b.nvml) {
+                    (Some(n), Some(x), Some(y)) => {
+                        let g = crate::nvml::between(x, y, total, n.limit_mw);
+                        if g.is_none() {
+                            notes = Some("NVML: no usable reading (all rejected or unsupported)".to_string());
+                        }
+                        g.map(|g| {
+                            let mut nb = lock(&n.baseline);
+                            if let Some(e) = y.energy_mj {
+                                nb.job_ended(end, e as f64 / 1000.0);
+                            }
+                            let j = g.joules * share;
+                            nb.observe_job_power(j / seconds);
+                            let gb = nb.watts();
+                            if g.note.is_some() {
+                                notes = g.note.clone();
+                            }
+                            (j, (j - gb.unwrap_or(0.0) * seconds).max(0.0), gb, g.source)
+                        })
+                    }
+                    _ => None,
+                };
+                let gpu_j = nv.map(|v| v.0).or(drm);
+                let joules = cpu_side + nv.map_or(0.0, |v| v.0);
+                let incremental = cpu_inc + nv.map_or(0.0, |v| v.1);
+                let gpu_rail = match (nv, drm) {
+                    (Some(v), _) => v.3,
+                    (None, Some(_)) => "drm-hwmon",
+                    (None, None) => "none",
+                };
                 JobEnergy {
-                    source: "rapl".into(),
-                    // RAPL counters update about every millisecond.
-                    confidence: if seconds >= 0.002 { "measured" } else { "interpolated" }.into(),
+                    source: if nv.is_some() { "rapl+nvml" } else { "rapl" }.into(),
+                    // RAPL counters update about every millisecond; NVML's
+                    // energy counter is coarser (tens of ms).
+                    confidence: if seconds >= 0.002 && (nv.is_none() || seconds >= 0.1) {
+                        "measured"
+                    } else {
+                        "interpolated"
+                    }
+                    .into(),
                     seconds,
                     joules,
                     incremental_joules: incremental,
                     watts: joules / seconds,
                     cpu_watts: Some(core.unwrap_or(pkg) / seconds),
-                    gpu_watts: gpu.map(|j| j / seconds),
+                    gpu_watts: gpu_j.map(|j| j / seconds),
                     ane_watts: None,
                     dram_watts: dram.map(|j| j / seconds),
-                    baseline_watts: baseline,
+                    baseline_watts: cpu_base.map(|c| c + nv.and_then(|v| v.2).unwrap_or(0.0)),
+                    rails: format!("cpu=rapl gpu={gpu_rail}"),
+                    cpu_incremental_joules: Some(cpu_inc),
+                    gpu_incremental_joules: nv.map(|v| v.1),
+                    notes,
                 }
             }
             #[cfg(target_os = "windows")]
@@ -408,6 +565,8 @@ impl Meter {
                     ane_watts: None,
                     dram_watts: None,
                     baseline_watts: baseline,
+                    rails: "cpu=emi".into(),
+                    ..Default::default()
                 }
             }
             Meter::Estimate => estimate(),
@@ -434,6 +593,10 @@ fn sampler_energy(sampler: &PowerSampler, id: u64, start: Instant, end: Instant,
         ane_watts: Some(w.watts.ane_w),
         dram_watts: None,
         baseline_watts: Some(w.baseline.total()),
+        rails: "cpu=powermetrics gpu=powermetrics ane=powermetrics".into(),
+        cpu_incremental_joules: Some(w.incremental.cpu_w),
+        gpu_incremental_joules: Some(w.incremental.gpu_w),
+        notes: None,
     })
 }
 
@@ -532,6 +695,70 @@ mod tests {
         let mut b = CounterBaseline { initial: Some(66.0), ..Default::default() };
         b.observe_job_power(35.0);
         assert_eq!(b.watts(), Some(35.0));
+    }
+
+    /// Package counter advancing at `watts` of wall time.
+    struct FakeRapl {
+        start: Instant,
+        watts: f64,
+    }
+
+    impl CpuCounters for FakeRapl {
+        fn package(&self) -> Option<f64> {
+            Some(self.start.elapsed().as_secs_f64() * self.watts)
+        }
+        fn core(&self) -> Option<f64> {
+            None
+        }
+        fn dram(&self) -> Option<f64> {
+            None
+        }
+        fn range(&self) -> f64 {
+            1e9
+        }
+    }
+
+    #[test]
+    fn rapl_plus_fake_nvml_reports_both_rails_and_rejects_absurd_power() {
+        let now = Instant::now();
+        let gpu = crate::nvml::FakeNvml {
+            start: now,
+            watts: 12.0,
+            // The 590 W instantaneous draw jetson-hub's RTX 4050 reports.
+            power_mw: Some(590_010),
+            limit_mw: Some(35_000),
+            counter: true,
+        };
+        let meter = Meter::counters(Box::new(FakeRapl { start: now, watts: 20.0 }), Some(Box::new(gpu))).expect("meter");
+        let span = meter.begin();
+        std::thread::sleep(Duration::from_millis(120));
+        let e = meter.finish(span, Duration::ZERO, "gpu", 5.0);
+        assert_eq!(e.source, "rapl+nvml");
+        assert_eq!(e.rails, "cpu=rapl gpu=nvml-energy");
+        let gw = e.gpu_watts.expect("gpu_w");
+        assert!((gw - 12.0).abs() < 1.5, "{e:?}");
+        assert!(e.cpu_watts.is_some_and(|w| (w - 20.0).abs() < 2.0), "{e:?}");
+        // Flat fakes: both rails sit at their baselines, so increments ~0
+        // and the total is the sum of both rails.
+        assert!((e.watts - 32.0).abs() < 3.0, "{e:?}");
+        assert!(e.gpu_incremental_joules.is_some() && e.cpu_incremental_joules.is_some());
+        assert!(e.incremental_joules < 0.5, "{e:?}");
+
+        // No energy counter: the absurd power sample is rejected with a
+        // reason and the GPU rail is left out (CPU still measured).
+        let gpu = crate::nvml::FakeNvml {
+            start: now,
+            watts: 0.0,
+            power_mw: Some(590_010),
+            limit_mw: Some(35_000),
+            counter: false,
+        };
+        let meter = Meter::counters(Box::new(FakeRapl { start: now, watts: 20.0 }), Some(Box::new(gpu))).expect("meter");
+        let e = meter.finish(meter.begin(), Duration::ZERO, "gpu", 5.0);
+        assert_eq!(e.source, "rapl");
+        assert_eq!(e.rails, "cpu=rapl gpu=none");
+        assert!(e.notes.as_deref().unwrap_or("").contains("NVML"), "{e:?}");
+        assert!(e.is_measured());
     }
 
     #[test]

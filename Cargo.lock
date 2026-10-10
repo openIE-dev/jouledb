@@ -4284,6 +4284,7 @@ dependencies = [
  "jsonwebtoken",
  "jwp",
  "libc",
+ "libloading",
  "lz4_flex 0.13.1",
  "md-5",
  "pbkdf2",
