@@ -99,6 +99,8 @@ pub struct EnergyReceipt {
     /// `kind=verify` job: not in `joules` / `seconds`.
     pub verify_joules: Option<f64>,
     pub verify_seconds: Option<f64>,
+    /// Why energy is degraded (e.g. ANE rail unreported on this chip).
+    pub energy_notes: Option<String>,
     /// Fallback processor. Always a real device (`cpu`, `gpu`, `npu`, `tpu`,
     /// `lpu`). Never empty.
     ///
@@ -133,7 +135,7 @@ impl EnergyReceipt {
     pub fn line(&self) -> String {
         let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
         format!(
-            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} verify_joules={} verify_s={} placement={} setup_ms={} setup_joules={}",
+            "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} verify_joules={} verify_s={} placement={} setup_ms={} setup_joules={}{}",
             self.requested_device,
             self.device,
             self.backend,
@@ -159,7 +161,8 @@ impl EnergyReceipt {
                 .unwrap_or_else(|| "none".into()),
             self.setup_joules
                 .map(|v| format!("{v:.6e}(estimate)"))
-                .unwrap_or_else(|| "none".into())
+                .unwrap_or_else(|| "none".into()),
+            self.energy_notes.as_ref().map(|n| format!(" notes=\"{n}\"")).unwrap_or_default()
         )
     }
 }
@@ -620,6 +623,7 @@ fn dispatch_sum_on(
         baseline_watts: e.baseline_watts,
         verify_joules: e.verify_joules,
         verify_seconds: e.verify_seconds,
+        energy_notes: e.notes.clone(),
         fallback: fallback.to_string(),
         value,
         algorithm: algorithm.to_string(),
@@ -767,7 +771,8 @@ struct AneOutcome {
 /// (powermetrics reports 0 mW when it is not running).
 const ANE_ACTIVE_W: f64 = 0.05;
 
-/// The plan named the Neural Engine but the measured ANE rail stayed idle.
+/// The plan named the Neural Engine but the measured ANE rail read ~0 W
+/// (powermetrics does not report it on some chips, e.g. M3 Ultra).
 fn ane_rail_idle(planned: PlannedDevice, power: Option<&joule_ane_rt::PowerMeasurement>) -> bool {
     planned == PlannedDevice::NeuralEngine
         && power.is_some_and(|p| p.predictions > 0 && p.confidence != "estimate" && p.mean_ane_watts < ANE_ACTIVE_W)
@@ -970,6 +975,7 @@ fn dispatch_hdc_on(
     let decision = route_hdc(n, k, d, preferred, force_cpu, host);
     let bucket = ShapeBucket::of(n, k, d);
     let mut route_reason = decision.reason.to_string();
+    let mut ane_rail_unreported = false;
 
     // (scores, backend, executed device, preferred_ran, per-job seconds)
     let mut chosen: Option<(Vec<i32>, &'static str, DeviceTarget, bool, f64)> = None;
@@ -994,13 +1000,12 @@ fn dispatch_hdc_on(
                     // the Neural Engine but powermetrics saw the ANE rail idle
                     // over the measured prediction loop, Core ML ran it on the
                     // CPU. Say so; never claim the ANE on the plan alone.
-                    let ane_idle = ane_rail_idle(outcome.planned, outcome.power.as_ref());
-                    if ane_idle {
-                        route_reason.push_str("+ane_rail_idle");
-                    }
+                    // Plan names the ANE but powermetrics' ANE rail read 0 W
+                    // (unreported on this chip, e.g. M3 Ultra): keep the
+                    // plan's device, flag the energy instead.
+                    ane_rail_unreported = ane_rail_idle(outcome.planned, outcome.power.as_ref());
                     if outcome.scores == cpu_ref {
                         let (device, backend, ran) = match outcome.planned {
-                            PlannedDevice::NeuralEngine if ane_idle => (DeviceTarget::Cpu, "coreml", false),
                             PlannedDevice::NeuralEngine => (DeviceTarget::Npu, "coreml-ane", true),
                             PlannedDevice::Gpu => (DeviceTarget::Gpu, "coreml", false),
                             // `Unknown` is reported as CPU: with CPUAndNeuralEngine
@@ -1067,9 +1072,7 @@ fn dispatch_hdc_on(
     let job_s = job_s.max(1e-9);
     let measured = ane
         .as_ref()
-        // Per-prediction power loop (Core ML on the ANE, or planned there
-        // but run on the CPU with the ANE rail idle).
-        .filter(|_| backend == "coreml-ane" || backend == "coreml")
+        .filter(|_| backend == "coreml-ane")
         .and_then(|o| o.power.clone());
     let watts_estimate = snap.power_watts.max(0.0);
     let energy = match (measured, backend) {
@@ -1077,7 +1080,7 @@ fn dispatch_hdc_on(
             // Shared sampler: all rails over the prediction loop, per prediction.
             Some(rails) => {
                 let per = p.window_s / p.predictions.max(1) as f64;
-                crate::power_meter::JobEnergy {
+                let mut e = crate::power_meter::JobEnergy {
                     source: "powermetrics".into(),
                     confidence: p.confidence.into(),
                     seconds: per,
@@ -1093,9 +1096,25 @@ fn dispatch_hdc_on(
                         .map(|inc| ((rails.total() * per - inc) / per).max(0.0)),
                     rails: "cpu=powermetrics gpu=powermetrics ane=powermetrics".into(),
                     ..Default::default()
+                };
+                if ane_rail_unreported {
+                    // Total and incremental stay all-rail measurements (CPU +
+                    // GPU, the ANE rail adds 0); the ANE rail itself is unknown.
+                    e.ane_watts = None;
+                    e.confidence = "rail_unreported".into();
+                    e.rails = "cpu=powermetrics gpu=powermetrics ane=unreported".into();
+                    e.notes = Some(format!(
+                        "MLComputePlan placed the op on neural_engine but powermetrics' ANE rail read {:.3} W: ANE power is unreported on this chip; joules are all reported rails (package)",
+                        p.mean_ane_watts
+                    ));
                 }
+                e
             }
             // One-off powermetrics run: ANE rail only, no baseline.
+            None if ane_rail_unreported => crate::power_meter::JobEnergy {
+                notes: Some("ANE rail unreported on this chip; no other rails sampled".into()),
+                ..crate::power_meter::JobEnergy::estimate("npu", watts_estimate, job_s)
+            },
             None => crate::power_meter::JobEnergy {
                 source: "powermetrics".into(),
                 confidence: p.confidence.into(),
@@ -1166,6 +1185,7 @@ fn dispatch_hdc_on(
             gpu_watts: energy.gpu_watts,
             ane_watts: energy.ane_watts,
             baseline_watts: energy.baseline_watts,
+            energy_notes: energy.notes.clone(),
             verify_joules: verify.as_ref().map(|v| v.joules),
             verify_seconds: verify.as_ref().map(|v| v.seconds),
             fallback: fallback.to_string(),
@@ -2094,7 +2114,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_on_neural_engine_with_idle_ane_rail_is_not_claimed_as_ane() {
+    fn plan_on_neural_engine_with_idle_ane_rail_is_flagged_rail_unreported() {
         let m = |ane_w: f64, confidence: &'static str| joule_ane_rt::PowerMeasurement {
             source: "powermetrics",
             mean_ane_watts: ane_w,
