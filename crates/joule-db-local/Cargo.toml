@@ -14,6 +14,7 @@ server = ["dep:tokio"]
 adaptive = ["dep:joule-db-energy"]
 
 [dependencies]
+rayon = { workspace = true }
 joule-db-core = { workspace = true }
 
 # Serialization

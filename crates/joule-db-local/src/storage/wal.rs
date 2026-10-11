@@ -466,6 +466,43 @@ impl WalManager {
     }
 
     /// Append a page write entry
+    /// Append many page writes of one transaction: LSNs are assigned in
+    /// order, entries are encoded in parallel and written as one buffer.
+    /// Same log contents as calling `log_page_write` for each in order.
+    pub fn log_page_writes(
+        &mut self,
+        tx_id: u64,
+        writes: &[(PageId, &[u8])],
+    ) -> Result<(), StorageError> {
+        use rayon::prelude::*;
+        if writes.is_empty() {
+            return Ok(());
+        }
+        let first = self.current_lsn.fetch_add(writes.len() as u64, Ordering::SeqCst);
+        let encoded: Vec<Vec<u8>> = writes
+            .par_iter()
+            .enumerate()
+            .map(|(i, (page, data))| {
+                WalEntry::page_write(first + i as u64, tx_id, *page, data.to_vec()).encode()
+            })
+            .collect::<Result<_, _>>()?;
+        let total: usize = encoded.iter().map(|e| e.len()).sum();
+        let mut buf = Vec::with_capacity(total);
+        for e in &encoded {
+            buf.extend_from_slice(e);
+        }
+        self.writer
+            .write_all(&buf)
+            .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        self.file_position.fetch_add(total as u64, Ordering::SeqCst);
+        let mut active = self
+            .active_transactions
+            .write()
+            .unwrap_or_else(|p| p.into_inner());
+        active.entry(tx_id).or_insert(first);
+        Ok(())
+    }
+
     pub fn log_page_write(
         &mut self,
         tx_id: u64,

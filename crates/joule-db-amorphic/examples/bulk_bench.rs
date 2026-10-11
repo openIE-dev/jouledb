@@ -4,6 +4,7 @@ fn main() {
     let n: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(200_000);
     let mut s = AmorphicStore::new();
     let t = std::time::Instant::now();
+    let mut t_apply = std::time::Duration::ZERO;
     for chunk in (0..n).collect::<Vec<_>>().chunks(8192) {
         let rows: Vec<_> = chunk.iter().map(|&i| {
             let mut m = HashMap::new();
@@ -16,9 +17,11 @@ fn main() {
             m.insert("ts".to_string(), Value::Int(1_700_000_000 + i as i64));
             s.prepare_fields_ingest(m).unwrap()
         }).collect();
+        let a = std::time::Instant::now();
         s.apply_prepared_ingest_batch(rows).unwrap();
+        t_apply += a.elapsed();
     }
-    println!("apply {} rows: {:?}", n, t.elapsed());
+    println!("{} rows: total {:?}, apply {:?}", n, t.elapsed(), t_apply);
     if std::env::var_os("SKIP_CATCHUP").is_some() { return; }
     let t = std::time::Instant::now();
     s.catch_up_holograms(usize::MAX);

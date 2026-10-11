@@ -299,11 +299,11 @@ impl DurableAmorphicStore {
                 .collect::<Result<_, _>>()
                 .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?
         };
-        for ((id, _), bytes) in prepared.iter().zip(&serialized) {
-            self.wal
-                .log_page_write(tx_id, *id, bytes)
-                .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
-        }
+        let writes: Vec<(RecordId, &[u8])> =
+            prepared.iter().zip(&serialized).map(|((id, _), b)| (*id, b.as_slice())).collect();
+        self.wal
+            .log_page_writes(tx_id, &writes)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
         let ids: Vec<RecordId> = prepared.iter().map(|(id, _)| *id).collect();
         let t_apply = std::time::Instant::now();
         self.store.apply_prepared_ingest_batch(prepared)?;

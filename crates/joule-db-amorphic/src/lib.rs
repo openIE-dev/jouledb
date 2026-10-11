@@ -765,13 +765,13 @@ pub struct AmorphicStore {
     data_generation: u64,
 
     /// Individual record storage (for materialization)
-    pub(crate) records: HashMap<RecordId, AmorphicRecord>,
+    pub(crate) records: rustc_hash::FxHashMap<RecordId, AmorphicRecord>,
 
     /// Index: field name -> records containing that field
     field_index: HashMap<String, Vec<RecordId>>,
 
     /// Index: value hash -> records with that value
-    value_index: HashMap<u64, Vec<RecordId>>,
+    value_index: rustc_hash::FxHashMap<u64, Vec<RecordId>>,
 
     /// Graph index: source -> [(relation, target)]
     graph_index: HashMap<RecordId, Vec<(String, RecordId)>>,
@@ -887,9 +887,9 @@ impl AmorphicStore {
             hologram: SegmentedHologram::new(),
             deferred: std::collections::VecDeque::new(),
             data_generation: 0,
-            records: HashMap::new(),
+            records: Default::default(),
             field_index: HashMap::new(),
-            value_index: HashMap::new(),
+            value_index: Default::default(),
             graph_index: HashMap::new(),
             reverse_graph_index: HashMap::new(),
             name_to_id: HashMap::new(),
@@ -1101,12 +1101,48 @@ impl AmorphicStore {
         &mut self,
         rows: Vec<(RecordId, HashMap<String, Value>)>,
     ) -> AmorphicResult<()> {
-        for (id, fields) in rows {
-            self.index_primary(id, &fields);
-            self.records.insert(
-                id,
-                AmorphicRecord { id, hologram: BinaryHV::zeros(DIMENSION), fields, edges: vec![], timestamp: None },
-            );
+        use rayon::prelude::*;
+        self.records.reserve(rows.len());
+        self.value_index.reserve(rows.iter().map(|(_, f)| f.len()).sum());
+        // numeric B-trees are per field: fill them in parallel across fields
+        // (same per-key id order as the row-at-a-time path).
+        let mut numeric: HashMap<&str, Vec<(OrderedFloat, RecordId)>> = HashMap::new();
+        for (id, fields) in &rows {
+            for (field, value) in fields {
+                if let Some(num) = value.as_f64() {
+                    numeric.entry(field.as_str()).or_default().push((OrderedFloat(num), *id));
+                }
+            }
+        }
+        for f in numeric.keys() {
+            if !self.numeric_index.contains_key(*f) {
+                self.numeric_index.insert((*f).to_string(), Default::default());
+            }
+        }
+        self.numeric_index.par_iter_mut().for_each(|(f, tree)| {
+            if let Some(list) = numeric.get(f.as_str()) {
+                for (k, id) in list {
+                    tree.entry(*k).or_default().push(*id);
+                }
+            }
+        });
+        drop(numeric);
+        // value hashes and record shells (with their placeholder hypervector)
+        // are built in parallel; the shared maps are then filled in order.
+        let prepped: Vec<(Vec<u64>, AmorphicRecord)> = rows
+            .into_par_iter()
+            .map(|(id, fields)| {
+                let hashes = fields.iter().map(|(f, v)| Self::hash_value(f, v)).collect();
+                (
+                    hashes,
+                    AmorphicRecord { id, hologram: BinaryHV::zeros(DIMENSION), fields, edges: vec![], timestamp: None },
+                )
+            })
+            .collect();
+        for (hashes, rec) in prepped {
+            let id = rec.id;
+            self.index_primary_inner(id, &rec.fields, false, Some(&hashes));
+            self.records.insert(id, rec);
             self.deferred.push_back(id);
         }
         self.data_generation = self.data_generation.wrapping_add(1);
@@ -1190,22 +1226,32 @@ impl AmorphicStore {
     }
 
     /// Field, value, name, numeric, and columnar index updates for one record.
-    fn index_primary(&mut self, id: RecordId, fields: &HashMap<String, Value>) {
-        for (field, value) in fields {
+    /// `hashes`: precomputed `hash_value` per field, in `fields` iteration order.
+    fn index_primary_inner(
+        &mut self,
+        id: RecordId,
+        fields: &HashMap<String, Value>,
+        numeric: bool,
+        hashes: Option<&[u64]>,
+    ) {
+        for (i, (field, value)) in fields.iter().enumerate() {
             match self.field_index.get_mut(field) {
                 Some(v) => v.push(id),
                 None => {
                     self.field_index.insert(field.clone(), vec![id]);
                 }
             }
-            let value_hash = Self::hash_value(field, value);
+            let value_hash = match hashes {
+                Some(h) => h[i],
+                None => Self::hash_value(field, value),
+            };
             self.value_index.entry(value_hash).or_default().push(id);
             if field == "name" || field == "_name" {
                 if let Value::String(name) = value {
                     self.name_to_id.insert(name.clone(), id);
                 }
             }
-            if let Some(num) = value.as_f64() {
+            if let Some(num) = value.as_f64().filter(|_| numeric) {
                 if !self.numeric_index.contains_key(field) {
                     self.numeric_index.insert(field.clone(), Default::default());
                 }
