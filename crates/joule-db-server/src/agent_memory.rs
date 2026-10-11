@@ -238,7 +238,7 @@ impl MemoryManager {
         }
         let memory_type = MemoryType::from_str(&req.memory_type)?;
         let now = now_millis();
-        let id = format!("mem_{:016x}", now ^ (next_id() & 0xFFFF_FFFF));
+        let id = format!("mem_{:012x}{:08x}", now, next_id());
 
         let embedding = content_to_embedding(&req.content);
 
@@ -463,7 +463,7 @@ impl MemoryManager {
             .collect::<Vec<_>>()
             .join(" | ");
 
-        let id = format!("sem_{:016x}", now ^ (next_id() & 0xFFFF_FFFF));
+        let id = format!("sem_{:012x}{:08x}", now, next_id());
         let embedding = content_to_embedding(&combined_content);
 
         let semantic = Memory {
@@ -605,9 +605,9 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
 fn next_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let cnt = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let t = now_millis();
-    t ^ cnt
+    // Process-unique sequence. (Was `now ^ cnt`, which collides across a
+    // millisecond tick — e.g. t^1 == (t+3)^2 — and silently overwrote a memory.)
+    COUNTER.fetch_add(1, Ordering::Relaxed) & 0xFFFF_FFFF
 }
 
 fn now_millis() -> u64 {
