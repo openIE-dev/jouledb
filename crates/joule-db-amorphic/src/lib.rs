@@ -597,6 +597,8 @@ struct HoloInner {
     counts: Vec<usize>,
     of: HashMap<RecordId, usize>,
     pending: Vec<(usize, BinaryHV)>,
+    /// Bumped on every add/remove/replace: a cheap "records changed" token
+    generation: u64,
 }
 
 const FLUSH_AT: usize = 1024;
@@ -645,6 +647,7 @@ impl SegmentedHologram {
                 counts: vec![0],
                 of: HashMap::new(),
                 pending: Vec::new(),
+                generation: 0,
             }),
         }
     }
@@ -660,6 +663,7 @@ impl SegmentedHologram {
 
     pub fn add(&mut self, id: RecordId, hv: &BinaryHV) {
         let g = self.inner_mut();
+        g.generation += 1;
         let s = match g.of.get(&id) {
             // re-ingest of an existing id lands in the same segment
             Some(&s) => s,
@@ -682,6 +686,7 @@ impl SegmentedHologram {
 
     pub fn remove(&mut self, id: RecordId, hv: &BinaryHV) {
         let g = self.inner_mut();
+        g.generation += 1;
         g.flush();
         if let Some(s) = g.of.remove(&id) {
             g.segments[s].subtract(hv);
@@ -691,6 +696,7 @@ impl SegmentedHologram {
 
     pub fn replace(&mut self, id: RecordId, old: &BinaryHV, new: &BinaryHV) {
         let g = self.inner_mut();
+        g.generation += 1;
         g.flush();
         match g.of.get(&id) {
             Some(&s) => {
@@ -706,6 +712,10 @@ impl SegmentedHologram {
         let mut g = self.lock();
         g.flush();
         g.segments.last().cloned().unwrap_or_else(|| BundleAccumulator::new(DIMENSION))
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.lock().generation
     }
 
     pub fn segment_count(&self) -> usize {
@@ -2319,6 +2329,13 @@ impl AmorphicStore {
     /// The active (newest) hologram segment; see [`SegmentedHologram`].
     pub fn global_hologram(&self) -> BundleAccumulator {
         self.hologram.active()
+    }
+
+    /// Changes whenever a record is ingested, updated, or deleted. Caches
+    /// derived from records (e.g. the server's columnar table cache) key on
+    /// (generation, len).
+    pub fn generation(&self) -> u64 {
+        self.hologram.generation()
     }
 
     /// Records in the active hologram segment.

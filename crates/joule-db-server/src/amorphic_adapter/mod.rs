@@ -209,13 +209,49 @@ pub struct ColumnStatistics {
 /// `__schemas__` records for `CREATE TABLE` / `DROP TABLE` support.
 pub struct AmorphicTableStorage {
     store: RwLock<DurableAmorphicStore>,
+    /// Columnar snapshots per table, keyed by the store generation they were built at
+    col_cache: std::sync::Mutex<
+        HashMap<String, ((u64, usize), std::sync::Arc<crate::columnar_exec::TableColumns>)>,
+    >,
 }
 
 impl AmorphicTableStorage {
     pub fn new(store: DurableAmorphicStore) -> Self {
         Self {
             store: RwLock::new(store),
+            col_cache: std::sync::Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Typed column vectors for `table`, rebuilt only when the store changed.
+    /// `None` for views and unknown tables (callers use the general executor).
+    pub fn table_columns(
+        &self,
+        table: &str,
+    ) -> Option<std::sync::Arc<crate::columnar_exec::TableColumns>> {
+        if self.get_view(table).is_some() {
+            return None;
+        }
+        let store = self.store.read().ok()?;
+        let generation = store.generation();
+        if let Some((g, t)) = self.col_cache.lock().ok()?.get(table) {
+            if *g == generation {
+                return Some(t.clone());
+            }
+        }
+        let columns = self.get_schema_columns(&store, table).ok()?;
+        if columns.is_empty() {
+            return None;
+        }
+        let recs = store.records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
+        let t = std::sync::Arc::new(crate::columnar_exec::TableColumns::build(&columns, &recs));
+        drop(store);
+        let mut cache = self.col_cache.lock().ok()?;
+        if cache.len() > 64 {
+            cache.clear();
+        }
+        cache.insert(table.to_string(), (generation, t.clone()));
+        Some(t)
     }
 
     /// List all user-created table names (from schema metadata).

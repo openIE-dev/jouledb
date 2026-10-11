@@ -27,6 +27,7 @@ pub mod energy;
 pub mod energy_executor;
 pub mod enterprise;
 pub mod error;
+pub mod columnar_exec;
 pub mod cost_model;
 pub mod nvml;
 pub mod verify_policy;

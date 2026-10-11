@@ -580,6 +580,11 @@ impl DurableAmorphicStore {
         self.store.query_equals(field, value)
     }
 
+    /// See [`crate::AmorphicStore::generation`].
+    pub fn generation(&self) -> (u64, usize) {
+        (self.store.generation(), self.store.len())
+    }
+
     /// Borrowing variant of `query_equals` (no record clones).
     pub fn records_equal(&self, field: &str, value: &Value) -> Vec<&crate::AmorphicRecord> {
         self.store.records_equal(field, value)

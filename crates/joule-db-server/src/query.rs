@@ -3423,6 +3423,16 @@ impl SimpleQueryExecutor {
                     return self.execute_holographic_select(query, params, request_limit, start);
                 }
 
+                // Vectorized path for single-table filters/aggregates/GROUP BY
+                // JOULEDB_VECTORIZED=0 forces the general executor (A/B checks)
+                static VEC_ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+                let vec_on = *VEC_ON.get_or_init(|| std::env::var("JOULEDB_VECTORIZED").map_or(true, |v| v != "0"));
+                if vec_on && session_id.is_none() && params.is_empty() {
+                    if let Some(response) = self.try_vectorized_select(query, start) {
+                        return Ok(response);
+                    }
+                }
+
                 // Try columnar acceleration for simple aggregate queries
                 if let Some(response) = self.try_columnar_select(query, start) {
                     return Ok(response);
@@ -5996,6 +6006,30 @@ impl SimpleQueryExecutor {
                 })
             }
         }
+    }
+
+    /// Run a single-table analytic SELECT on cached typed columns
+    /// (crate::columnar_exec). `None` means "not this shape": the general
+    /// executor handles it with identical semantics.
+    fn try_vectorized_select(&self, query: &SqlQuery, start: Instant) -> Option<QueryResponse> {
+        let table = query.from.as_ref()?.table_name()?;
+        let cols = self.amorphic.table_columns(table)?;
+        let r = crate::columnar_exec::execute(query, &cols)?;
+        Some(QueryResponse {
+            columns: r.columns,
+            rows: r.rows,
+            affected_rows: None,
+            execution_time_ms: start.elapsed().as_millis() as u64,
+            truncated: false,
+            warnings: vec![],
+            energy_joules: None,
+            power_watts: None,
+            device_target: None,
+            algorithm_type: None,
+            session_id: None,
+            viz_hint: None,
+            energy_receipt: None,
+        })
     }
 
     /// Try to accelerate a SELECT query using columnar O(1) aggregates.
