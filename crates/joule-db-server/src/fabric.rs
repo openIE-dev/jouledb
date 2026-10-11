@@ -1304,6 +1304,17 @@ fn algorithm_for_sql(sql: &str) -> AlgorithmType {
     }
 }
 
+/// True when a live dispatch may submit to a GPU/ANE. wgpu_sum opens a
+/// device per call (~150 ms on jetson-hub's RTX 4050), which is far too
+/// long to sit on a query's response path.
+fn live_accelerator_lane() -> bool {
+    static LIVE: OnceLock<bool> = OnceLock::new();
+    *LIVE.get_or_init(|| {
+        let h = live_profile();
+        h.gpu.is_some() || h.ane.is_some()
+    })
+}
+
 /// True when the global meter waits for a sample to cover a job (powermetrics).
 fn host_meter_blocks() -> bool {
     crate::power_meter::Meter::global().source() == "powermetrics"
@@ -1364,13 +1375,14 @@ pub fn attach_receipt(response: &mut crate::query::QueryResponse, sql: &str) {
     let values = sample_values(response);
     let algorithm = algorithm_for_sql(sql);
     // The response carries a CPU receipt computed now. A measured receipt
-    // must wait for the meter's covering sample: on macOS, powermetrics
+    // must wait for the meter's covering sample (and a GPU lane for its
+    // device): on macOS, powermetrics
     // samples every 20-40 ms, which put a ~24 ms floor under every query
     // (even SELECT 1 on an M4 Max). So the full live dispatch (routed
     // GPU/ANE/CPU, measured joules, cost-model update) runs on a background
     // worker instead of on the response path. The receipt is always there
     // and always real work; only the measured calibration is asynchronous.
-    let receipt = if host_meter_blocks() {
+    let receipt = if host_meter_blocks() || live_accelerator_lane() {
         submit_measured_receipt(values.clone(), algorithm);
         let mut host = live_profile();
         host.live_gpu = false;
