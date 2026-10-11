@@ -463,14 +463,16 @@ impl AmorphicTableStorage {
         let t0 = std::time::Instant::now();
         let gen_before = store.generation();
         let ids = store.ingest_fields_batch(batch).map_err(amorphic_error)?;
+        let t_cache = std::time::Instant::now();
         self.refresh_columns_after_load(&store, table, gen_before, &ids);
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
             eprintln!(
-                "insert_rows n={} lock={:?} prep={:?} store={:?}",
+                "insert_rows n={} lock={:?} prep={:?} store={:?} colcache={:?}",
                 ids.len(),
                 lock_wait,
                 t0 - t_lock - lock_wait,
-                t0.elapsed()
+                t_cache - t0,
+                t_cache.elapsed()
             );
         }
         if store.pending_holograms() > 0 {

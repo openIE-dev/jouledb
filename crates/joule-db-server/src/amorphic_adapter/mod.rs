@@ -391,8 +391,9 @@ impl AmorphicTableStorage {
         let now = store.generation();
         match cache.get_mut(table) {
             Some((g, t)) if *g == before => {
+                use rayon::prelude::*;
                 let recs: Vec<&joule_db_amorphic::AmorphicRecord> =
-                    ids.iter().filter_map(|&id| store.get(id)).collect();
+                    ids.par_iter().filter_map(|&id| store.get(id)).collect();
                 if recs.len() == ids.len() && std::sync::Arc::make_mut(t).append(&recs) {
                     *g = now;
                 } else {
