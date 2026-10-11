@@ -1266,38 +1266,25 @@ impl AmorphicStore {
                         },
                         || {
                             let t = std::time::Instant::now();
-                            // group ids by value hash in parallel (radix
-                            // shards, ids kept in row order), then one map
-                            // entry per distinct hash instead of per cell
-                            const SH: usize = 64;
-                            let shards: Vec<Vec<(u64, Vec<RecordId>)>> = (0..SH)
-                                .into_par_iter()
-                                .map(|sh| {
-                                    let mut m: rustc_hash::FxHashMap<u64, Vec<RecordId>> =
-                                        Default::default();
-                                    let mut order: Vec<u64> = Vec::new();
-                                    for ((id, _), hs) in rows_ref.iter().zip(hashes_ref) {
-                                        for &h in hs {
-                                            if (h as usize) % SH == sh {
-                                                let e = m.entry(h).or_default();
-                                                if e.is_empty() {
-                                                    order.push(h);
-                                                }
-                                                e.push(*id);
-                                            }
-                                        }
-                                    }
-                                    order
-                                        .into_iter()
-                                        .map(|h| {
-                                            let v = m.remove(&h).unwrap_or_default();
-                                            (h, v)
-                                        })
-                                        .collect()
-                                })
+                            // (hash, row) pairs sorted in parallel, then one
+                            // map entry per distinct hash (ids stay in row
+                            // order) instead of one per cell
+                            let mut pairs: Vec<(u64, u32)> = hashes_ref
+                                .par_iter()
+                                .enumerate()
+                                .flat_map_iter(|(r, hs)| hs.iter().map(move |&h| (h, r as u32)))
                                 .collect();
-                            for (h, ids) in shards.into_iter().flatten() {
-                                vi.entry(h).or_default().extend_from_slice(&ids);
+                            pairs.par_sort_unstable();
+                            let mut k = 0;
+                            while k < pairs.len() {
+                                let h = pairs[k].0;
+                                let mut e = k;
+                                while e < pairs.len() && pairs[e].0 == h {
+                                    e += 1;
+                                }
+                                let list = vi.entry(h).or_default();
+                                list.extend(pairs[k..e].iter().map(|&(_, r)| rows_ref[r as usize].0));
+                                k = e;
                             }
                             for (id, fields) in rows_ref.iter() {
                                 for (field, value) in fields.iter() {
