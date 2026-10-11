@@ -22,7 +22,8 @@ wasm-triggers = ["wasmtime"]  # Enable Wasm trigger execution
 viz = ["dep:joule-db-viz"]  # Visualization hint inference
 adaptive-pool = []  # Adaptive connection pool sizing
 [dependencies]
-arrow = { version = "58", default-features = false, features = ["ipc", "ipc_compression"] }
+half = { workspace = true }
+arrow = { version = "58", default-features = false, features = ["ipc", "ipc_compression", "chrono-tz"] }
 parquet = { version = "58", default-features = false, features = ["arrow", "snap", "zstd"] }
 rayon = { workspace = true }
 rustc-hash = { workspace = true }

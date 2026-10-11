@@ -1790,19 +1790,34 @@ fn copy_file(
         .map_err(|e| (e.code, e.message))?;
         let p = copy_file_path(&path, false).map_err(bad)?;
         let batches = crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
-        let (file_cols, rows) = crate::file_formats::batches_to_copy_rows(&batches).map_err(bad)?;
+        let (file_cols, rows) = crate::file_formats::batches_to_values(&batches).map_err(bad)?;
         let cols = if spec.columns.is_empty() { file_cols } else { spec.columns.clone() };
         if rows.is_empty() {
             return Ok(0);
         }
-        if conn_state.session_id.is_some() {
-            return Err(("0A000".into(), "COPY FROM a file inside a transaction is not supported yet".into()));
+        if conn_state.session_id.is_none() {
+            // Not in a transaction: typed rows straight into the store.
+            match executor.bulk_insert_values(&spec.target, &cols, rows.clone()) {
+                Some(Ok(n)) => return Ok(n),
+                Some(Err(e)) => return Err((e.code, e.message)),
+                None => {} // not eligible here: batched INSERTs below
+            }
         }
-        match executor.bulk_copy(&spec.target, &cols, &rows) {
-            Some(Ok(n)) => Ok(n),
-            Some(Err(e)) => Err((e.code, e.message)),
-            None => Err(("0A000".into(), "bulk COPY is not available on this executor".into())),
+        // Inside BEGIN..COMMIT (or not bulk-eligible): batched INSERTs through
+        // the session, so the rows commit or roll back with the transaction.
+        let col_list = format!(" ({})", cols.join(", "));
+        let mut total = 0usize;
+        for chunk in rows.chunks(COPY_BATCH_ROWS) {
+            let values: Vec<String> = chunk
+                .iter()
+                .map(|r| format!("({})", r.iter().map(ast_literal).collect::<Vec<_>>().join(", ")))
+                .collect();
+            let sql = format!("INSERT INTO {}{} VALUES {}", spec.target, col_list, values.join(", "));
+            run_statement(&sql, executor, conn_state, timeout)
+                .map_err(|e| (e.code, format!("COPY row {}: {}", total + 1, e.message)))?;
+            total += chunk.len();
         }
+        Ok(total)
     } else {
         let query = if spec.is_query {
             spec.target.clone()
@@ -1931,6 +1946,30 @@ fn split_csv_seq(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>
         rows.push(row);
     }
     rows
+}
+
+/// Typed value -> SQL literal for the in-transaction file COPY path.
+/// Strings stay quoted (never re-typed as numbers); arrays and objects go
+/// in as their JSON text; bytes as a hex string.
+fn ast_literal(v: &joule_db_query::ast::Value) -> String {
+    use joule_db_query::ast::Value as V;
+    let q = |s: &str| format!("'{}'", s.replace('\'', "''"));
+    match v {
+        V::Null => "NULL".into(),
+        V::Bool(b) => if *b { "TRUE".into() } else { "FALSE".into() },
+        V::Int(i) => i.to_string(),
+        V::Float(f) if f.is_finite() => {
+            let t = f.to_string();
+            if t.contains(['.', 'e', 'E']) { t } else { format!("{t}.0") }
+        }
+        V::Float(f) => q(&f.to_string()),
+        V::String(s) | V::Uuid(s) => q(s),
+        V::Timestamp(t) => t.to_string(),
+        V::Bytes(b) => q(&b.iter().map(|x| format!("{x:02x}")).collect::<String>()),
+        V::Array(_) | V::Object(_) | V::Vector(_) => {
+            q(&crate::amorphic_adapter::ast_to_json(v).to_string())
+        }
+    }
 }
 
 fn sql_literal(v: &Option<String>) -> String {

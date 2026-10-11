@@ -213,6 +213,15 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
         self.inner.bulk_copy(table, columns, rows)
     }
 
+    fn bulk_insert_values(
+        &self,
+        table: &str,
+        columns: &[String],
+        rows: Vec<Vec<joule_db_query::ast::Value>>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.inner.bulk_insert_values(table, columns, rows)
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let t_all = std::time::Instant::now();
         // Classify the SQL statement for energy tracking

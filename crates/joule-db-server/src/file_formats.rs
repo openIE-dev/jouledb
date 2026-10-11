@@ -244,6 +244,175 @@ pub fn batches_to_copy_rows(batches: &[RecordBatch]) -> Result<(Vec<String>, Vec
     Ok((columns, rows))
 }
 
+/// Batches -> (column names, typed rows) keeping the source schema's types:
+///
+/// | Arrow | JouleDB value |
+/// |---|---|
+/// | Utf8 / LargeUtf8 / Utf8View | String (always, even if it looks numeric) |
+/// | Int8..Int64, UInt8..UInt32 | Int |
+/// | UInt64 | Int, or String when above i64::MAX (exact) |
+/// | Float16/32/64 | Float |
+/// | Boolean | Bool |
+/// | Decimal128/256 | Int when scale 0 and it fits; Float when precision <= 15; else String (exact) |
+/// | Date32/Date64 | String `YYYY-MM-DD` |
+/// | Timestamp(unit, tz) | String ISO 8601 (`2024-01-02T03:04:05.123`, with offset when tz is set) |
+/// | Time / Duration / Interval | String (Arrow display) |
+/// | Binary / LargeBinary / FixedSizeBinary | Bytes |
+/// | List / LargeList / FixedSizeList | Array (element-wise) |
+/// | Struct | Object |
+/// | Dictionary | its value type |
+/// | Null, or a NULL slot | Null |
+pub fn batches_to_values(
+    batches: &[RecordBatch],
+) -> Result<(Vec<String>, Vec<Vec<joule_db_query::ast::Value>>), String> {
+    let Some(first) = batches.first() else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let columns: Vec<String> = first.schema().fields().iter().map(|f| f.name().clone()).collect();
+    let total: usize = batches.iter().map(|b| b.num_rows()).sum();
+    let mut rows: Vec<Vec<joule_db_query::ast::Value>> = Vec::with_capacity(total);
+    for b in batches {
+        let cols: Vec<Vec<joule_db_query::ast::Value>> = b
+            .columns()
+            .iter()
+            .map(|a| array_values(a.as_ref()))
+            .collect::<Result<_, _>>()?;
+        for i in 0..b.num_rows() {
+            rows.push(cols.iter().map(|c| c[i].clone()).collect());
+        }
+    }
+    Ok((columns, rows))
+}
+
+fn array_values(a: &dyn Array) -> Result<Vec<joule_db_query::ast::Value>, String> {
+    use arrow::array::AsArray;
+    use arrow::datatypes::*;
+    use joule_db_query::ast::Value as V;
+    let n = a.len();
+    let null_or = |i: usize, f: &dyn Fn(usize) -> V| if a.is_null(i) { V::Null } else { f(i) };
+    macro_rules! prim {
+        ($t:ty, $conv:expr) => {{
+            let p = a.as_primitive::<$t>();
+            (0..n).map(|i| null_or(i, &|i| $conv(p.value(i)))).collect()
+        }};
+    }
+    let fmt_all = |a: &dyn Array| -> Result<Vec<V>, String> {
+        let f = ArrayFormatter::try_new(a, &FormatOptions::default()).map_err(err)?;
+        Ok((0..a.len()).map(|i| if a.is_null(i) { V::Null } else { V::String(f.value(i).to_string()) }).collect())
+    };
+    Ok(match a.data_type() {
+        DataType::Null => vec![V::Null; n],
+        DataType::Boolean => {
+            let b = a.as_boolean();
+            (0..n).map(|i| null_or(i, &|i| V::Bool(b.value(i)))).collect()
+        }
+        DataType::Int8 => prim!(Int8Type, |v: i8| V::Int(v as i64)),
+        DataType::Int16 => prim!(Int16Type, |v: i16| V::Int(v as i64)),
+        DataType::Int32 => prim!(Int32Type, |v: i32| V::Int(v as i64)),
+        DataType::Int64 => prim!(Int64Type, V::Int),
+        DataType::UInt8 => prim!(UInt8Type, |v: u8| V::Int(v as i64)),
+        DataType::UInt16 => prim!(UInt16Type, |v: u16| V::Int(v as i64)),
+        DataType::UInt32 => prim!(UInt32Type, |v: u32| V::Int(v as i64)),
+        DataType::UInt64 => prim!(UInt64Type, |v: u64| i64::try_from(v)
+            .map(V::Int)
+            .unwrap_or_else(|_| V::String(v.to_string()))),
+        DataType::Float16 => prim!(Float16Type, |v: half::f16| V::Float(v.to_f64())),
+        DataType::Float32 => prim!(Float32Type, |v: f32| V::Float(v as f64)),
+        DataType::Float64 => prim!(Float64Type, V::Float),
+        DataType::Utf8 => {
+            let s = a.as_string::<i32>();
+            (0..n).map(|i| null_or(i, &|i| V::String(s.value(i).to_string()))).collect()
+        }
+        DataType::LargeUtf8 => {
+            let s = a.as_string::<i64>();
+            (0..n).map(|i| null_or(i, &|i| V::String(s.value(i).to_string()))).collect()
+        }
+        DataType::Utf8View => {
+            let s = a.as_string_view();
+            (0..n).map(|i| null_or(i, &|i| V::String(s.value(i).to_string()))).collect()
+        }
+        DataType::Binary => {
+            let s = a.as_binary::<i32>();
+            (0..n).map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec()))).collect()
+        }
+        DataType::LargeBinary => {
+            let s = a.as_binary::<i64>();
+            (0..n).map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec()))).collect()
+        }
+        DataType::FixedSizeBinary(_) => {
+            let s = a.as_fixed_size_binary();
+            (0..n).map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec()))).collect()
+        }
+        DataType::Decimal128(p, sc) => {
+            let (p, sc) = (*p, *sc);
+            let d = a.as_primitive::<Decimal128Type>();
+            let f = ArrayFormatter::try_new(a, &FormatOptions::default()).map_err(err)?;
+            (0..n)
+                .map(|i| {
+                    if a.is_null(i) {
+                        V::Null
+                    } else if sc == 0 && i64::try_from(d.value(i)).is_ok() {
+                        V::Int(d.value(i) as i64)
+                    } else if p <= 15 {
+                        V::Float(d.value(i) as f64 / 10f64.powi(sc as i32))
+                    } else {
+                        V::String(f.value(i).to_string())
+                    }
+                })
+                .collect()
+        }
+        DataType::Decimal256(p, _) if *p <= 15 => {
+            let c = arrow::compute::cast(a, &DataType::Float64).map_err(err)?;
+            array_values(c.as_ref())?
+        }
+        DataType::Dictionary(_, vt) => {
+            let c = arrow::compute::cast(a, vt).map_err(err)?;
+            array_values(c.as_ref())?
+        }
+        DataType::Date32 | DataType::Date64 | DataType::Timestamp(_, _) => fmt_all(a)?,
+        DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _) => {
+            let mut out = Vec::with_capacity(n);
+            for i in 0..n {
+                if a.is_null(i) {
+                    out.push(V::Null);
+                    continue;
+                }
+                let child = match a.data_type() {
+                    DataType::List(_) => a.as_list::<i32>().value(i),
+                    DataType::LargeList(_) => a.as_list::<i64>().value(i),
+                    _ => a.as_fixed_size_list().value(i),
+                };
+                out.push(V::Array(array_values(child.as_ref())?));
+            }
+            out
+        }
+        DataType::Struct(fields) => {
+            let st = a.as_struct();
+            let kids: Vec<Vec<V>> = st
+                .columns()
+                .iter()
+                .map(|c| array_values(c.as_ref()))
+                .collect::<Result<_, _>>()?;
+            (0..n)
+                .map(|i| {
+                    if a.is_null(i) {
+                        V::Null
+                    } else {
+                        V::Object(
+                            fields
+                                .iter()
+                                .zip(&kids)
+                                .map(|(f, k)| (f.name().clone(), k[i].clone()))
+                                .collect(),
+                        )
+                    }
+                })
+                .collect()
+        }
+        _ => fmt_all(a)?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,6 +443,78 @@ mod tests {
             assert_eq!(r[1][1], None);
             assert_eq!(r[1][2].as_deref(), Some("2.0")); // float column keeps its type
             assert_eq!(r[2][3], None);
+        }
+    }
+
+    #[test]
+    fn typed_import_keeps_source_types() {
+        use arrow::array::*;
+        use arrow::datatypes::{TimeUnit, DataType as DT};
+        use joule_db_query::ast::Value as V;
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("zip", DT::Utf8, true),
+            Field::new("d", DT::Date32, true),
+            Field::new("ts", DT::Timestamp(TimeUnit::Microsecond, None), true),
+            Field::new("tsz", DT::Timestamp(TimeUnit::Millisecond, Some("UTC".into())), true),
+            Field::new("price", DT::Decimal128(10, 2), true),
+            Field::new("big", DT::Decimal128(38, 4), true),
+            Field::new("ok", DT::Boolean, true),
+            Field::new("nothing", DT::Null, true),
+            Field::new("u", DT::UInt64, true),
+            Field::new("i32", DT::Int32, true),
+            Field::new("f32", DT::Float32, true),
+            Field::new("dict", DT::Dictionary(Box::new(DT::Int32), Box::new(DT::Utf8)), true),
+        ]));
+        let dict: DictionaryArray<arrow::datatypes::Int32Type> = vec![Some("x"), None].into_iter().collect();
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(vec![Some("02139"), Some("123")])),
+                Arc::new(Date32Array::from(vec![Some(19723), None])),
+                Arc::new(TimestampMicrosecondArray::from(vec![Some(1_704_164_645_123_000), None])),
+                Arc::new(TimestampMillisecondArray::from(vec![Some(0), None]).with_timezone("UTC")),
+                Arc::new(Decimal128Array::from(vec![Some(12345), None]).with_precision_and_scale(10, 2).unwrap()),
+                Arc::new(
+                    Decimal128Array::from(vec![Some(12345678901234567890123i128), None])
+                        .with_precision_and_scale(38, 4)
+                        .unwrap(),
+                ),
+                Arc::new(BooleanArray::from(vec![Some(true), None])),
+                Arc::new(NullArray::new(2)),
+                Arc::new(UInt64Array::from(vec![Some(u64::MAX), Some(7)])),
+                Arc::new(Int32Array::from(vec![Some(-3), None])),
+                Arc::new(Float32Array::from(vec![Some(0.5), None])),
+                Arc::new(dict),
+            ],
+        )
+        .unwrap();
+        for fmt in [FileFormat::Parquet, FileFormat::ArrowFile] {
+            let dir = tempfile::tempdir().unwrap();
+            let p = dir.path().join("typed");
+            let p = p.to_str().unwrap();
+            std::fs::write(p, write_bytes(&batch, fmt).unwrap()).unwrap();
+            let (cols, rows) = batches_to_values(&read_file(p, fmt).unwrap()).unwrap();
+            assert_eq!(cols[0], "zip");
+            let r = &rows[0];
+            assert_eq!(r[0], V::String("02139".into()), "{fmt:?}");
+            assert_eq!(rows[1][0], V::String("123".into()), "numeric-looking string stays text");
+            assert_eq!(r[1], V::String("2024-01-01".into())); // day 19723
+            assert_eq!(r[2], V::String("2024-01-02T03:04:05.123".into()));
+            assert!(matches!(&r[3], V::String(s) if s.starts_with("1970-01-01T00:00:00") && (s.ends_with('Z') || s.ends_with("+00:00"))), "{:?}", r[3]);
+            assert_eq!(r[4], V::Float(123.45));
+            assert_eq!(r[5], V::String("1234567890123456789.0123".into()));
+            assert_eq!(r[6], V::Bool(true));
+            assert_eq!(r[7], V::Null);
+            assert_eq!(r[8], V::String(u64::MAX.to_string()));
+            assert_eq!(rows[1][8], V::Int(7));
+            assert_eq!(r[9], V::Int(-3));
+            assert_eq!(r[10], V::Float(0.5));
+            assert_eq!(r[11], V::String("x".into()));
+            for c in 1..12 {
+                if c != 8 {
+                    assert_eq!(rows[1][c], V::Null, "col {c} {fmt:?}");
+                }
+            }
         }
     }
 

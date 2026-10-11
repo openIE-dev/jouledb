@@ -209,6 +209,17 @@ pub trait QueryExecutor: Send + Sync {
     ) -> Option<Result<usize, QueryErrorResponse>> {
         None
     }
+
+    /// Typed bulk insert (Parquet / Arrow import): values keep their source
+    /// types instead of being re-inferred from text. Same `None` contract.
+    fn bulk_insert_values(
+        &self,
+        _table: &str,
+        _columns: &[String],
+        _rows: Vec<Vec<AstValue>>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        None
+    }
 }
 
 /// COPY text field -> value, with the same typing COPY's INSERT fallback
@@ -625,6 +636,71 @@ impl Default for SimpleQueryExecutor {
     }
 }
 
+impl SimpleQueryExecutor {
+    /// Validated, chunked insert of typed rows (COPY and file import).
+    fn bulk_insert_core(
+        &self,
+        table: &str,
+        insert_columns: Vec<String>,
+        column_defs: Vec<crate::amorphic_adapter::ColumnDefInfo>,
+        rows: Vec<Vec<AstValue>>,
+    ) -> Result<usize, QueryErrorResponse> {
+        self.fire_triggers(table, "BEFORE", "INSERT");
+        let mut inserted = 0usize;
+        for chunk in rows.chunks(8192) {
+            let t_val = std::time::Instant::now();
+            use rayon::prelude::*;
+            let validated: Vec<Result<RowData, String>> = chunk
+                .par_iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    if r.len() != insert_columns.len() {
+                        return Err(format!(
+                            "COPY row {}: expected {} columns, got {}",
+                            inserted + i + 1,
+                            insert_columns.len(),
+                            r.len()
+                        ));
+                    }
+                    apply_defaults_and_validate(insert_columns.clone(), r.clone(), &column_defs)
+                })
+                .collect();
+            let mut batch = Vec::with_capacity(chunk.len());
+            for v in validated {
+                match v {
+                    Ok(row) => batch.push(row),
+                    Err(e) => return Err(QueryErrorResponse::execution_error(&e)),
+                }
+            }
+            let t_ins = std::time::Instant::now();
+            let r = self.amorphic.insert_rows(table, &batch);
+            if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                eprintln!(
+                    "bulk_copy validate={:?} insert_rows={:?}",
+                    t_ins - t_val,
+                    t_ins.elapsed()
+                );
+            }
+            match r {
+                Ok(ids) => inserted += ids.len(),
+                Err(e) => return Err(QueryErrorResponse::execution_error(&e.to_string())),
+            }
+        }
+        if inserted > 0 {
+            self.fire_triggers(table, "AFTER", "INSERT");
+            self.broadcast_replication(
+                crate::replication::ReplicationOp::Put,
+                table,
+                Some(&format!(
+                    "{{\"__op__\":\"INSERT\",\"__table__\":\"{}\",\"__count__\":{}}}",
+                    table, inserted
+                )),
+            );
+        }
+        Ok(inserted)
+    }
+}
+
 impl QueryExecutor for SimpleQueryExecutor {
     fn bulk_copy(
         &self,
@@ -649,60 +725,31 @@ impl QueryExecutor for SimpleQueryExecutor {
         if rows.iter().flatten().any(|v| copy_field_value(v).is_none()) {
             return None;
         }
-        self.fire_triggers(table, "BEFORE", "INSERT");
-        let mut inserted = 0usize;
-        for chunk in rows.chunks(8192) {
-            let t_val = std::time::Instant::now();
+        let typed: Vec<Vec<AstValue>> = {
             use rayon::prelude::*;
-            let validated: Vec<Result<RowData, String>> = chunk
-                .par_iter()
-                .enumerate()
-                .map(|(i, r)| {
-                    if r.len() != insert_columns.len() {
-                        return Err(format!(
-                            "COPY row {}: expected {} columns, got {}",
-                            inserted + i + 1,
-                            insert_columns.len(),
-                            r.len()
-                        ));
-                    }
-                    let values: Vec<AstValue> = r.iter().filter_map(copy_field_value).collect();
-                    apply_defaults_and_validate(insert_columns.clone(), values, &column_defs)
-                })
-                .collect();
-            let mut batch = Vec::with_capacity(chunk.len());
-            for v in validated {
-                match v {
-                    Ok(row) => batch.push(row),
-                    Err(e) => return Some(Err(QueryErrorResponse::execution_error(&e))),
-                }
-            }
-            let t_ins = std::time::Instant::now();
-            let r = self.amorphic.insert_rows(table, &batch);
-            if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-                eprintln!(
-                    "bulk_copy validate={:?} insert_rows={:?}",
-                    t_ins - t_val,
-                    t_ins.elapsed()
-                );
-            }
-            match r {
-                Ok(ids) => inserted += ids.len(),
-                Err(e) => return Some(Err(QueryErrorResponse::execution_error(&e.to_string()))),
-            }
+            rows.par_iter()
+                .map(|r| r.iter().filter_map(copy_field_value).collect())
+                .collect()
+        };
+        Some(self.bulk_insert_core(table, insert_columns, column_defs, typed))
+    }
+
+    fn bulk_insert_values(
+        &self,
+        table: &str,
+        columns: &[String],
+        rows: Vec<Vec<AstValue>>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        if table == "holographic" || table == "kv" || self.amorphic.get_view(table).is_some() {
+            return None;
         }
-        if inserted > 0 {
-            self.fire_triggers(table, "AFTER", "INSERT");
-            self.broadcast_replication(
-                crate::replication::ReplicationOp::Put,
-                table,
-                Some(&format!(
-                    "{{\"__op__\":\"INSERT\",\"__table__\":\"{}\",\"__count__\":{}}}",
-                    table, inserted
-                )),
-            );
+        let table_columns = self.amorphic.columns(table).ok()?;
+        let column_defs = self.amorphic.get_column_defs(table).unwrap_or_default();
+        if !self.bulk_insert_eligible(table, &column_defs) {
+            return None;
         }
-        Some(Ok(inserted))
+        let insert_columns = if columns.is_empty() { table_columns } else { columns.to_vec() };
+        Some(self.bulk_insert_core(table, insert_columns, column_defs, rows))
     }
 
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {

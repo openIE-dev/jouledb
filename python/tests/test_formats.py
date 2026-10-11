@@ -77,3 +77,54 @@ def test_http_export(pg):
 def test_outside_copy_dir_refused(pg):
     with pytest.raises(psycopg.Error, match="outside JOULEDB_COPY_DIR"):
         pg.execute("COPY x FROM '/etc/hostname.parquet'")
+
+
+def test_types_kept_from_source(pg):
+    import datetime as dt
+    import decimal
+
+    t = name()
+    tbl = pa.table({
+        "zip": pa.array(["02139", "123", None]),
+        "d": pa.array([dt.date(2024, 1, 1), None, dt.date(1999, 12, 31)]),
+        "ts": pa.array([dt.datetime(2024, 1, 2, 3, 4, 5, 123000), None, None], pa.timestamp("us")),
+        "price": pa.array([decimal.Decimal("123.45"), None, decimal.Decimal("-0.01")], pa.decimal128(10, 2)),
+        "ok": pa.array([True, None, False]),
+        "n": pa.array([None, None, None], pa.null()),
+    })
+    pq.write_table(tbl, f"{D}/{t}.parquet")
+    pg.execute(f"CREATE TABLE {t} (zip TEXT, d TEXT, ts TEXT, price FLOAT, ok BOOLEAN, n TEXT)")
+    assert pg.execute(f"COPY {t} FROM '{t}.parquet'").statusmessage == "COPY 3"
+    rows = pg.execute(f"SELECT zip, d, ts, price, ok, n FROM {t}").fetchall()
+    rows = sorted(rows, key=lambda r: str(r[0]))
+    zips = sorted([r[0] for r in rows if r[0] is not None])
+    assert zips == ["02139", "123"], zips  # numeric-looking strings stay strings
+    by_zip = {r[0]: r for r in rows}
+    assert by_zip["02139"][1] == "2024-01-01"
+    assert by_zip["02139"][2] == "2024-01-02T03:04:05.123"
+    assert abs(float(by_zip["02139"][3]) - 123.45) < 1e-9
+    assert by_zip["02139"][4] in (True, "true", "t")
+    assert all(r[5] is None for r in rows)
+    # zip is still text on the way back out
+    pg.execute(f"COPY {t} TO '{D}/{t}_back.parquet'")
+    assert pq.read_table(f"{D}/{t}_back.parquet").column("zip").type == pa.string()
+
+
+def test_copy_file_in_transaction(pg):
+    t = name()
+    pq.write_table(pa.table({"id": pa.array(range(300), pa.int64()), "s": [f"0{i}" for i in range(300)]}), f"{D}/{t}.parquet")
+    pg.execute(f"CREATE TABLE {t} (id INT, s TEXT)")
+    pg.autocommit = False
+    try:
+        # (plain INSERTs inside a transaction aren't visible to the session's own
+        # SELECT until COMMIT yet; COPY behaves the same, so no in-txn count here)
+        assert pg.execute(f"COPY {t} FROM '{t}.parquet'").statusmessage == "COPY 300"
+        pg.rollback()
+        assert pg.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] == 0
+        pg.rollback()
+        pg.execute(f"COPY {t} FROM '{t}.parquet'")
+        pg.commit()
+    finally:
+        pg.rollback()
+        pg.autocommit = True
+    assert pg.execute(f"SELECT COUNT(*), MIN(s) FROM {t}").fetchone() == (300, "00")
