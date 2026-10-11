@@ -318,12 +318,12 @@ impl DurableAmorphicStore {
                     .map_err(|e| {
                         AmorphicError::IngestionError(format!("Serialization failed: {}", e))
                     })?;
-                let writes: Vec<(RecordId, &[u8])> = rows
+                let writes: Vec<(RecordId, Vec<u8>)> = rows
                     .iter()
-                    .zip(&serialized)
-                    .map(|((id, _), b)| (*id, b.as_slice()))
+                    .zip(serialized)
+                    .map(|((id, _), b)| (*id, b))
                     .collect();
-                wal.log_page_writes(tx_id, &writes)
+                wal.log_page_writes_owned(tx_id, writes)
                     .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
             })?;
         wal_result?;

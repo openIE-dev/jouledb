@@ -503,6 +503,49 @@ impl WalManager {
         Ok(())
     }
 
+    /// `log_page_writes` taking ownership of the payloads (no copy), encoding
+    /// in parallel into a few large chunk buffers instead of one buffer per
+    /// entry plus a gather copy.
+    pub fn log_page_writes_owned(
+        &mut self,
+        tx_id: u64,
+        writes: Vec<(PageId, Vec<u8>)>,
+    ) -> Result<(), StorageError> {
+        use rayon::prelude::*;
+        if writes.is_empty() {
+            return Ok(());
+        }
+        let first = self.current_lsn.fetch_add(writes.len() as u64, Ordering::SeqCst);
+        const CHUNK: usize = 2048;
+        let mut indexed: Vec<(usize, (PageId, Vec<u8>))> = writes.into_iter().enumerate().collect();
+        let chunks: Vec<Vec<u8>> = indexed
+            .par_chunks_mut(CHUNK)
+            .map(|chunk| -> Result<Vec<u8>, StorageError> {
+                let mut buf = Vec::with_capacity(chunk.iter().map(|(_, (_, d))| d.len() + 64).sum());
+                for (i, (page, data)) in chunk.iter_mut() {
+                    let e = WalEntry::page_write(first + *i as u64, tx_id, *page, std::mem::take(data))
+                        .encode()?;
+                    buf.extend_from_slice(&e);
+                }
+                Ok(buf)
+            })
+            .collect::<Result<_, _>>()?;
+        let mut total = 0usize;
+        for c in &chunks {
+            self.writer
+                .write_all(c)
+                .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+            total += c.len();
+        }
+        self.file_position.fetch_add(total as u64, Ordering::SeqCst);
+        let mut active = self
+            .active_transactions
+            .write()
+            .unwrap_or_else(|p| p.into_inner());
+        active.entry(tx_id).or_insert(first);
+        Ok(())
+    }
+
     pub fn log_page_write(
         &mut self,
         tx_id: u64,

@@ -1266,9 +1266,41 @@ impl AmorphicStore {
                         },
                         || {
                             let t = std::time::Instant::now();
-                            for ((id, fields), hs) in rows_ref.iter().zip(hashes_ref) {
-                                for (i, (field, value)) in fields.iter().enumerate() {
-                                    vi.entry(hs[i]).or_default().push(*id);
+                            // group ids by value hash in parallel (radix
+                            // shards, ids kept in row order), then one map
+                            // entry per distinct hash instead of per cell
+                            const SH: usize = 64;
+                            let shards: Vec<Vec<(u64, Vec<RecordId>)>> = (0..SH)
+                                .into_par_iter()
+                                .map(|sh| {
+                                    let mut m: rustc_hash::FxHashMap<u64, Vec<RecordId>> =
+                                        Default::default();
+                                    let mut order: Vec<u64> = Vec::new();
+                                    for ((id, _), hs) in rows_ref.iter().zip(hashes_ref) {
+                                        for &h in hs {
+                                            if (h as usize) % SH == sh {
+                                                let e = m.entry(h).or_default();
+                                                if e.is_empty() {
+                                                    order.push(h);
+                                                }
+                                                e.push(*id);
+                                            }
+                                        }
+                                    }
+                                    order
+                                        .into_iter()
+                                        .map(|h| {
+                                            let v = m.remove(&h).unwrap_or_default();
+                                            (h, v)
+                                        })
+                                        .collect()
+                                })
+                                .collect();
+                            for (h, ids) in shards.into_iter().flatten() {
+                                vi.entry(h).or_default().extend_from_slice(&ids);
+                            }
+                            for (id, fields) in rows_ref.iter() {
+                                for (field, value) in fields.iter() {
                                     if field == "name" || field == "_name" {
                                         if let Value::String(name) = value {
                                             names.insert(name.clone(), *id);
