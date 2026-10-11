@@ -1215,6 +1215,9 @@ impl AmorphicStore {
             }
         }
         let mut side_result = None;
+        let nrows = rows.len();
+        let mut shells: Vec<BinaryHV> = Vec::new();
+        let mut branch_t = Default::default();
         // value hashes in parallel
         let hashes: Vec<Vec<u64>> = rows
             .par_iter()
@@ -1231,10 +1234,11 @@ impl AmorphicStore {
             let (vi, names) = (&mut self.value_index, &mut self.name_to_id);
             let rows_ref = &rows;
             let hashes_ref = &hashes;
-            let (_, side_out) = rayon::join(
+            let (idx_out, side_out) = rayon::join(
                 || {
                     rayon::join(
                         || {
+                            let t = std::time::Instant::now();
                             rayon::join(
                                 || {
                                     fi.par_iter_mut().for_each(|(f, v)| {
@@ -1257,9 +1261,11 @@ impl AmorphicStore {
                                         || co.record_batch(&cols),
                                     )
                                 },
-                            )
+                            );
+                            t.elapsed()
                         },
                         || {
+                            let t = std::time::Instant::now();
                             for ((id, fields), hs) in rows_ref.iter().zip(hashes_ref) {
                                 for (i, (field, value)) in fields.iter().enumerate() {
                                     vi.entry(hs[i]).or_default().push(*id);
@@ -1270,11 +1276,32 @@ impl AmorphicStore {
                                     }
                                 }
                             }
+                            t.elapsed()
                         },
                     )
                 },
-                || side(rows_ref),
+                || {
+                    rayon::join(
+                        || {
+                            let t = std::time::Instant::now();
+                            let r = side(rows_ref);
+                            (r, t.elapsed())
+                        },
+                        // hypervector shells (placeholder until catch-up)
+                        // allocated on otherwise idle cores, overlapped with
+                        // the index updates and WAL
+                        || {
+                            (0..nrows)
+                                .into_par_iter()
+                                .map(|_| BinaryHV::zeros(DIMENSION))
+                                .collect::<Vec<_>>()
+                        },
+                    )
+                },
             );
+            let ((perfield, vi_t), ((side_out, side_t), hvs)) = (idx_out, side_out);
+            shells = hvs;
+            branch_t = (perfield, vi_t, side_t);
             side_result = Some(side_out);
         }
         let t_shell = std::time::Instant::now();
@@ -1285,9 +1312,10 @@ impl AmorphicStore {
         // record shells (placeholder hypervector until catch-up) in parallel
         let recs: Vec<AmorphicRecord> = rows
             .into_par_iter()
-            .map(|(id, fields)| AmorphicRecord {
+            .zip(shells.into_par_iter())
+            .map(|((id, fields), hologram)| AmorphicRecord {
                 id,
-                hologram: BinaryHV::zeros(DIMENSION),
+                hologram,
                 fields,
                 edges: vec![],
                 timestamp: None,
@@ -1299,8 +1327,9 @@ impl AmorphicStore {
             self.records.insert(rec.id, rec);
         }
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            let (pf, vi, wal): (std::time::Duration, std::time::Duration, std::time::Duration) = branch_t;
             eprintln!(
-                "apply indexes+wal={:?} shells={:?} records_insert={:?}",
+                "apply indexes+wal={:?} (per-field={pf:?} value_index={vi:?} wal={wal:?}) shells={:?} records_insert={:?}",
                 t_shell - t_start,
                 t_ins - t_shell,
                 t_ins.elapsed()
