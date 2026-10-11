@@ -31,9 +31,6 @@ pub enum WorkflowError {
     #[error("workflow already exists: {0}")]
     AlreadyExists(String),
 
-    #[error("energy budget exceeded: used {used_uj} uJ, budget {budget_uj} uJ")]
-    EnergyBudgetExceeded { used_uj: u64, budget_uj: u64 },
-
     #[error("step failed: {step} — {reason}")]
     StepFailed { step: String, reason: String },
 
@@ -141,6 +138,15 @@ pub struct WorkflowInstance {
     pub status: WorkflowStatus,
     pub step_results: Vec<StepResult>,
     pub total_energy_uj: u64,
+    /// Total energy went over the definition's `energy_budget_uj` (work still ran)
+    #[serde(default)]
+    pub budget_exceeded: bool,
+    /// Joules beyond the budget (0 when within budget)
+    #[serde(default)]
+    pub overrun_joules: f64,
+    /// The configured budget, if any
+    #[serde(default)]
+    pub energy_budget_uj: Option<u64>,
     pub started_at: u64,
     pub finished_at: Option<u64>,
 }
@@ -349,6 +355,7 @@ impl WorkflowManager {
         let mut completed_steps: std::collections::HashSet<String> =
             std::collections::HashSet::new();
         let mut total_energy: u64 = 0;
+        let mut budget_exceeded = false;
         let mut final_status = WorkflowStatus::Completed;
 
         for step_idx in &execution_order {
@@ -379,30 +386,6 @@ impl WorkflowManager {
             let step_start = now_millis();
             let step_energy = estimate_step_energy(&step.operation);
 
-            // Energy budget check (saturating add prevents u64 overflow)
-            if let Some(budget) = def.energy_budget_uj {
-                if total_energy.saturating_add(step_energy) > budget {
-                    final_status = WorkflowStatus::Failed {
-                        error: format!(
-                            "energy budget exceeded at step '{}': used {} + {} > {}",
-                            step.label, total_energy, step_energy, budget
-                        ),
-                    };
-                    step_results_map.insert(
-                        step.label.clone(),
-                        StepResult {
-                            label: step.label.clone(),
-                            status: StepResultStatus::Failed,
-                            output: Some("energy budget exceeded".into()),
-                            energy_uj: 0,
-                            duration_ms: now_millis().saturating_sub(step_start),
-                            attempts: 1,
-                        },
-                    );
-                    break;
-                }
-            }
-
             // Simulate step execution with retry
             let mut succeeded = false;
             let mut attempts = 0u32;
@@ -415,6 +398,22 @@ impl WorkflowManager {
             }
 
             total_energy = total_energy.saturating_add(step_energy);
+            // Energy is a receipt, never a refusal: every step runs; going
+            // over the budget is recorded on the instance and signalled.
+            if let Some(budget) = def.energy_budget_uj {
+                if total_energy > budget && !budget_exceeded {
+                    budget_exceeded = true;
+                    crate::tenant::note_budget_exceeded();
+                    tracing::warn!(
+                        target: "jouledb::energy_budget",
+                        workflow = %definition_id,
+                        step = %step.label,
+                        budget_uj = budget,
+                        spent_uj = total_energy,
+                        "workflow energy budget exceeded (steps keep running; recorded on instance)"
+                    );
+                }
+            }
             let step_duration = now_millis().saturating_sub(step_start);
 
             if succeeded {
@@ -479,6 +478,11 @@ impl WorkflowManager {
             status: final_status,
             step_results,
             total_energy_uj: total_energy,
+            budget_exceeded,
+            overrun_joules: def
+                .energy_budget_uj
+                .map_or(0.0, |b| total_energy.saturating_sub(b) as f64 / 1e6),
+            energy_budget_uj: def.energy_budget_uj,
             started_at: now,
             finished_at: Some(now_millis()),
         };
@@ -848,12 +852,20 @@ mod tests {
             .unwrap();
 
         let instance = mgr.run(&def.id).unwrap();
-        match &instance.status {
-            WorkflowStatus::Failed { error } => {
-                assert!(error.contains("energy budget exceeded"));
-            }
-            _ => panic!("expected Failed status"),
-        }
+        // every step ran; the overrun is on the receipt
+        assert!(!matches!(instance.status, WorkflowStatus::Failed { .. }));
+        assert_eq!(instance.step_results.len(), 3);
+        assert!(
+            instance
+                .step_results
+                .iter()
+                .all(|s| s.status == StepResultStatus::Success)
+        );
+        assert!(instance.budget_exceeded);
+        assert_eq!(instance.energy_budget_uj, Some(800));
+        assert!(
+            (instance.overrun_joules - (instance.total_energy_uj - 800) as f64 / 1e6).abs() < 1e-12
+        );
     }
 
     #[test]

@@ -26,9 +26,6 @@ pub enum TenantError {
     #[error("cannot delete the default tenant")]
     CannotDeleteDefault,
 
-    #[error("energy budget exhausted: spent {spent_uj} \u{00b5}J of {budget_uj} \u{00b5}J budget")]
-    EnergyBudgetExhausted { spent_uj: u64, budget_uj: u64 },
-
     #[error("tenant is suspended: {0}")]
     Suspended(String),
 
@@ -146,35 +143,55 @@ impl Tenant {
         }
     }
 
-    /// Record energy consumption. Returns Err if budget would be exhausted.
-    pub fn record_energy(&self, consumed_uj: u64) -> Result<u64, TenantError> {
+    /// Record energy consumption. Energy is a receipt, never a refusal: the
+    /// work has already run and is always recorded. Going over the budget
+    /// sets `budget_exceeded` (see [`Tenant::budget_status`]), bumps
+    /// [`budget_exceeded_events`], and logs a `jouledb::energy_budget`
+    /// warning users can alert on. Returns the new total.
+    pub fn record_energy(&self, consumed_uj: u64) -> u64 {
+        let prev = self
+            .energy_spent_uj
+            .fetch_add(consumed_uj, Ordering::Relaxed);
+        let total = prev.saturating_add(consumed_uj);
         if let Some(budget) = self.quotas.energy_budget_uj {
-            loop {
-                let current = self.energy_spent_uj.load(Ordering::Relaxed);
-                let new_total = current + consumed_uj;
-                if new_total > budget {
-                    return Err(TenantError::EnergyBudgetExhausted {
-                        spent_uj: current,
-                        budget_uj: budget,
-                    });
-                }
-                match self.energy_spent_uj.compare_exchange_weak(
-                    current,
-                    new_total,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ) {
-                    Ok(_) => return Ok(new_total),
-                    Err(_) => continue,
-                }
+            if total > budget {
+                BUDGET_EXCEEDED_EVENTS.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    target: "jouledb::energy_budget",
+                    tenant = %self.id,
+                    budget_uj = budget,
+                    spent_uj = total,
+                    overrun_joules = (total - budget) as f64 / 1e6,
+                    first_overrun = prev <= budget,
+                    "tenant energy budget exceeded (work ran; recorded on receipt)"
+                );
             }
-        } else {
-            let prev = self
-                .energy_spent_uj
-                .fetch_add(consumed_uj, Ordering::Relaxed);
-            Ok(prev + consumed_uj)
+        }
+        total
+    }
+
+    /// Budget state: (budget_exceeded, overrun_joules, budget_uj).
+    pub fn budget_status(&self) -> (bool, f64, Option<u64>) {
+        let spent = self.energy_spent_uj.load(Ordering::Relaxed);
+        match self.quotas.energy_budget_uj {
+            Some(b) if spent > b => (true, (spent - b) as f64 / 1e6, Some(b)),
+            other => (false, 0.0, other),
         }
     }
+}
+
+/// Count of energy-budget overruns recorded (tenants and workflow steps),
+/// for metrics and alerting. Overruns never stop work.
+static BUDGET_EXCEEDED_EVENTS: AtomicU64 = AtomicU64::new(0);
+
+/// Total energy-budget overrun events since start.
+pub fn budget_exceeded_events() -> u64 {
+    BUDGET_EXCEEDED_EVENTS.load(Ordering::Relaxed)
+}
+
+/// Note one budget overrun (used by workflows).
+pub(crate) fn note_budget_exceeded() {
+    BUDGET_EXCEEDED_EVENTS.fetch_add(1, Ordering::Relaxed);
 }
 
 // ============================================================================
@@ -191,6 +208,12 @@ pub struct TenantInfo {
     pub quotas: TenantQuotas,
     pub energy_spent_uj: u64,
     pub table_count: u64,
+    /// Spent more than `quotas.energy_budget_uj` (work still ran)
+    #[serde(default)]
+    pub budget_exceeded: bool,
+    /// Joules spent beyond the budget (0 when within budget)
+    #[serde(default)]
+    pub overrun_joules: f64,
 }
 
 impl From<&Tenant> for TenantInfo {
@@ -203,6 +226,8 @@ impl From<&Tenant> for TenantInfo {
             quotas: t.quotas.clone(),
             energy_spent_uj: t.energy_spent_uj.load(Ordering::Relaxed),
             table_count: t.table_count.load(Ordering::Relaxed),
+            budget_exceeded: t.budget_status().0,
+            overrun_joules: t.budget_status().1,
         }
     }
 }
@@ -344,7 +369,8 @@ impl TenantManager {
 
     /// Check if a tenant can afford an operation with the given estimated energy cost.
     ///
-    /// Returns `false` if the budget would be exceeded, `true` otherwise.
+    /// Advisory only: `false` if the budget would be exceeded. Nothing refuses
+    /// work on this basis; overruns are recorded by `record_energy`.
     /// Returns `Err` if the tenant is not found or is suspended.
     pub fn check_energy_budget(&self, id: &str, estimated_uj: u64) -> Result<bool, TenantError> {
         let tenants = self
@@ -378,7 +404,7 @@ impl TenantManager {
             return Err(TenantError::Suspended(id.to_string()));
         }
 
-        tenant.record_energy(consumed_uj)
+        Ok(tenant.record_energy(consumed_uj))
     }
 
     /// Prefix a table name with the tenant namespace.
@@ -535,9 +561,15 @@ mod tests {
         assert!(mgr.check_energy_budget("metered", 500).unwrap());
         mgr.record_energy("metered", 500).unwrap();
 
-        // Exhausted
+        // Over budget: advisory check says no, but the work is never refused
         assert!(!mgr.check_energy_budget("metered", 1).unwrap());
-        assert!(mgr.record_energy("metered", 1).is_err());
+        let before = budget_exceeded_events();
+        assert_eq!(mgr.record_energy("metered", 250).unwrap(), 1250);
+        assert!(budget_exceeded_events() > before);
+        let info = mgr.get_tenant("metered").unwrap();
+        assert!(info.budget_exceeded);
+        assert!((info.overrun_joules - 250e-6).abs() < 1e-12);
+        assert_eq!(info.quotas.energy_budget_uj, Some(1000));
     }
 
     #[test]
