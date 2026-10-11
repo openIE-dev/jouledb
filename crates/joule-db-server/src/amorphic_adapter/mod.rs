@@ -295,10 +295,15 @@ impl HoloLock {
         if !ingesting && self.pending.load(std::sync::atomic::Ordering::Acquire) {
             // try_write: never block (or self-deadlock under a nested read);
             // if the lock is busy the background thread finishes the work.
+            // Bounded: one STEP per read, so no reader pays for the whole
+            // backlog (a 1M-row load left ~5 s of catch-up on jetson-hub's
+            // first query). The background thread finishes the rest.
             if let Ok(mut g) = self.inner.try_write() {
-                g.catch_up_holograms(usize::MAX);
-                self.pending
-                    .store(false, std::sync::atomic::Ordering::Release);
+                g.catch_up_holograms(Self::STEP);
+                if g.pending_holograms() == 0 {
+                    self.pending
+                        .store(false, std::sync::atomic::Ordering::Release);
+                }
             }
         }
         self.inner.read()
@@ -362,6 +367,17 @@ impl AmorphicTableStorage {
         let columns = self.get_schema_columns(&store, table).ok()?;
         if columns.is_empty() {
             return None;
+        }
+        if std::env::var_os("JOULEDB_VEC_TRACE").is_some() {
+            let old = self
+                .col_cache
+                .lock()
+                .ok()
+                .and_then(|c| c.get(table).map(|(g, _)| *g));
+            eprintln!(
+                "colcache miss table={table} cached={old:?} now={generation:?} pending={}",
+                store.pending_holograms()
+            );
         }
         let recs = store.records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
         let t = std::sync::Arc::new(crate::columnar_exec::TableColumns::build(&columns, &recs));
