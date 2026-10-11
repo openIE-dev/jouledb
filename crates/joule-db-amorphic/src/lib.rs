@@ -1171,6 +1171,7 @@ impl AmorphicStore {
         side: impl FnOnce(&[(RecordId, HashMap<String, Value>)]) -> R + Send,
     ) -> AmorphicResult<R> {
         use rayon::prelude::*;
+        let t_start = std::time::Instant::now();
         self.records.reserve(rows.len());
         self.value_index
             .reserve(rows.iter().map(|(_, f)| f.len()).sum());
@@ -1276,6 +1277,7 @@ impl AmorphicStore {
             );
             side_result = Some(side_out);
         }
+        let t_shell = std::time::Instant::now();
         drop(by_field);
         drop(cols);
         drop(numeric);
@@ -1291,9 +1293,18 @@ impl AmorphicStore {
                 timestamp: None,
             })
             .collect();
+        let t_ins = std::time::Instant::now();
         for rec in recs {
             self.deferred.push_back(rec.id);
             self.records.insert(rec.id, rec);
+        }
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!(
+                "apply indexes+wal={:?} shells={:?} records_insert={:?}",
+                t_shell - t_start,
+                t_ins - t_shell,
+                t_ins.elapsed()
+            );
         }
         self.data_generation = self.data_generation.wrapping_add(1);
         Ok(side_result.expect("side ran"))
