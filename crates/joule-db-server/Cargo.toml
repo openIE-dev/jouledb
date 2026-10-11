@@ -11,7 +11,8 @@ name = "jouledb"
 path = "src/main.rs"
 
 [features]
-default = ["http", "websocket", "viz", "jwp"]
+default = ["http", "websocket", "viz", "jwp", "flight-sql"]
+flight-sql = ["dep:arrow-flight", "dep:tonic", "dep:prost"]  # Arrow Flight SQL endpoint (HTTP port + 4)
 http = []
 websocket = []
 replication = []
@@ -22,6 +23,9 @@ wasm-triggers = ["wasmtime"]  # Enable Wasm trigger execution
 viz = ["dep:joule-db-viz"]  # Visualization hint inference
 adaptive-pool = []  # Adaptive connection pool sizing
 [dependencies]
+arrow-flight = { version = "58", features = ["flight-sql"], optional = true }
+tonic = { workspace = true, optional = true }
+prost = { workspace = true, optional = true }
 half = { workspace = true }
 arrow = { version = "58", default-features = false, features = ["ipc", "ipc_compression", "chrono-tz"] }
 parquet = { version = "58", default-features = false, features = ["arrow", "snap", "zstd"] }

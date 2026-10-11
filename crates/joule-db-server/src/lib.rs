@@ -75,6 +75,8 @@ pub mod scram;
 pub mod security;
 pub mod sharding;
 pub mod file_formats;
+#[cfg(feature = "flight-sql")]
+pub mod flight_sql;
 pub mod sigql_executor;
 pub mod sparql_executor;
 pub mod subscription_hdc;
@@ -336,6 +338,8 @@ pub struct ServerConfig {
     pub enable_jwp: bool,
     /// JWP bind address (default: 127.0.0.1:9200)
     pub jwp_addr: String,
+    /// Arrow Flight SQL listen address (None = off)
+    pub flight_sql_addr: Option<String>,
     /// Maximum concurrent JWP connections
     pub max_jwp_connections: usize,
     /// Enable authentication middleware
@@ -425,6 +429,7 @@ impl Default for ServerConfig {
             pgwire_addr: "127.0.0.1:5433".to_string(),
             enable_jwp: false,
             jwp_addr: "127.0.0.1:9200".to_string(),
+            flight_sql_addr: None,
             max_jwp_connections: 1000,
             auth_enabled: true,
             auth_jwt_secret: None,
@@ -1533,6 +1538,23 @@ impl Server {
         } else {
             None
         };
+
+        // Optional Arrow Flight SQL endpoint
+        #[cfg(feature = "flight-sql")]
+        if let Some(addr) = self.config.flight_sql_addr.clone() {
+            match addr.parse::<std::net::SocketAddr>() {
+                Ok(sa) => {
+                    let ex = self.query_executor.clone();
+                    tracing::info!("JouleDB Flight SQL listening on {addr}");
+                    tokio::spawn(async move {
+                        if let Err(e) = flight_sql::serve(sa, ex).await {
+                            tracing::error!("Flight SQL server stopped: {e}");
+                        }
+                    });
+                }
+                Err(e) => tracing::error!("bad flight_sql_addr {addr}: {e}"),
+            }
+        }
 
         // Optional JWP (Joule Wire Protocol) server
         #[cfg(feature = "jwp")]
@@ -4277,6 +4299,7 @@ mod tests {
             pgwire_addr: "127.0.0.1:0".to_string(),
             enable_jwp: false,
             jwp_addr: "127.0.0.1:0".to_string(),
+            flight_sql_addr: None,
             max_jwp_connections: 100,
             auth_enabled: false,
             auth_jwt_secret: None,
@@ -4790,6 +4813,7 @@ mod tests {
             pgwire_addr: "127.0.0.1:0".to_string(),
             enable_jwp: false,
             jwp_addr: "127.0.0.1:0".to_string(),
+            flight_sql_addr: None,
             max_jwp_connections: 100,
             auth_enabled: true,
             auth_jwt_secret: Some(secret.to_string()),

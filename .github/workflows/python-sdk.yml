@@ -78,7 +78,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install maturin pytest pandas polars pyarrow duckdb 'psycopg[binary]'
+          pip install maturin pytest pandas polars pyarrow duckdb 'psycopg[binary]' adbc-driver-flightsql adbc-driver-manager
           cd python && maturin develop --release
       - name: Test against a live server
         run: |
@@ -86,6 +86,6 @@ jobs:
           JOULEDB_COPY_DIR="$RUNNER_TEMP/copy" ./target/release/jouledb -p 18080 -d "$RUNNER_TEMP/db" > "$RUNNER_TEMP/srv.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf -o /dev/null -X POST localhost:18080/api/v1/query -H 'content-type: application/json' -d '{"sql":"SELECT 1"}' && break; sleep 1; done
           . .venv/bin/activate
-          JOULEDB_COPY_DIR="$RUNNER_TEMP/copy" JOULEDB_PG_PORT=18082 JOULEDB_URL=http://localhost:18080 pytest -v python/tests
+          JOULEDB_FLIGHT_URL=grpc://127.0.0.1:18084 JOULEDB_COPY_DIR="$RUNNER_TEMP/copy" JOULEDB_PG_PORT=18082 JOULEDB_URL=http://localhost:18080 pytest -v python/tests
       - if: failure()
         run: tail -100 "$RUNNER_TEMP/srv.log"

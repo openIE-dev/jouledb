@@ -29,6 +29,7 @@ fn create_test_server() -> joule_db_server::Server {
         pgwire_addr: "127.0.0.1:0".to_string(),
         enable_jwp: false,
         jwp_addr: "127.0.0.1:0".to_string(),
+        flight_sql_addr: None,
         max_jwp_connections: 100,
         auth_enabled: false,
         auth_jwt_secret: None,

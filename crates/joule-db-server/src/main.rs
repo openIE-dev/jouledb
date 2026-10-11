@@ -185,6 +185,14 @@ async fn run_server(
         config.jwp_addr = jwp_addr.unwrap_or_else(|| format!("{}:{}", bind_host, port + 3));
     }
 
+    // Arrow Flight SQL (gRPC) on port + 4 unless JOULEDB_NO_FLIGHT_SQL is set
+    if std::env::var_os("JOULEDB_NO_FLIGHT_SQL").is_none() {
+        config.flight_sql_addr = Some(
+            std::env::var("JOULEDB_FLIGHT_SQL_ADDR")
+                .unwrap_or_else(|_| format!("{}:{}", bind_host, port + 4)),
+        );
+    }
+
     // Energy receipt ledger (blockchain-anchored attestation)
     if std::env::var("JOULEDB_LEDGER_ENABLED").is_ok() {
         config.enable_ledger = true;
@@ -241,6 +249,9 @@ async fn run_server(
     println!("  Data     {}", config.db_path);
     if config.enable_jwp {
         println!("  JWP      {}", config.jwp_addr);
+    }
+    if let Some(a) = &config.flight_sql_addr {
+        println!("  FlightSQL grpc://{a}");
     }
     if config.enable_raft {
         println!(
