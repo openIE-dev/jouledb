@@ -281,34 +281,34 @@ impl DurableAmorphicStore {
         for fields in rows {
             prepared.push(self.store.prepare_fields_ingest(fields)?);
         }
-        // Serialize WAL records in parallel; append them in id order.
-        let serialized: Vec<Vec<u8>> = {
-            use rayon::prelude::*;
-            prepared
-                .par_iter()
-                .map(|(id, fields)| {
-                    #[derive(serde::Serialize)]
-                    struct Rec<'a> {
-                        id: RecordId,
-                        fields: &'a HashMap<String, Value>,
-                        edges: [(); 0],
-                        timestamp: Option<()>,
-                    }
-                    serde_json::to_vec(&Rec { id: *id, fields, edges: [], timestamp: None })
-                })
-                .collect::<Result<_, _>>()
-                .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?
-        };
-        let writes: Vec<(RecordId, &[u8])> =
-            prepared.iter().zip(&serialized).map(|((id, _), b)| (*id, b.as_slice())).collect();
-        self.wal
-            .log_page_writes(tx_id, &writes)
-            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
         let ids: Vec<RecordId> = prepared.iter().map(|(id, _)| *id).collect();
+        // WAL records are serialized and appended (in id order) in parallel
+        // with the index updates; the commit is logged after both, so a
+        // crash before it leaves an uncommitted (ignored) transaction.
+        let wal = &mut self.wal;
         let t_apply = std::time::Instant::now();
-        self.store.apply_prepared_ingest_batch(prepared)?;
+        let wal_result = self.store.apply_prepared_ingest_batch_with(prepared, |rows| {
+            use rayon::prelude::*;
+            #[derive(serde::Serialize)]
+            struct Rec<'a> {
+                id: RecordId,
+                fields: &'a HashMap<String, Value>,
+                edges: [(); 0],
+                timestamp: Option<()>,
+            }
+            let serialized: Vec<Vec<u8>> = rows
+                .par_iter()
+                .map(|(id, fields)| serde_json::to_vec(&Rec { id: *id, fields, edges: [], timestamp: None }))
+                .collect::<Result<_, _>>()
+                .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
+            let writes: Vec<(RecordId, &[u8])> =
+                rows.iter().zip(&serialized).map(|((id, _), b)| (*id, b.as_slice())).collect();
+            wal.log_page_writes(tx_id, &writes)
+                .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
+        })?;
+        wal_result?;
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("durable batch wal={:?} apply={:?}", t_apply - t_wal, t_apply.elapsed());
+            eprintln!("durable batch prep={:?} wal+apply={:?}", t_apply - t_wal, t_apply.elapsed());
         }
         self.wal
             .log_commit(tx_id)

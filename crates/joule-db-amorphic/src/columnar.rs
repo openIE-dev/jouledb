@@ -573,6 +573,24 @@ impl ColumnarStore {
     }
 
     /// Record a numeric value from a document
+    /// `record_value` for many rows: per-field (id, value) lists in id
+    /// order, appended to each column in parallel.
+    pub fn record_batch(&mut self, per_field: &rustc_hash::FxHashMap<&str, Vec<(RecordId, f64)>>) {
+        use rayon::prelude::*;
+        for f in per_field.keys() {
+            if !self.columns.contains_key(*f) {
+                self.columns.insert((*f).to_string(), Column::new());
+            }
+        }
+        self.columns.par_iter_mut().for_each(|(f, c)| {
+            if let Some(list) = per_field.get(f.as_str()) {
+                for (id, v) in list {
+                    c.push(*id, *v);
+                }
+            }
+        });
+    }
+
     pub fn record_value(&mut self, field: &str, record_id: RecordId, value: &Value) {
         let numeric_value = match value {
             Value::Int(i) => *i as f64,

@@ -653,18 +653,26 @@ impl QueryExecutor for SimpleQueryExecutor {
         let mut inserted = 0usize;
         for chunk in rows.chunks(8192) {
             let t_val = std::time::Instant::now();
+            use rayon::prelude::*;
+            let validated: Vec<Result<RowData, String>> = chunk
+                .par_iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    if r.len() != insert_columns.len() {
+                        return Err(format!(
+                            "COPY row {}: expected {} columns, got {}",
+                            inserted + i + 1,
+                            insert_columns.len(),
+                            r.len()
+                        ));
+                    }
+                    let values: Vec<AstValue> = r.iter().filter_map(copy_field_value).collect();
+                    apply_defaults_and_validate(insert_columns.clone(), values, &column_defs)
+                })
+                .collect();
             let mut batch = Vec::with_capacity(chunk.len());
-            for r in chunk {
-                if r.len() != insert_columns.len() {
-                    return Some(Err(QueryErrorResponse::execution_error(&format!(
-                        "COPY row {}: expected {} columns, got {}",
-                        inserted + batch.len() + 1,
-                        insert_columns.len(),
-                        r.len()
-                    ))));
-                }
-                let values: Vec<AstValue> = r.iter().filter_map(copy_field_value).collect();
-                match apply_defaults_and_validate(insert_columns.clone(), values, &column_defs) {
+            for v in validated {
+                match v {
                     Ok(row) => batch.push(row),
                     Err(e) => return Some(Err(QueryErrorResponse::execution_error(&e))),
                 }

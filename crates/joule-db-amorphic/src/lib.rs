@@ -1101,17 +1101,43 @@ impl AmorphicStore {
         &mut self,
         rows: Vec<(RecordId, HashMap<String, Value>)>,
     ) -> AmorphicResult<()> {
+        self.apply_prepared_ingest_batch_with(rows, |_| ()).map(|_| ())
+    }
+
+    /// `apply_prepared_ingest_batch`, running `side` on the rows (e.g. WAL
+    /// serialization) in parallel with the index updates. Returns its result.
+    pub fn apply_prepared_ingest_batch_with<R: Send>(
+        &mut self,
+        rows: Vec<(RecordId, HashMap<String, Value>)>,
+        side: impl FnOnce(&[(RecordId, HashMap<String, Value>)]) -> R + Send,
+    ) -> AmorphicResult<R> {
         use rayon::prelude::*;
         self.records.reserve(rows.len());
         self.value_index.reserve(rows.iter().map(|(_, f)| f.len()).sum());
         // numeric B-trees are per field: fill them in parallel across fields
         // (same per-key id order as the row-at-a-time path).
-        let mut numeric: HashMap<&str, Vec<(OrderedFloat, RecordId)>> = HashMap::new();
+        // Per-field work (field index, numeric B-trees, columnar) touches
+        // disjoint per-field structures: gather per field in id order, then
+        // fill them in parallel. Same contents as the row-at-a-time path.
+        let mut by_field: rustc_hash::FxHashMap<&str, Vec<RecordId>> = Default::default();
+        let mut numeric: rustc_hash::FxHashMap<&str, Vec<(OrderedFloat, RecordId)>> = Default::default();
+        let mut cols: rustc_hash::FxHashMap<&str, Vec<(RecordId, f64)>> = Default::default();
         for (id, fields) in &rows {
             for (field, value) in fields {
+                by_field.entry(field.as_str()).or_default().push(*id);
                 if let Some(num) = value.as_f64() {
                     numeric.entry(field.as_str()).or_default().push((OrderedFloat(num), *id));
                 }
+                match value {
+                    Value::Int(i) => cols.entry(field.as_str()).or_default().push((*id, *i as f64)),
+                    Value::Float(f) => cols.entry(field.as_str()).or_default().push((*id, *f)),
+                    _ => {}
+                }
+            }
+        }
+        for f in by_field.keys() {
+            if !self.field_index.contains_key(*f) {
+                self.field_index.insert((*f).to_string(), Vec::new());
             }
         }
         for f in numeric.keys() {
@@ -1119,34 +1145,84 @@ impl AmorphicStore {
                 self.numeric_index.insert((*f).to_string(), Default::default());
             }
         }
-        self.numeric_index.par_iter_mut().for_each(|(f, tree)| {
-            if let Some(list) = numeric.get(f.as_str()) {
-                for (k, id) in list {
-                    tree.entry(*k).or_default().push(*id);
-                }
-            }
-        });
+        let mut side_result = None;
+        // value hashes in parallel
+        let hashes: Vec<Vec<u64>> = rows
+            .par_iter()
+            .map(|(_, fields)| fields.iter().map(|(f, v)| Self::hash_value(f, v)).collect())
+            .collect();
+        {
+            // per-field structures in parallel, overlapped with the shared
+            // value index / name map (disjoint fields of self)
+            let (fi, ni, co) = (&mut self.field_index, &mut self.numeric_index, &mut self.columnar);
+            let (vi, names) = (&mut self.value_index, &mut self.name_to_id);
+            let rows_ref = &rows;
+            let hashes_ref = &hashes;
+            let (_, side_out) = rayon::join(
+                || rayon::join(
+                || {
+                    rayon::join(
+                        || {
+                            fi.par_iter_mut().for_each(|(f, v)| {
+                                if let Some(list) = by_field.get(f.as_str()) {
+                                    v.extend_from_slice(list);
+                                }
+                            })
+                        },
+                        || {
+                            rayon::join(
+                                || {
+                                    ni.par_iter_mut().for_each(|(f, tree)| {
+                                        if let Some(list) = numeric.get(f.as_str()) {
+                                            for (k, id) in list {
+                                                tree.entry(*k).or_default().push(*id);
+                                            }
+                                        }
+                                    })
+                                },
+                                || co.record_batch(&cols),
+                            )
+                        },
+                    )
+                },
+                || {
+                    for ((id, fields), hs) in rows_ref.iter().zip(hashes_ref) {
+                        for (i, (field, value)) in fields.iter().enumerate() {
+                            vi.entry(hs[i]).or_default().push(*id);
+                            if field == "name" || field == "_name" {
+                                if let Value::String(name) = value {
+                                    names.insert(name.clone(), *id);
+                                }
+                            }
+                        }
+                    }
+                },
+            ),
+                || side(rows_ref),
+            );
+            side_result = Some(side_out);
+        }
+        drop(by_field);
+        drop(cols);
         drop(numeric);
-        // value hashes and record shells (with their placeholder hypervector)
-        // are built in parallel; the shared maps are then filled in order.
-        let prepped: Vec<(Vec<u64>, AmorphicRecord)> = rows
+        drop(hashes);
+        // record shells (placeholder hypervector until catch-up) in parallel
+        let recs: Vec<AmorphicRecord> = rows
             .into_par_iter()
-            .map(|(id, fields)| {
-                let hashes = fields.iter().map(|(f, v)| Self::hash_value(f, v)).collect();
-                (
-                    hashes,
-                    AmorphicRecord { id, hologram: BinaryHV::zeros(DIMENSION), fields, edges: vec![], timestamp: None },
-                )
+            .map(|(id, fields)| AmorphicRecord {
+                id,
+                hologram: BinaryHV::zeros(DIMENSION),
+                fields,
+                edges: vec![],
+                timestamp: None,
             })
             .collect();
-        for (hashes, rec) in prepped {
-            let id = rec.id;
-            self.index_primary_inner(id, &rec.fields, false, Some(&hashes));
-            self.records.insert(id, rec);
-            self.deferred.push_back(id);
+        for rec in recs {
+            self.deferred.push_back(rec.id);
+            self.records.insert(rec.id, rec);
         }
         self.data_generation = self.data_generation.wrapping_add(1);
-        Ok(())
+        Ok(side_result.expect("side ran"))
     }
 
     /// Records whose hypervector work is still queued.

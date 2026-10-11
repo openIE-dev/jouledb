@@ -445,8 +445,9 @@ impl AmorphicTableStorage {
         let mut store = self.store.write().map_err(lock_error)?;
         let lock_wait = t_lock.elapsed();
         let _columns = self.get_schema_columns(&store, table)?;
+        use rayon::prelude::*;
         let batch: Vec<HashMap<String, AmorphicValue>> = rows
-            .iter()
+            .par_iter()
             .map(|row| {
                 let mut f = HashMap::with_capacity(row.columns.len() + 1);
                 f.insert(TABLE_FIELD.to_string(), AmorphicValue::String(table.to_string()));
