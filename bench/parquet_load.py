@@ -13,8 +13,13 @@ import os
 import statistics
 import time
 
+import sys
+
 import duckdb
 import psycopg
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness import Window, make_meter  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--pg-port", type=int, default=28082)
@@ -31,24 +36,35 @@ size_mb = os.path.getsize(path) / 1e6
 want = duckdb.sql(f"SELECT COUNT(*), SUM(amount)::DOUBLE FROM read_parquet('{path}')").fetchone()
 
 c = psycopg.connect(f"host=127.0.0.1 port={a.pg_port} user=jouledb dbname=jouledb", autocommit=True)
-jt, dt = [], []
+meter = make_meter()
+meter.start()
+jt, dt, jj, dj = [], [], [], []
 for r in range(a.repeat):
     t = f"pq{r}"
     c.execute(f"CREATE TABLE {t} (id INT, user_id TEXT, url TEXT, amount FLOAT, ok BOOLEAN, day TEXT)")
     t0 = time.perf_counter()
-    c.execute(f"COPY {t} FROM '{path}'")
+    with Window(meter) as w:
+        c.execute(f"COPY {t} FROM '{path}'")
     jt.append(time.perf_counter() - t0)
+    jj.append(w.j)
     got = c.execute(f"SELECT COUNT(*), SUM(amount) FROM {t}").fetchone()
     assert got[0] == want[0] and abs(got[1] - want[1]) < 1e-6 * max(1, abs(want[1])), (got, want)
     c.execute(f"DROP TABLE {t}")
     con = duckdb.connect()
     t0 = time.perf_counter()
-    con.sql(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path}')")
+    with Window(meter) as w:
+        con.sql(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path}')")
     dt.append(time.perf_counter() - t0)
+    dj.append(w.j)
     con.close()
 
+meter.stop()
 j, d = statistics.median(jt), statistics.median(dt)
-print(f"| rows | file MB | JouleDB COPY FROM parquet (s) | DuckDB CTAS read_parquet (s) | ratio | rows/s JouleDB |")
-print(f"|---|---|---|---|---|---|")
-print(f"| {a.rows:,} | {size_mb:.1f} | {j:.3f} | {d:.3f} | {j/d:.1f}x | {a.rows/j:,.0f} |")
+med = lambda xs: statistics.median(xs) if xs and all(x is not None for x in xs) else None
+ej, ed = med(jj), med(dj)
+fj = lambda x: "n/a" if x is None else f"{x:.2f}"
+print(f"energy source: {meter.source} (whole-machine, not idle-subtracted)")
+print("| rows | file MB | JouleDB COPY FROM parquet (s) | DuckDB CTAS read_parquet (s) | time ratio | JouleDB J | DuckDB J | rows/s JouleDB |")
+print("|---|---|---|---|---|---|---|---|")
+print(f"| {a.rows:,} | {size_mb:.1f} | {j:.3f} | {d:.3f} | {j/d:.1f}x | {fj(ej)} | {fj(ed)} | {a.rows/j:,.0f} |")
 print(f"check: COUNT/SUM match DuckDB ({want[0]}, {want[1]:.1f}); runs jouledb={['%.3f'%x for x in jt]} duckdb={['%.3f'%x for x in dt]}")
