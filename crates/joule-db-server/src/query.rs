@@ -197,6 +197,45 @@ impl QueryErrorResponse {
 pub trait QueryExecutor: Send + Sync {
     /// Execute a SQL query
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse>;
+
+    /// COPY ... FROM STDIN rows straight into the store, skipping SQL text.
+    /// `None` means "not supported here / not eligible": the caller falls
+    /// back to batched INSERT statements, which give the same result.
+    fn bulk_copy(
+        &self,
+        _table: &str,
+        _columns: &[String],
+        _rows: &[Vec<Option<String>>],
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        None
+    }
+}
+
+/// COPY text field -> value, with the same typing COPY's INSERT fallback
+/// gets from `sql_literal` + the SQL parser (numbers unquoted, else text).
+/// `None` for an integer outside i64 (the SQL fallback decides its type).
+fn copy_field_value(v: &Option<String>) -> Option<AstValue> {
+    Some(match v {
+        None => AstValue::Null,
+        Some(s) => {
+            let t = s.trim();
+            let numeric = !t.is_empty()
+                && t.parse::<f64>().map(|f| f.is_finite()).unwrap_or(false)
+                && !t.starts_with('+')
+                && !(t.len() > 1 && t.starts_with('0') && !t.starts_with("0."));
+            if numeric {
+                if let Ok(i) = t.parse::<i64>() {
+                    AstValue::Int(i)
+                } else if !t.contains(['.', 'e', 'E']) {
+                    return None;
+                } else {
+                    AstValue::Float(t.parse::<f64>().ok()?)
+                }
+            } else {
+                AstValue::String(s.clone())
+            }
+        }
+    })
 }
 
 /// Server state for query endpoint
@@ -587,6 +626,73 @@ impl Default for SimpleQueryExecutor {
 }
 
 impl QueryExecutor for SimpleQueryExecutor {
+    fn bulk_copy(
+        &self,
+        table: &str,
+        columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        if table == "holographic" || table == "kv" || self.amorphic.get_view(table).is_some() {
+            return None;
+        }
+        let table_columns = self.amorphic.columns(table).ok()?;
+        let column_defs = self.amorphic.get_column_defs(table).unwrap_or_default();
+        if !self.bulk_insert_eligible(table, &column_defs) {
+            return None;
+        }
+        let insert_columns: Vec<String> = if columns.is_empty() {
+            table_columns.clone()
+        } else {
+            columns.to_vec()
+        };
+        // Integers outside i64 take the SQL fallback (parser decides their type).
+        if rows.iter().flatten().any(|v| copy_field_value(v).is_none()) {
+            return None;
+        }
+        self.fire_triggers(table, "BEFORE", "INSERT");
+        let mut inserted = 0usize;
+        for chunk in rows.chunks(8192) {
+            let t_val = std::time::Instant::now();
+            let mut batch = Vec::with_capacity(chunk.len());
+            for r in chunk {
+                if r.len() != insert_columns.len() {
+                    return Some(Err(QueryErrorResponse::execution_error(&format!(
+                        "COPY row {}: expected {} columns, got {}",
+                        inserted + batch.len() + 1,
+                        insert_columns.len(),
+                        r.len()
+                    ))));
+                }
+                let values: Vec<AstValue> = r.iter().filter_map(copy_field_value).collect();
+                match apply_defaults_and_validate(insert_columns.clone(), values, &column_defs) {
+                    Ok(row) => batch.push(row),
+                    Err(e) => return Some(Err(QueryErrorResponse::execution_error(&e))),
+                }
+            }
+            let t_ins = std::time::Instant::now();
+            let r = self.amorphic.insert_rows(table, &batch);
+            if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                eprintln!("bulk_copy validate={:?} insert_rows={:?}", t_ins - t_val, t_ins.elapsed());
+            }
+            match r {
+                Ok(ids) => inserted += ids.len(),
+                Err(e) => return Some(Err(QueryErrorResponse::execution_error(&e.to_string()))),
+            }
+        }
+        if inserted > 0 {
+            self.fire_triggers(table, "AFTER", "INSERT");
+            self.broadcast_replication(
+                crate::replication::ReplicationOp::Put,
+                table,
+                Some(&format!(
+                    "{{\"__op__\":\"INSERT\",\"__table__\":\"{}\",\"__count__\":{}}}",
+                    table, inserted
+                )),
+            );
+        }
+        Some(Ok(inserted))
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let start = Instant::now();
 
@@ -3493,7 +3599,54 @@ impl SimpleQueryExecutor {
                 let has_returning = !insert.returning.is_empty();
                 let mut inserted = 0;
                 let mut inserted_rows: Vec<Vec<serde_json::Value>> = Vec::new();
+                // Bulk path: multi-row VALUES into a table without constraints,
+                // sequences, computed columns, or secondary indexes is written
+                // as one batch (one WAL group commit, encoding in parallel).
+                // Validation and defaults are the same per row.
+                let bulk_done = match &insert.source {
+                    InsertSource::Values(value_rows)
+                        if value_rows.len() >= 2
+                            && session_id.is_none()
+                            && insert.on_conflict.is_none()
+                            && self.bulk_insert_eligible(table_name, &column_defs) =>
+                    {
+                        let mut rows = Vec::with_capacity(value_rows.len());
+                        for value_row in value_rows {
+                            let values: Vec<AstValue> = value_row
+                                .iter()
+                                .map(|expr| {
+                                    json_to_ast_value(&evaluate_expression(expr, &table_columns, &[], params))
+                                })
+                                .collect();
+                            let row = apply_defaults_and_validate(insert_columns.clone(), values, &column_defs)
+                                .map_err(|e| QueryErrorResponse::execution_error(&e))?;
+                            if has_returning {
+                                inserted_rows.push(
+                                    table_columns
+                                        .iter()
+                                        .map(|tc| {
+                                            row.columns
+                                                .iter()
+                                                .position(|c| c == tc)
+                                                .map(|i| ast_value_to_json(&row.values[i]))
+                                                .unwrap_or(serde_json::Value::Null)
+                                        })
+                                        .collect(),
+                                );
+                            }
+                            rows.push(row);
+                        }
+                        let ids = self
+                            .amorphic
+                            .insert_rows(table_name, &rows)
+                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                        inserted = ids.len();
+                        true
+                    }
+                    _ => false,
+                };
                 match &insert.source {
+                    InsertSource::Values(_) if bulk_done => {}
                     InsertSource::Values(value_rows) => {
                         for value_row in value_rows {
                             let mut values: Vec<AstValue> = value_row
@@ -6005,6 +6158,33 @@ impl SimpleQueryExecutor {
                     energy_receipt: None,
                 })
             }
+        }
+    }
+
+    /// Whether a multi-row INSERT into `table` can take the batch path: no
+    /// per-row checks that need earlier rows to be visible (PK/UNIQUE/FK),
+    /// no CHECK, sequences, or computed columns, and no secondary indexes
+    /// that are updated per record id.
+    fn bulk_insert_eligible(&self, table: &str, defs: &[crate::amorphic_adapter::ColumnDefInfo]) -> bool {
+        if defs.iter().any(|d| {
+            d.primary_key
+                || d.unique
+                || d.auto_increment
+                || d.check_expr.is_some()
+                || d.foreign_key.is_some()
+                || d.computed_expr.is_some()
+        }) {
+            return false;
+        }
+        if !self.vector_index_manager.indexes_for_table(table).is_empty()
+            || !self.spatial_index_manager.indexes_for_table(table).is_empty()
+            || !self.gin_index_manager.indexes_for_table(table).is_empty()
+        {
+            return false;
+        }
+        match self.amorphic.list_fulltext_indexes() {
+            Ok(ft) => !ft.iter().any(|(_, t, _)| t == table),
+            Err(_) => false,
         }
     }
 

@@ -1829,20 +1829,48 @@ where
         } else {
             format!(" ({})", spec.columns.join(", "))
         };
+        if conn_state.session_id.is_none() {
+            let t0 = std::time::Instant::now();
+            if let Some(r) = executor.bulk_copy(&spec.target, &spec.columns, &rows) {
+                match r {
+                    Ok(n) => {
+                        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                            eprintln!("copy direct rows={n} {:?}", t0.elapsed());
+                        }
+                        write_command_complete(writer, &format!("COPY {n}")).await?;
+                    }
+                    Err(e) => {
+                        conn_state.set_error_in_transaction();
+                        write_error_response(writer, &e.code, &e.message).await?;
+                    }
+                }
+                return Ok(());
+            }
+        }
         let mut total = 0usize;
+        let trace = std::env::var_os("JOULEDB_INGEST_TRACE").is_some();
+        let (mut t_fmt, mut t_run) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
         for chunk in rows.chunks(COPY_BATCH_ROWS) {
+            let t0 = std::time::Instant::now();
             let values: Vec<String> = chunk
                 .iter()
                 .map(|r| format!("({})", r.iter().map(sql_literal).collect::<Vec<_>>().join(", ")))
                 .collect();
             let sql = format!("INSERT INTO {}{} VALUES {}", spec.target, cols, values.join(", "));
-            if let Err(e) = run_statement(&sql, executor, conn_state, timeout) {
+            let t1 = std::time::Instant::now();
+            t_fmt += t1 - t0;
+            let r = run_statement(&sql, executor, conn_state, timeout);
+            t_run += t1.elapsed();
+            if let Err(e) = r {
                 conn_state.set_error_in_transaction();
                 write_error_response(writer, &e.code, &format!("COPY row {}: {}", total + 1, e.message))
                     .await?;
                 return Ok(());
             }
             total += chunk.len();
+        }
+        if trace {
+            eprintln!("copy rows={total} format={t_fmt:?} insert={t_run:?}");
         }
         write_command_complete(writer, &format!("COPY {total}")).await?;
         return Ok(());

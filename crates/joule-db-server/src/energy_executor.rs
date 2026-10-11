@@ -204,6 +204,15 @@ impl<E: QueryExecutor> EnergyAwareExecutor<E> {
 }
 
 impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
+    fn bulk_copy(
+        &self,
+        table: &str,
+        columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.inner.bulk_copy(table, columns, rows)
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         // Classify the SQL statement for energy tracking
         let op_type = classify_sql(&request.sql);

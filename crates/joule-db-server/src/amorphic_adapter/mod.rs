@@ -207,8 +207,106 @@ pub struct ColumnStatistics {
 /// Each SQL table is represented as amorphic records sharing the same
 /// `__table__` field value. Column schemas are stored as dedicated
 /// `__schemas__` records for `CREATE TABLE` / `DROP TABLE` support.
+/// The store lock, plus background catch-up of the hypervector work that
+/// bulk ingest defers. `write()` is the plain write lock. `read()` first
+/// finishes any queued hypervector work, so every reader sees a complete
+/// index; `read_primary()` skips that for readers that only need primary
+/// data and the field/value/columnar indexes (the vectorized analytics path).
+/// If the lock is contended, `read()` does not wait for the catch-up; the
+/// background thread completes it within milliseconds.
+pub(crate) struct HoloLock {
+    inner: std::sync::Arc<RwLock<DurableAmorphicStore>>,
+    pending: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// When bulk ingest last queued work (ms since `epoch`): the background
+    /// catch-up waits for a short write-idle gap so it doesn't take the
+    /// lock from a streaming COPY.
+    last_bulk_ms: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    epoch: std::time::Instant,
+}
+
+impl HoloLock {
+    /// Records per background catch-up step (bounds how long it holds the lock).
+    const STEP: usize = 16_384;
+    /// Write-idle gap before the background catch-up runs.
+    const IDLE_MS: u64 = 25;
+
+    fn new(store: DurableAmorphicStore) -> Self {
+        let inner = std::sync::Arc::new(RwLock::new(store));
+        let pending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let weak = std::sync::Arc::downgrade(&inner);
+        let flag = pending.clone();
+        let last_bulk_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let last = last_bulk_ms.clone();
+        let epoch = std::time::Instant::now();
+        let _ = std::thread::Builder::new()
+            .name("jouledb-holo-catchup".into())
+            .spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                let Some(lock) = weak.upgrade() else { return };
+                if !flag.load(std::sync::atomic::Ordering::Acquire) {
+                    continue;
+                }
+                let now = epoch.elapsed().as_millis() as u64;
+                if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed)) < Self::IDLE_MS {
+                    continue;
+                }
+                // try_write: never queue behind a streaming bulk write and
+                // then grab the lock in the gap between its batches.
+                if let Ok(mut g) = lock.try_write() {
+                    let now = epoch.elapsed().as_millis() as u64;
+                    if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed)) < Self::IDLE_MS {
+                        continue;
+                    }
+                    g.catch_up_holograms(Self::STEP);
+                    if g.pending_holograms() == 0 {
+                        flag.store(false, std::sync::atomic::Ordering::Release);
+                    }
+                }
+            });
+        Self { inner, pending, last_bulk_ms, epoch }
+    }
+
+    pub(crate) fn write(
+        &self,
+    ) -> std::sync::LockResult<std::sync::RwLockWriteGuard<'_, DurableAmorphicStore>> {
+        self.inner.write()
+    }
+
+    pub(crate) fn read(
+        &self,
+    ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
+        let now = self.epoch.elapsed().as_millis() as u64;
+        let ingesting = now.saturating_sub(self.last_bulk_ms.load(std::sync::atomic::Ordering::Relaxed))
+            < Self::IDLE_MS;
+        // While a bulk load is streaming, readers don't stall it: the
+        // hypervector index catches up once writes go idle.
+        if !ingesting && self.pending.load(std::sync::atomic::Ordering::Acquire) {
+            // try_write: never block (or self-deadlock under a nested read);
+            // if the lock is busy the background thread finishes the work.
+            if let Ok(mut g) = self.inner.try_write() {
+                g.catch_up_holograms(usize::MAX);
+                self.pending.store(false, std::sync::atomic::Ordering::Release);
+            }
+        }
+        self.inner.read()
+    }
+
+    pub(crate) fn read_primary(
+        &self,
+    ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
+        self.inner.read()
+    }
+
+    /// Note that bulk ingest queued hypervector work.
+    pub(crate) fn mark_pending(&self) {
+        self.last_bulk_ms
+            .store(self.epoch.elapsed().as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.pending.store(true, std::sync::atomic::Ordering::Release);
+    }
+}
+
 pub struct AmorphicTableStorage {
-    store: RwLock<DurableAmorphicStore>,
+    store: HoloLock,
     /// Columnar snapshots per table, keyed by the store generation they were built at
     col_cache: std::sync::Mutex<
         HashMap<String, ((u64, usize), std::sync::Arc<crate::columnar_exec::TableColumns>)>,
@@ -218,7 +316,7 @@ pub struct AmorphicTableStorage {
 impl AmorphicTableStorage {
     pub fn new(store: DurableAmorphicStore) -> Self {
         Self {
-            store: RwLock::new(store),
+            store: HoloLock::new(store),
             col_cache: std::sync::Mutex::new(HashMap::new()),
         }
     }
@@ -232,7 +330,7 @@ impl AmorphicTableStorage {
         if self.get_view(table).is_some() {
             return None;
         }
-        let store = self.store.read().ok()?;
+        let store = self.store.read_primary().ok()?;
         let generation = store.generation();
         if let Some((g, t)) = self.col_cache.lock().ok()?.get(table) {
             if *g == generation {
