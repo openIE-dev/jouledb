@@ -214,6 +214,7 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
     }
 
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
+        let t_all = std::time::Instant::now();
         // Classify the SQL statement for energy tracking
         let op_type = classify_sql(&request.sql);
 
@@ -233,16 +234,34 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
             (target, hints)
         };
 
-        // Throttle enforcement: if the hardware advisor says we're at
-        // thermal/power limits, introduce a brief backpressure delay
-        // before executing the query.
+        // Throttle is a hint, not a gate: energy is a receipt, never a
+        // refusal or a delay. (This used to sleep 10 ms per query whenever
+        // the advisor saw thermal/power pressure, which put a 10 ms floor
+        // under every query on a busy host such as jetson-hub.) The hint
+        // still reaches the inner executor through the device context and
+        // the receipt; the warning is logged at most once a minute.
         if hints.iter().any(|h| matches!(h, ExecutionHint::Throttle)) {
-            tracing::warn!(
-                device = %device_target,
-                algorithm = %algorithm,
-                "Hardware advisor: throttle active — applying 10ms backpressure"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            static LAST_WARN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            let last = LAST_WARN.load(std::sync::atomic::Ordering::Relaxed);
+            if now >= last + 60
+                && LAST_WARN
+                    .compare_exchange(
+                        last,
+                        now,
+                        std::sync::atomic::Ordering::Relaxed,
+                        std::sync::atomic::Ordering::Relaxed,
+                    )
+                    .is_ok()
+            {
+                tracing::warn!(
+                    device = %device_target,
+                    algorithm = %algorithm,
+                    "Hardware advisor: throttle hint active (recorded on receipts; queries are not delayed)"
+                );
+            }
         }
 
         // Set the thread-local device context so the inner executor
@@ -280,7 +299,15 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
         );
 
         // Execute the inner query
+        let t_in = std::time::Instant::now();
         let result = self.inner.execute(request);
+        if crate::query::lat_trace() {
+            eprintln!(
+                "lat energy_exec pre={:?} inner={:?}",
+                t_in - t_all,
+                t_in.elapsed()
+            );
+        }
 
         // Clear the thread-local context regardless of success/failure
         clear_device_context();

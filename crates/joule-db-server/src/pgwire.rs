@@ -1344,6 +1344,20 @@ fn run_statement(
     conn_state: &mut ConnectionState,
     query_timeout_ms: Option<u64>,
 ) -> Result<QueryResponse, QueryErrorResponse> {
+    let t = std::time::Instant::now();
+    let r = run_statement_inner(sql, executor, conn_state, query_timeout_ms);
+    if crate::query::lat_trace() {
+        eprintln!("lat pgwire run_statement={:?}", t.elapsed());
+    }
+    r
+}
+
+fn run_statement_inner(
+    sql: &str,
+    executor: &Arc<dyn QueryExecutor>,
+    conn_state: &mut ConnectionState,
+    query_timeout_ms: Option<u64>,
+) -> Result<QueryResponse, QueryErrorResponse> {
     if let Some(r) = show_setting(sql).or_else(|| type_info_lookup(sql)) {
         return Ok(r);
     }

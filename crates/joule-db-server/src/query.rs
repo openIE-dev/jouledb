@@ -839,7 +839,15 @@ impl QueryExecutor for SimpleQueryExecutor {
         // accelerator falls back to CPU and the joules are reported.
         let result = match result {
             Ok(mut response) => {
+                let t_r = std::time::Instant::now();
                 crate::fabric::attach_receipt(&mut response, &request.sql);
+                if lat_trace() {
+                    eprintln!(
+                        "lat exec={:?} receipt={:?}",
+                        t_r.duration_since(start),
+                        t_r.elapsed()
+                    );
+                }
                 Ok(response)
             }
             Err(err) => Err(err),
@@ -141986,4 +141994,10 @@ mod tests {
         }
         r.finish();
     }
+}
+
+/// `JOULEDB_LAT_TRACE=1`: per-query latency breakdown on stderr.
+pub(crate) fn lat_trace() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("JOULEDB_LAT_TRACE").is_some())
 }
