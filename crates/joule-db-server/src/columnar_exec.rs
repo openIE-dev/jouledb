@@ -844,17 +844,6 @@ fn aggregate_dense_soa(
     let n = t.len;
     let dense = grouping.slots();
     let nout = kinds.len();
-    if dense > 0
-        && !matches!(grouping, Grouping::One)
-        && kinds.iter().zip(agg_cols).all(|(k, c)| match k {
-            None | Some(AggKind::CountStar) => true,
-            Some(AggKind::Count) => true,
-            Some(AggKind::Sum | AggKind::Avg) => matches!(c, Some(Col::Int(..) | Col::Float(..))),
-            _ => false,
-        })
-    {
-        return aggregate_dense_soa(t, preds, &grouping, kinds, agg_cols, &proto);
-    }
     struct P {
         first: Vec<u32>,
         cnt: Vec<Vec<u64>>,
@@ -1055,6 +1044,17 @@ fn aggregate(
         .collect();
     let dense = grouping.slots();
     let nout = kinds.len();
+    if dense > 0
+        && !matches!(grouping, Grouping::One)
+        && kinds.iter().zip(agg_cols).all(|(k, c)| match k {
+            None | Some(AggKind::CountStar) => true,
+            Some(AggKind::Count) => true,
+            Some(AggKind::Sum | AggKind::Avg) => matches!(c, Some(Col::Int(..) | Col::Float(..))),
+            _ => false,
+        })
+    {
+        return aggregate_dense_soa(t, preds, &grouping, kinds, agg_cols, &proto);
+    }
     // Each partial holds one accumulator row per dense slot, so with many
     // groups use bigger morsels (fewer partials to allocate and merge).
     let msize = MORSEL.max(dense.saturating_mul(8));
