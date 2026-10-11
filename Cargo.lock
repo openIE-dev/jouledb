@@ -4259,6 +4259,7 @@ dependencies = [
  "fs2",
  "joule-db-core",
  "joule-db-energy",
+ "libc",
  "log",
  "memmap2",
  "parking_lot 0.12.5",
