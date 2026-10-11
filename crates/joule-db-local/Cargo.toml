@@ -55,3 +55,6 @@ path = "src/bin/joule_db_recover.rs"
 
 [lints]
 workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = { workspace = true }

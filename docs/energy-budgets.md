@@ -28,3 +28,11 @@ Each overrun:
 - increments a process-wide counter, `tenant::budget_exceeded_events()`.
 
 Alert on either.
+
+## Commit durability (JOULEDB_SYNC_COMMIT)
+
+Default `on`: every commit is fsynced (F_FULLFSYNC on macOS) before it is
+acknowledged, using group commit — writers that commit while an fsync is in
+flight share the next one. `JOULEDB_SYNC_COMMIT=off` acknowledges once the WAL
+reaches the OS page cache (survives a process crash, not power loss).
+After an fsync failure, further writes are refused.

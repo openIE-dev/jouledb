@@ -220,7 +220,61 @@ pub(crate) struct HoloLock {
     /// lock from a streaming COPY.
     last_bulk_ms: std::sync::Arc<std::sync::atomic::AtomicU64>,
     epoch: std::time::Instant,
+    /// Group commit (fsync per commit, shared by concurrent writers) unless
+    /// JOULEDB_SYNC_COMMIT=off. None = relaxed (flush to OS only).
+    sync: Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
 }
+
+/// `JOULEDB_SYNC_COMMIT`: `on` (default) makes every commit power-loss
+/// durable before it is acknowledged; `off` acknowledges once the WAL is in
+/// the OS page cache (survives a process crash, not a power loss).
+pub fn sync_commit_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        !matches!(
+            std::env::var("JOULEDB_SYNC_COMMIT").as_deref().map(str::to_ascii_lowercase).as_deref(),
+            Ok("off") | Ok("0") | Ok("false")
+        )
+    })
+}
+
+/// Write guard that, when dropped, releases the store lock first and then
+/// waits for its commits to be durable (group commit: writers queued behind
+/// one fsync share it).
+pub(crate) struct SyncWriteGuard<'a> {
+    guard: Option<std::sync::RwLockWriteGuard<'a, DurableAmorphicStore>>,
+    sync: Option<&'a joule_db_local::storage::wal::GroupSync>,
+}
+
+impl std::ops::Deref for SyncWriteGuard<'_> {
+    type Target = DurableAmorphicStore;
+    fn deref(&self) -> &DurableAmorphicStore {
+        self.guard.as_ref().expect("guard held until drop")
+    }
+}
+
+impl std::ops::DerefMut for SyncWriteGuard<'_> {
+    fn deref_mut(&mut self) -> &mut DurableAmorphicStore {
+        self.guard.as_mut().expect("guard held until drop")
+    }
+}
+
+impl Drop for SyncWriteGuard<'_> {
+    fn drop(&mut self) {
+        let lsn = self.sync.map(|g| g.committed_lsn());
+        drop(self.guard.take());
+        if let (Some(g), Some(lsn)) = (self.sync, lsn) {
+            if let Err(e) = g.wait_durable(lsn) {
+                // sticky: GroupSync reports it on every later commit too
+                tracing::error!("commit durability: {e}");
+                SYNC_FAILURES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+    }
+}
+
+/// fsync failures seen by commit guards (metric; also sticky in GroupSync)
+pub static SYNC_FAILURES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 impl HoloLock {
     /// Records per background catch-up step (bounds how long it holds the lock).
@@ -229,6 +283,17 @@ impl HoloLock {
     const IDLE_MS: u64 = 25;
 
     fn new(store: DurableAmorphicStore) -> Self {
+        let sync = if sync_commit_enabled() {
+            match store.group_sync() {
+                Ok(g) => Some(std::sync::Arc::new(g)),
+                Err(e) => {
+                    tracing::warn!("group commit unavailable ({e}); commits flush to OS only");
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let inner = std::sync::Arc::new(RwLock::new(store));
         let pending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let weak = std::sync::Arc::downgrade(&inner);
@@ -272,13 +337,29 @@ impl HoloLock {
             pending,
             last_bulk_ms,
             epoch,
+            sync,
         }
     }
 
-    pub(crate) fn write(
-        &self,
-    ) -> std::sync::LockResult<std::sync::RwLockWriteGuard<'_, DurableAmorphicStore>> {
-        self.inner.write()
+    pub(crate) fn write(&self) -> std::sync::LockResult<SyncWriteGuard<'_>> {
+        let sync = self.sync.as_deref();
+        match self.inner.write() {
+            // after an fsync failure, refuse further writes (nothing more is
+            // acknowledged on a WAL that may not be durable)
+            Ok(g) if sync.is_some_and(|s| s.has_failed()) => Err(std::sync::PoisonError::new(
+                SyncWriteGuard { guard: Some(g), sync: None },
+            )),
+            Ok(g) => Ok(SyncWriteGuard { guard: Some(g), sync }),
+            Err(p) => Err(std::sync::PoisonError::new(SyncWriteGuard {
+                guard: Some(p.into_inner()),
+                sync,
+            })),
+        }
+    }
+
+    /// The group-commit handle (None when JOULEDB_SYNC_COMMIT=off).
+    pub(crate) fn group_sync(&self) -> Option<&joule_db_local::storage::wal::GroupSync> {
+        self.sync.as_deref()
     }
 
     /// Plain read lock. Primary data and the field/value/columnar indexes

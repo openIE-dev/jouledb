@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use joule_db_local::storage::wal::{RecoveryManager, RecoveryResult, WalManager};
+use joule_db_local::storage::wal::{GroupSync, RecoveryManager, RecoveryResult, WalManager};
 
 use joule_db_hdc::BinaryHV;
 
@@ -110,6 +110,15 @@ enum WalOperation {
 }
 
 impl DurableAmorphicStore {
+    /// Group-commit handle for this store's WAL: after a write lock is
+    /// released, `wait_durable(committed_lsn())` makes every commit made so
+    /// far power-loss durable, sharing one fsync among concurrent writers.
+    pub fn group_sync(&self) -> AmorphicResult<GroupSync> {
+        self.wal
+            .group_sync()
+            .map_err(|e| AmorphicError::IngestionError(e.to_string()))
+    }
+
     /// Open or create a durable AmorphicStore at the given directory
     ///
     /// This will:
@@ -978,6 +987,39 @@ mod tests {
     /// Chunked batch WAL records (> one chunk, sparse fields, mixed types)
     /// replay exactly after a crash (store dropped without checkpoint), and
     /// later deletes still apply after the replayed chunks.
+    /// Sync commit: after `wait_durable`, single-row and batch commits are
+    /// fsynced, and survive a crash that skips every destructor/checkpoint
+    /// (`mem::forget` = no Drop, no flush of anything not already durable).
+    #[test]
+    fn test_sync_commit_crash_durability() {
+        let temp_dir = TempDir::new().unwrap();
+        let ids;
+        {
+            let mut store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+            let gs = store.group_sync().unwrap();
+            let mut m = HashMap::new();
+            m.insert("k".to_string(), Value::Int(-1));
+            let one = store.ingest_fields_batch(vec![m]).unwrap();
+            gs.wait_durable(gs.committed_lsn()).unwrap();
+            let f1 = gs.fsync_count();
+            assert!(f1 >= 1, "single commit fsynced");
+            let rows: Vec<HashMap<String, Value>> = (0..5_000i64)
+                .map(|i| HashMap::from([("k".to_string(), Value::Int(i))]))
+                .collect();
+            let mut b = store.ingest_fields_batch(rows).unwrap();
+            gs.wait_durable(gs.committed_lsn()).unwrap();
+            assert!(gs.fsync_count() > f1, "batch commit fsynced");
+            b.extend(one);
+            ids = b;
+            std::mem::forget(store);
+        }
+        let store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+        assert_eq!(store.len(), 5_001);
+        for id in &ids {
+            assert!(store.get(*id).is_some(), "record {id} durable");
+        }
+    }
+
     #[test]
     fn test_chunked_batch_wal_crash_recovery() {
         let temp_dir = TempDir::new().unwrap();

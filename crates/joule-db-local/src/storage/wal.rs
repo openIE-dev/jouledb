@@ -323,6 +323,75 @@ pub struct WalManager {
     file_position: AtomicU64,
     /// Active transactions (tx_id -> first LSN)
     active_transactions: std::sync::RwLock<HashMap<u64, u64>>,
+    /// LSN of the last commit record handed to the OS (see `GroupSync`)
+    committed_lsn: std::sync::Arc<AtomicU64>,
+}
+
+/// Group commit: makes commits durable (fsync) with concurrent committers
+/// sharing one fsync. A committer calls `wait_durable(lsn)` after releasing
+/// its write lock; if another committer's fsync already covered `lsn` it
+/// returns at once, otherwise it fsyncs everything written so far (covering
+/// every commit queued behind it).
+#[derive(Debug)]
+pub struct GroupSync {
+    file: File,
+    committed: std::sync::Arc<AtomicU64>,
+    /// highest LSN known durable
+    synced: std::sync::Mutex<u64>,
+    fsyncs: AtomicU64,
+    failed: std::sync::atomic::AtomicBool,
+}
+
+impl GroupSync {
+    /// LSN of the last commit record written (flushed to the OS).
+    pub fn committed_lsn(&self) -> u64 {
+        self.committed.load(Ordering::Acquire)
+    }
+
+    /// Block until `lsn` is on stable storage. Err if an fsync failed (the
+    /// failure is sticky: later commits report it too, like PostgreSQL's
+    /// fsync PANIC, so nothing is acknowledged as durable that may not be).
+    pub fn wait_durable(&self, lsn: u64) -> Result<(), StorageError> {
+        if self.failed.load(Ordering::Acquire) {
+            return Err(StorageError::Backend("WAL fsync failed earlier".into()));
+        }
+        let mut synced = self.synced.lock().unwrap_or_else(|p| p.into_inner());
+        if *synced >= lsn {
+            return Ok(());
+        }
+        // everything up to `target` is already in the OS page cache
+        let target = self.committed.load(Ordering::Acquire).max(lsn);
+        #[cfg(target_os = "macos")]
+        let r = {
+            // F_FULLFSYNC: flush the drive cache too (plain fsync does not on macOS)
+            use std::os::unix::io::AsRawFd;
+            let rc = unsafe { libc::fcntl(self.file.as_raw_fd(), libc::F_FULLFSYNC) };
+            if rc == -1 { self.file.sync_data() } else { Ok(()) }
+        };
+        #[cfg(not(target_os = "macos"))]
+        let r = self.file.sync_data();
+        self.fsyncs.fetch_add(1, Ordering::Relaxed);
+        match r {
+            Ok(()) => {
+                *synced = target;
+                Ok(())
+            }
+            Err(e) => {
+                self.failed.store(true, Ordering::Release);
+                Err(StorageError::Backend(format!("WAL fsync error: {e}")))
+            }
+        }
+    }
+
+    /// True once an fsync has failed (sticky)
+    pub fn has_failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    /// fsyncs issued so far (tests and metrics)
+    pub fn fsync_count(&self) -> u64 {
+        self.fsyncs.load(Ordering::Relaxed)
+    }
 }
 
 impl WalManager {
@@ -370,6 +439,23 @@ impl WalManager {
             last_checkpoint_lsn: AtomicU64::new(last_checkpoint),
             file_position: AtomicU64::new(file_len),
             active_transactions: std::sync::RwLock::new(HashMap::new()),
+            committed_lsn: std::sync::Arc::new(AtomicU64::new(0)),
+        })
+    }
+
+    /// A group-commit handle on this WAL's file (see `GroupSync`).
+    pub fn group_sync(&self) -> Result<GroupSync, StorageError> {
+        let file = self
+            .writer
+            .get_ref()
+            .try_clone()
+            .map_err(|e| StorageError::Backend(format!("WAL handle: {e}")))?;
+        Ok(GroupSync {
+            file,
+            committed: self.committed_lsn.clone(),
+            synced: std::sync::Mutex::new(0),
+            fsyncs: AtomicU64::new(0),
+            failed: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -646,9 +732,12 @@ impl WalManager {
         self.append_entry(&entry)?;
 
         // Push buffered entries to the OS (no fsync) — see doc comment.
+        // Callers that need power-loss durability per commit wait on
+        // `GroupSync::wait_durable(lsn)` (group commit).
         self.writer
             .flush()
             .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+        self.committed_lsn.fetch_max(lsn, Ordering::AcqRel);
 
         // Remove from active transactions
         {
@@ -954,6 +1043,51 @@ fn crc32(data: &[u8]) -> u32 {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    /// Group commit: concurrent committers share fsyncs (fewer fsyncs than
+    /// commits), every acknowledged commit is covered by a completed fsync,
+    /// and all of them recover after reopening.
+    #[test]
+    fn test_group_commit_shares_fsync_and_recovers() {
+        let dir = TempDir::new().unwrap();
+        let n_threads = 8u64;
+        let per = 25u64;
+        {
+            let wal = WalManager::open(dir.path()).unwrap();
+            let gs = std::sync::Arc::new(wal.group_sync().unwrap());
+            let wal = std::sync::Arc::new(std::sync::Mutex::new(wal));
+            let hs: Vec<_> = (0..n_threads)
+                .map(|t| {
+                    let (wal, gs) = (wal.clone(), gs.clone());
+                    std::thread::spawn(move || {
+                        for k in 0..per {
+                            let tx = 1 + t * per + k;
+                            let lsn = {
+                                let mut w = wal.lock().unwrap();
+                                w.log_page_write(tx, tx, b"row").unwrap();
+                                w.log_commit(tx).unwrap()
+                            };
+                            gs.wait_durable(lsn).unwrap();
+                            assert!(*gs.synced.lock().unwrap() >= lsn);
+                        }
+                    })
+                })
+                .collect();
+            for h in hs {
+                h.join().unwrap();
+            }
+            let commits = n_threads * per;
+            let f = gs.fsync_count();
+            assert!(f >= 1 && f <= commits, "fsyncs {f} for {commits} commits");
+            // a waiter whose commit is already covered does not fsync again
+            let before = gs.fsync_count();
+            gs.wait_durable(gs.committed_lsn()).unwrap();
+            assert_eq!(gs.fsync_count(), before);
+        }
+        let wal = WalManager::open(dir.path()).unwrap();
+        let r = RecoveryManager::recover(&wal).unwrap();
+        assert_eq!(r.committed_transactions.len() as u64, n_threads * per);
+    }
 
     #[test]
     fn test_wal_entry_encode_decode() {
