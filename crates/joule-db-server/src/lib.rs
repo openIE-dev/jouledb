@@ -74,6 +74,7 @@ pub mod scale_to_zero;
 pub mod scram;
 pub mod security;
 pub mod sharding;
+pub mod file_formats;
 pub mod sigql_executor;
 pub mod sparql_executor;
 pub mod subscription_hdc;
@@ -3865,6 +3866,13 @@ async fn export_table_handler(
         .map_err(|e| json_error(StatusCode::INTERNAL_SERVER_ERROR, e.message))?;
 
     match format {
+        "parquet" | "arrow" | "arrows" | "ipc" | "feather" => {
+            let fmt = file_formats::FileFormat::from_name(format).expect("matched above");
+            let bytes = file_formats::rows_to_batch(&response.columns, &response.rows)
+                .and_then(|b| file_formats::write_bytes(&b, fmt))
+                .map_err(|e| json_error(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+            Ok((StatusCode::OK, [(header::CONTENT_TYPE, fmt.content_type())], bytes).into_response())
+        }
         "csv" => {
             let mut csv_output = response.columns.join(",") + "\n";
             for row in &response.rows {

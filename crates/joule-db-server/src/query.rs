@@ -12507,6 +12507,57 @@ fn is_similarity_search(expr: &Expression) -> bool {
 }
 
 /// Build query router
+#[derive(Debug, Deserialize)]
+struct ExportRequest {
+    sql: String,
+    #[serde(default)]
+    format: Option<String>,
+}
+
+pub(crate) fn export_response(
+    executor: &Arc<dyn QueryExecutor>,
+    sql: String,
+    format: Option<&str>,
+) -> axum::response::Response {
+    use axum::http::{header, StatusCode};
+    use axum::response::IntoResponse;
+    let fmt = match crate::file_formats::FileFormat::from_name(format.unwrap_or("parquet")) {
+        Some(f) => f,
+        None => {
+            return (StatusCode::BAD_REQUEST, "format must be parquet, arrow or arrows").into_response()
+        }
+    };
+    let resp = match executor.execute(&QueryRequest {
+        sql,
+        ..Default::default()
+    }) {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(e)).into_response(),
+    };
+    match crate::file_formats::rows_to_batch(&resp.columns, &resp.rows)
+        .and_then(|b| crate::file_formats::write_bytes(&b, fmt))
+    {
+        Ok(bytes) => ([(header::CONTENT_TYPE, fmt.content_type())], bytes).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+/// POST /api/v1/export {"sql": "...", "format": "parquet"}: a query result as a file.
+async fn export_query_handler(
+    State(state): State<QueryState>,
+    Extension(auth): Extension<crate::AuthInfo>,
+    Json(req): Json<ExportRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if let Err(e) = check_write_permission(&auth.user_id, &auth.roles, &req.sql) {
+        return (axum::http::StatusCode::FORBIDDEN, Json(e)).into_response();
+    }
+    let ex = state.executor.clone();
+    tokio::task::spawn_blocking(move || export_response(&ex, req.sql, req.format.as_deref()))
+        .await
+        .unwrap_or_else(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response())
+}
+
 pub fn query_router(executor: Arc<dyn QueryExecutor>) -> axum::Router {
     use axum::routing::post;
 
@@ -12521,6 +12572,7 @@ pub fn query_router(executor: Arc<dyn QueryExecutor>) -> axum::Router {
 
     axum::Router::new()
         .route("/api/v1/query", post(query_handler))
+        .route("/api/v1/export", post(export_query_handler))
         .layer(Extension(default_auth))
         .with_state(state)
 }

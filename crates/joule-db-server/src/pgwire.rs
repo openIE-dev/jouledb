@@ -1625,6 +1625,8 @@ struct CopySpec {
     header: bool,
     delimiter: char,
     null: String,
+    /// Server-side Parquet / Arrow IPC file (`COPY t FROM|TO '/path'`)
+    file: Option<(String, crate::file_formats::FileFormat)>,
 }
 
 /// Parse `COPY t [(a, b)] FROM STDIN | COPY t|(query) TO STDOUT [WITH] [(options)] | [CSV] [HEADER]`.
@@ -1673,12 +1675,41 @@ fn parse_copy(sql: &str) -> Option<CopySpec> {
         rest = rest[e + 1..].trim_start();
     }
     let upper = rest.to_ascii_uppercase();
+    // Server-side Parquet / Arrow IPC files: `FROM|TO '<path>' [(FORMAT parquet)]`.
+    // Text/CSV server files stay unsupported over the wire.
+    for (kw, from) in [("FROM '", true), ("TO '", false)] {
+        if upper.starts_with(kw) {
+            let after = &rest[kw.len()..];
+            let end = after.find('\'')?;
+            let path = after[..end].to_string();
+            let opts = after[end + 1..].to_ascii_lowercase();
+            let fmt = ["parquet", "arrows", "arrow", "ipc", "feather"]
+                .iter()
+                .find(|f| opts.contains(&format!("format {f}")) || opts.contains(&format!("format '{f}'")))
+                .and_then(|f| crate::file_formats::FileFormat::from_name(f))
+                .or_else(|| crate::file_formats::FileFormat::from_path(&path))?;
+            if from && is_query {
+                return None;
+            }
+            return Some(CopySpec {
+                target,
+                is_query,
+                columns,
+                from_stdin: from,
+                csv: false,
+                header: false,
+                delimiter: ',',
+                null: String::new(),
+                file: Some((path, fmt)),
+            });
+        }
+    }
     let from_stdin = if upper.starts_with("FROM STDIN") {
         true
     } else if upper.starts_with("TO STDOUT") {
         false
     } else {
-        return None; // server-side files are not supported over the wire
+        return None; // server-side text files are not supported over the wire
     };
     let opts = rest[if from_stdin { 10 } else { 9 }..].to_string();
     let ou = opts.to_ascii_uppercase();
@@ -1710,7 +1741,81 @@ fn parse_copy(sql: &str) -> Option<CopySpec> {
         header,
         delimiter,
         null,
+        file: None,
     })
+}
+
+/// Resolve a COPY file path inside `JOULEDB_COPY_DIR`. Server-side file
+/// COPY is off unless that directory is configured; relative paths are
+/// taken inside it and absolute ones must stay under it (no `..` escape).
+fn copy_file_path(path: &str, for_write: bool) -> Result<std::path::PathBuf, String> {
+    let root = std::env::var_os("JOULEDB_COPY_DIR").ok_or_else(|| {
+        "server-side COPY files are disabled; set JOULEDB_COPY_DIR to the directory COPY may read and write".to_string()
+    })?;
+    let root = std::fs::canonicalize(&root).map_err(|e| format!("JOULEDB_COPY_DIR: {e}"))?;
+    let p = std::path::Path::new(path);
+    if p.is_absolute() && !p.starts_with(&root) {
+        return Err(format!("{path} is outside JOULEDB_COPY_DIR"));
+    }
+    let joined = if p.is_absolute() { p.to_path_buf() } else { root.join(p) };
+    let check = if for_write {
+        let parent = joined.parent().ok_or("bad path")?;
+        std::fs::canonicalize(parent)
+            .map_err(|e| format!("{}: {e}", parent.display()))?
+            .join(joined.file_name().ok_or("bad path")?)
+    } else {
+        std::fs::canonicalize(&joined).map_err(|e| format!("{path}: {e}"))?
+    };
+    if !check.starts_with(&root) {
+        return Err(format!("{path} is outside JOULEDB_COPY_DIR"));
+    }
+    Ok(check)
+}
+
+/// COPY to/from a server-side Parquet or Arrow IPC file.
+fn copy_file(
+    spec: &CopySpec,
+    executor: &Arc<dyn QueryExecutor>,
+    conn_state: &mut ConnectionState,
+    timeout: Option<u64>,
+) -> Result<usize, (String, String)> {
+    let (path, fmt) = spec.file.clone().expect("file COPY");
+    let bad = |m: String| ("58P01".to_string(), m);
+    if spec.from_stdin {
+        crate::query::check_write_permission(
+            &conn_state.user_id,
+            &conn_state.roles,
+            &format!("INSERT INTO {} VALUES (1)", spec.target),
+        )
+        .map_err(|e| (e.code, e.message))?;
+        let p = copy_file_path(&path, false).map_err(bad)?;
+        let batches = crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
+        let (file_cols, rows) = crate::file_formats::batches_to_copy_rows(&batches).map_err(bad)?;
+        let cols = if spec.columns.is_empty() { file_cols } else { spec.columns.clone() };
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        if conn_state.session_id.is_some() {
+            return Err(("0A000".into(), "COPY FROM a file inside a transaction is not supported yet".into()));
+        }
+        match executor.bulk_copy(&spec.target, &cols, &rows) {
+            Some(Ok(n)) => Ok(n),
+            Some(Err(e)) => Err((e.code, e.message)),
+            None => Err(("0A000".into(), "bulk COPY is not available on this executor".into())),
+        }
+    } else {
+        let query = if spec.is_query {
+            spec.target.clone()
+        } else if spec.columns.is_empty() {
+            format!("SELECT * FROM {}", spec.target)
+        } else {
+            format!("SELECT {} FROM {}", spec.columns.join(", "), spec.target)
+        };
+        let resp = run_statement(&query, executor, conn_state, timeout).map_err(|e| (e.code, e.message))?;
+        let p = copy_file_path(&path, true).map_err(bad)?;
+        crate::file_formats::write_file(p.to_str().unwrap_or(&path), fmt, &resp.columns, &resp.rows)
+            .map_err(bad)
+    }
 }
 
 /// Split one line of COPY text format (backslash escapes) into fields.
@@ -1901,6 +2006,16 @@ where
     R: AsyncReadExt + Unpin,
     W: AsyncWriteExt + Unpin,
 {
+    if spec.file.is_some() {
+        match copy_file(&spec, executor, conn_state, timeout) {
+            Ok(n) => write_command_complete(writer, &format!("COPY {n}")).await?,
+            Err((code, msg)) => {
+                conn_state.set_error_in_transaction();
+                write_error_response(writer, &code, &msg).await?;
+            }
+        }
+        return Ok(());
+    }
     if spec.from_stdin {
         if spec.is_query {
             write_error_response(writer, "42601", "COPY (query) FROM STDIN is not valid").await?;
@@ -4610,6 +4725,10 @@ mod tests {
         let o = parse_copy("COPY (SELECT 1) TO STDOUT").unwrap();
         assert!(o.is_query && !o.from_stdin && o.delimiter == '\t');
         assert!(parse_copy("COPY t FROM '/etc/passwd'").is_none());
+        let f = parse_copy("COPY t FROM '/d/x.parquet'").unwrap();
+        assert!(f.from_stdin && f.file.as_ref().unwrap().1 == crate::file_formats::FileFormat::Parquet);
+        let g = parse_copy("COPY (SELECT 1) TO 'out.bin' (FORMAT arrow)").unwrap();
+        assert!(!g.from_stdin && g.file.unwrap().1 == crate::file_formats::FileFormat::ArrowFile);
         assert_eq!(
             split_copy_text("1\t\\N\ta\\tb", '\t', "\\N"),
             vec![Some("1".into()), None, Some("a\tb".into())]
