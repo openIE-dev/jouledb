@@ -22,6 +22,7 @@ wasm-triggers = ["wasmtime"]  # Enable Wasm trigger execution
 viz = ["dep:joule-db-viz"]  # Visualization hint inference
 adaptive-pool = []  # Adaptive connection pool sizing
 [dependencies]
+rustc-hash = { workspace = true }
 joule-db-core = { workspace = true, features = ["async-tokio"] }
 joule-db-local = { workspace = true }
 joule-db-query = { workspace = true, features = ["sql", "cypher", "cql", "graphql", "storage-executor", "hdc"] }

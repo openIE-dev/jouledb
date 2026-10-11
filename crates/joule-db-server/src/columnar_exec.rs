@@ -23,7 +23,8 @@ use std::sync::Arc;
 pub enum Col {
     Int(Vec<i64>, Vec<bool>),
     Float(Vec<f64>, Vec<bool>),
-    Text(Vec<Option<Arc<str>>>),
+    /// Dictionary-encoded text: per-row code (u32::MAX = NULL) and the dictionary
+    Text(Vec<u32>, Vec<Arc<str>>),
     /// Mixed or non-scalar values: queries touching it fall back
     Other,
 }
@@ -54,18 +55,19 @@ impl TableColumns {
             let col = if other || (texts > 0 && ints + floats > 0) {
                 Col::Other
             } else if texts > 0 {
-                let mut interned: HashMap<&str, Arc<str>> = HashMap::new();
-                Col::Text(
-                    records
-                        .iter()
-                        .map(|r| match r.get(c) {
-                            Some(V::String(s)) => Some(
-                                interned.entry(s.as_str()).or_insert_with(|| Arc::from(s.as_str())).clone(),
-                            ),
-                            _ => None,
-                        })
-                        .collect(),
-                )
+                let mut codes_of: HashMap<&str, u32> = HashMap::new();
+                let mut dict: Vec<Arc<str>> = Vec::new();
+                let codes = records
+                    .iter()
+                    .map(|r| match r.get(c) {
+                        Some(V::String(s)) => *codes_of.entry(s.as_str()).or_insert_with(|| {
+                            dict.push(Arc::from(s.as_str()));
+                            (dict.len() - 1) as u32
+                        }),
+                        _ => NULL_CODE,
+                    })
+                    .collect();
+                Col::Text(codes, dict)
             } else if floats > 0 {
                 let mut v = Vec::with_capacity(n);
                 let mut nulls = Vec::with_capacity(n);
@@ -94,6 +96,10 @@ impl TableColumns {
         Self { len: n, cols }
     }
 }
+
+const NULL_CODE: u32 = u32::MAX;
+
+type FxMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Num {
@@ -205,23 +211,25 @@ fn filter(t: &TableColumns, preds: &[Pred]) -> Option<Vec<u32>> {
                         !nulls[i as usize] && v[i as usize].partial_cmp(&x).is_some_and(|o| cmp_ok(o, op))
                     })
                 }
-                (Col::Text(v), Lit::S(x)) => sel.retain(|&i| {
-                    v[i as usize].as_deref().is_some_and(|s| cmp_ok(s.cmp(x.as_str()), op))
-                }),
+                (Col::Text(codes, dict), Lit::S(x)) => {
+                    let ok: Vec<bool> = dict.iter().map(|d| cmp_ok((**d).cmp(x.as_str()), op)).collect();
+                    sel.retain(|&i| {
+                        let c = codes[i as usize];
+                        c != NULL_CODE && ok[c as usize]
+                    })
+                }
                 _ => return None,
             },
             Pred::Like { col, pattern, negated, ci } => match t.cols.get(*col)? {
-                Col::Text(v) => {
-                    // evaluate once per distinct (interned) string
-                    let mut memo: HashMap<*const u8, bool> = HashMap::new();
-                    sel.retain(|&i| match &v[i as usize] {
-                        Some(s) => {
-                            let m = *memo
-                                .entry(s.as_ptr())
-                                .or_insert_with(|| joule_db_query::like::like(s, pattern, *ci));
-                            m != *negated
-                        }
-                        None => false,
+                Col::Text(codes, dict) => {
+                    // evaluate once per dictionary entry
+                    let ok: Vec<bool> = dict
+                        .iter()
+                        .map(|d| joule_db_query::like::like(d, pattern, *ci) != *negated)
+                        .collect();
+                    sel.retain(|&i| {
+                        let c = codes[i as usize];
+                        c != NULL_CODE && ok[c as usize]
                     })
                 }
                 _ => return None,
@@ -243,7 +251,10 @@ fn key_at(c: &Col, i: usize) -> Key {
     match c {
         Col::Int(v, n) => if n[i] { Key::Null } else { Key::I(v[i]) },
         Col::Float(v, n) => if n[i] { Key::Null } else { Key::F(v[i].to_bits()) },
-        Col::Text(v) => v[i].clone().map(Key::S).unwrap_or(Key::Null),
+        Col::Text(codes, dict) => match codes[i] {
+            NULL_CODE => Key::Null,
+            c => Key::S(dict[c as usize].clone()),
+        },
         Col::Other => Key::Null,
     }
 }
@@ -278,9 +289,10 @@ struct Acc {
     count: u64,
     isum: i128,
     fsum: f64,
+    fcomp: f64,
     min: Option<Num>,
     max: Option<Num>,
-    distinct: Option<HashSet<Key>>,
+    distinct: Option<HashSet<u64>>,
 }
 
 fn num_at(c: &Col, i: usize) -> Option<Num> {
@@ -324,6 +336,100 @@ fn cmp_json(a: &serde_json::Value, b: &serde_json::Value) -> Ordering {
         (J::String(x), J::String(y)) => x.cmp(y),
         _ => Ordering::Equal,
     }
+}
+
+fn is_null(c: &Col, i: usize) -> bool {
+    match c {
+        Col::Int(_, n) | Col::Float(_, n) => n[i],
+        Col::Text(codes, _) => codes[i] == NULL_CODE,
+        Col::Other => true,
+    }
+}
+
+/// Hashable distinct key (text by dictionary code, which is unique per string)
+fn distinct_key(c: &Col, i: usize) -> Option<u64> {
+    match c {
+        Col::Int(v, n) => (!n[i]).then(|| v[i] as u64),
+        Col::Float(v, n) => (!n[i]).then(|| v[i].to_bits()),
+        Col::Text(codes, _) => (codes[i] != NULL_CODE).then(|| codes[i] as u64),
+        Col::Other => None,
+    }
+}
+
+/// Code of row `i` within one column (u64; NULL gets its own code).
+fn code_of(c: &Col, i: usize) -> u64 {
+    match c {
+        Col::Int(v, n) => if n[i] { u64::MAX } else { v[i] as u64 },
+        Col::Float(v, n) => if n[i] { u64::MAX } else { v[i].to_bits() },
+        Col::Text(codes, _) => codes[i] as u64,
+        Col::Other => u64::MAX,
+    }
+}
+
+fn is_null_code(c: &Col, code: u64, i: usize) -> bool {
+    match c {
+        Col::Text(..) => code == NULL_CODE as u64,
+        _ => code == u64::MAX && is_null(c, i),
+    }
+}
+
+/// Dense group id per selected row (first-appearance order) and each group's key.
+fn group_ids(gcols: &[&Col], sel: &[u32]) -> (Vec<u32>, Vec<Vec<Key>>) {
+    if gcols.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let mut ids = Vec::with_capacity(sel.len());
+    let mut keys: Vec<Vec<Key>> = Vec::new();
+    if let [c] = gcols {
+        // single column: dense array for dictionary text, hash map otherwise
+        if let Col::Text(codes, dict) = c {
+            let mut map = vec![u32::MAX; dict.len() + 1];
+            for &ri in sel {
+                let code = codes[ri as usize];
+                let slot = if code == NULL_CODE { dict.len() } else { code as usize };
+                if map[slot] == u32::MAX {
+                    map[slot] = keys.len() as u32;
+                    keys.push(vec![key_at(c, ri as usize)]);
+                }
+                ids.push(map[slot]);
+            }
+            return (ids, keys);
+        }
+        let mut map: FxMap<(u64, bool), u32> = FxMap::default();
+        for &ri in sel {
+            let ri = ri as usize;
+            let code = code_of(c, ri);
+            let k = (code, is_null_code(c, code, ri));
+            let next = keys.len() as u32;
+            let id = *map.entry(k).or_insert_with(|| {
+                keys.push(vec![key_at(c, ri)]);
+                next
+            });
+            ids.push(id);
+        }
+        return (ids, keys);
+    }
+    let mut map: FxMap<Vec<(u64, bool)>, u32> = FxMap::default();
+    let mut buf = Vec::with_capacity(gcols.len());
+    for &ri in sel {
+        let ri = ri as usize;
+        buf.clear();
+        for c in gcols {
+            let code = code_of(c, ri);
+            buf.push((code, is_null_code(c, code, ri)));
+        }
+        let id = match map.get(&buf) {
+            Some(&id) => id,
+            None => {
+                let id = keys.len() as u32;
+                keys.push(gcols.iter().map(|c| key_at(c, ri)).collect());
+                map.insert(buf.clone(), id);
+                id
+            }
+        };
+        ids.push(id);
+    }
+    (ids, keys)
 }
 
 /// Result of a vectorized SELECT: column names and JSON rows.
@@ -441,65 +547,90 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
             proto[i].distinct = Some(HashSet::new());
         }
     }
-    let mut groups: HashMap<Vec<Key>, Vec<Acc>> = HashMap::new();
-    let mut order_of: Vec<Vec<Key>> = Vec::new();
-    if group_cols.is_empty() {
-        groups.insert(Vec::new(), proto.clone());
-        order_of.push(Vec::new());
-    }
-    let single_int_group = matches!(gcols.as_slice(), [Col::Int(..)]);
-    let _ = single_int_group;
-    for &ri in &sel {
-        let ri = ri as usize;
-        let key: Vec<Key> = gcols.iter().map(|c| key_at(c, ri)).collect();
-        let accs = match groups.get_mut(&key) {
-            Some(a) => a,
-            None => {
-                order_of.push(key.clone());
-                groups.entry(key).or_insert_with(|| proto.clone())
+    // Dense group id per selected row, in first-appearance order.
+    let (gid, order_of) = group_ids(&gcols, &sel);
+    let ngroups = order_of.len().max(if gcols.is_empty() { 1 } else { 0 });
+    let mut accs: Vec<Vec<Acc>> = vec![proto; ngroups];
+    for (oi, o) in outs.iter().enumerate() {
+        let OutCol::Agg(kind, _) = o else { continue };
+        let col = agg_cols[oi].unwrap_or(&Col::Other);
+        let g = |k: usize| if gid.is_empty() { 0 } else { gid[k] as usize };
+        match (kind, col) {
+            (AggKind::CountStar, _) => {
+                for k in 0..sel.len() {
+                    accs[g(k)][oi].count += 1;
+                }
             }
-        };
-        for (oi, o) in outs.iter().enumerate() {
-            let OutCol::Agg(kind, _) = o else { continue };
-            let acc = &mut accs[oi];
-            match kind {
-                AggKind::CountStar => acc.count += 1,
-                AggKind::Count => {
-                    if !matches!(key_at(agg_cols[oi].unwrap_or(&Col::Other), ri), Key::Null) {
-                        acc.count += 1
+            (AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max, Col::Int(v, nulls)) => {
+                for (k, &ri) in sel.iter().enumerate() {
+                    let ri = ri as usize;
+                    if nulls[ri] {
+                        continue;
                     }
-                }
-                AggKind::CountDistinct => {
-                    let k = key_at(agg_cols[oi].unwrap_or(&Col::Other), ri);
-                    if k != Key::Null {
-                        if let Some(d) = acc.distinct.as_mut() {
-                            d.insert(k);
-                        }
+                    let x = v[ri];
+                    let a = &mut accs[g(k)][oi];
+                    a.count += 1;
+                    a.isum += x as i128;
+                    if a.min.is_none_or(|m| num_lt(Num::I(x), m)) {
+                        a.min = Some(Num::I(x));
                     }
-                }
-                _ => {
-                    if let Some(n) = num_at(agg_cols[oi].unwrap_or(&Col::Other), ri) {
-                        acc.count += 1;
-                        match n {
-                            Num::I(x) => acc.isum += x as i128,
-                            Num::F(x) => acc.fsum += x,
-                        }
-                        if acc.min.is_none_or(|m| num_lt(n, m)) {
-                            acc.min = Some(n);
-                        }
-                        if acc.max.is_none_or(|m| num_lt(m, n)) {
-                            acc.max = Some(n);
-                        }
+                    if a.max.is_none_or(|m| num_lt(m, Num::I(x))) {
+                        a.max = Some(Num::I(x));
                     }
                 }
             }
+            (AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max, Col::Float(v, nulls)) => {
+                for (k, &ri) in sel.iter().enumerate() {
+                    let ri = ri as usize;
+                    if nulls[ri] {
+                        continue;
+                    }
+                    let x = v[ri];
+                    let a = &mut accs[g(k)][oi];
+                    a.count += 1;
+                    // Neumaier compensated sum: matches exact decimal sums
+                    let t = a.fsum + x;
+                    if a.fsum.abs() >= x.abs() {
+                        a.fcomp += (a.fsum - t) + x;
+                    } else {
+                        a.fcomp += (x - t) + a.fsum;
+                    }
+                    a.fsum = t;
+                    if a.min.is_none_or(|m| num_lt(Num::F(x), m)) {
+                        a.min = Some(Num::F(x));
+                    }
+                    if a.max.is_none_or(|m| num_lt(m, Num::F(x))) {
+                        a.max = Some(Num::F(x));
+                    }
+                }
+            }
+            (AggKind::Count, c) => {
+                for (k, &ri) in sel.iter().enumerate() {
+                    if !is_null(c, ri as usize) {
+                        accs[g(k)][oi].count += 1;
+                    }
+                }
+            }
+            (AggKind::CountDistinct, c) => {
+                for (k, &ri) in sel.iter().enumerate() {
+                    let key = distinct_key(c, ri as usize);
+                    if let Some(key) = key {
+                        if let Some(d) = accs[g(k)][oi].distinct.as_mut() {
+                            d.insert(key);
+                        }
+                    }
+                }
+            }
+            _ => return None,
         }
     }
+    let order_of: Vec<Vec<Key>> = if gcols.is_empty() { vec![Vec::new()] } else { order_of };
 
     let mut rows: Vec<Vec<serde_json::Value>> = order_of
         .iter()
-        .map(|key| {
-            let accs = &groups[key];
+        .enumerate()
+        .map(|(gi, key)| {
+            let accs = &accs[gi];
             outs.iter()
                 .enumerate()
                 .map(|(oi, o)| match o {
@@ -517,10 +648,10 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
                                 Ok(v) => serde_json::json!(v),
                                 Err(_) => serde_json::json!(a.isum as f64),
                             },
-                            AggKind::Sum => serde_json::json!(a.fsum),
+                            AggKind::Sum => serde_json::json!(a.fsum + a.fcomp),
                             AggKind::Avg if a.count == 0 => serde_json::Value::Null,
                             AggKind::Avg => {
-                                let s = if is_int { a.isum as f64 } else { a.fsum };
+                                let s = if is_int { a.isum as f64 } else { a.fsum + a.fcomp };
                                 serde_json::json!(s / a.count as f64)
                             }
                             AggKind::Min => num_json(a.min),
