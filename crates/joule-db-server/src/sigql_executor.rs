@@ -28,7 +28,6 @@ const MAX_SIGNAL_ROWS: usize = 10_000;
 // Detection
 // ============================================================================
 
-
 /// Choose SigQL target: WebGpu when a wgpu adapter is present, else Simd.
 ///
 /// The adapter probe runs once and is cached. Never invents a Metal backend:
@@ -127,7 +126,10 @@ fn plan_op_kind(plan: &sigql::ExecutionPlan) -> (String, Result<(), String>) {
     let mut parts: Vec<String> = Vec::new();
     let mut gpu = Ok(());
     for step in &plan.steps {
-        if matches!(step, PlanStep::LoadSignal { .. } | PlanStep::Store { .. } | PlanStep::Passthrough { .. }) {
+        if matches!(
+            step,
+            PlanStep::LoadSignal { .. } | PlanStep::Store { .. } | PlanStep::Passthrough { .. }
+        ) {
             continue;
         }
         let part = match GpuKernel::from_step(step) {
@@ -176,7 +178,13 @@ pub fn execute_sigql_routed(
     let plan = sigql::compile(&query, Target::Simd)
         .map_err(|e| QueryErrorResponse::execution_error(&format!("SigQL compile: {}", e)))?;
     let sources = load_sources(&query, amorphic);
-    run_routed(&plan, &sources, start, model, crate::power_meter::Meter::global())
+    run_routed(
+        &plan,
+        &sources,
+        start,
+        model,
+        crate::power_meter::Meter::global(),
+    )
 }
 
 /// Route a compiled plan by measured cost and run it (see
@@ -237,7 +245,9 @@ fn run_routed(
             let mut response = map_result_to_response(result, start)?;
             response.device_target = Some("cpu".into());
             response.warnings.push(match (&gpu_error, &cpu_only_note) {
-                (Some(reason), _) => format!("SigQL ran on the CPU runtime: WebGPU path failed ({reason})"),
+                (Some(reason), _) => {
+                    format!("SigQL ran on the CPU runtime: WebGPU path failed ({reason})")
+                }
                 (None, Some(note)) => format!("SigQL ran on the CPU runtime: {note}"),
                 (None, None) => format!("SigQL ran on the CPU runtime (route: {route_reason})"),
             });
@@ -251,7 +261,11 @@ fn run_routed(
     model.record_energy(&op, size, &ran, &energy);
     // The next real processor: the route's fallback when the chosen device
     // ran; the processor that actually ran when it did not.
-    let fallback = if ran == route.chosen { route.fallback.device.clone() } else { ran.device.clone() };
+    let fallback = if ran == route.chosen {
+        route.fallback.device.clone()
+    } else {
+        ran.device.clone()
+    };
     let receipt = RouteReceipt {
         op,
         size_bucket: size_bucket(size),
@@ -260,7 +274,10 @@ fn run_routed(
         backend: ran.backend.clone(),
         fallback,
         route_reason,
-        ranked_by: route.ranked_by.map(|b| b.label().to_string()).unwrap_or_else(|| "none".into()),
+        ranked_by: route
+            .ranked_by
+            .map(|b| b.label().to_string())
+            .unwrap_or_else(|| "none".into()),
         joules: energy.joules,
         incremental_joules: energy.incremental_joules,
         seconds: energy.seconds,
@@ -315,7 +332,9 @@ pub fn execute_sigql_with(
                 ));
                 return Ok(response);
             }
-            Err(reason) => format!("SigQL ran on the CPU runtime: WebGPU path unavailable ({reason})"),
+            Err(reason) => {
+                format!("SigQL ran on the CPU runtime: WebGPU path unavailable ({reason})")
+            }
         }
     } else if target == Target::Simd {
         match gpu_context() {
@@ -362,7 +381,8 @@ struct GpuContext {
     layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
     /// Compiled pipelines keyed by (WGSL source, entry point).
-    pipelines: std::sync::Mutex<std::collections::HashMap<(String, &'static str), wgpu::ComputePipeline>>,
+    pipelines:
+        std::sync::Mutex<std::collections::HashMap<(String, &'static str), wgpu::ComputePipeline>>,
     /// The device can write GPU timestamps at compute-pass boundaries
     /// (used for per-pass profiles).
     timestamps: bool,
@@ -379,7 +399,9 @@ struct GpuRun {
 
 /// `(name, PCI vendor id, PCI device id)` of the wgpu adapter SigQL uses.
 pub(crate) fn gpu_adapter_id() -> Option<(String, u32, u32)> {
-    gpu_context().ok().map(|c| (c.adapter_name.clone(), c.vendor, c.device_id))
+    gpu_context()
+        .ok()
+        .map(|c| (c.adapter_name.clone(), c.vendor, c.device_id))
 }
 
 fn gpu_context() -> Result<&'static GpuContext, String> {
@@ -419,7 +441,11 @@ async fn open_gpu() -> Result<GpuContext, String> {
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("sigql-webgpu"),
-            required_features: if timestamps { wgpu::Features::TIMESTAMP_QUERY } else { wgpu::Features::empty() },
+            required_features: if timestamps {
+                wgpu::Features::TIMESTAMP_QUERY
+            } else {
+                wgpu::Features::empty()
+            },
             required_limits: wgpu::Limits::default(),
             memory_hints: Default::default(),
             trace: wgpu::Trace::default(),
@@ -492,24 +518,38 @@ impl GpuContext {
 
     /// Compile (or reuse) the pipeline for one entry point of a kernel's
     /// WGSL, surfacing WGSL errors.
-    fn pipeline(&self, wgsl: &str, entry: &'static str, label: &str) -> Result<wgpu::ComputePipeline, String> {
+    fn pipeline(
+        &self,
+        wgsl: &str,
+        entry: &'static str,
+        label: &str,
+    ) -> Result<wgpu::ComputePipeline, String> {
         let key = (wgsl.to_string(), entry);
-        if let Some(p) = self.pipelines.lock().ok().and_then(|m| m.get(&key).cloned()) {
+        if let Some(p) = self
+            .pipelines
+            .lock()
+            .ok()
+            .and_then(|m| m.get(&key).cloned())
+        {
             return Ok(p);
         }
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(label),
-            source: wgpu::ShaderSource::Wgsl(wgsl.into()),
-        });
-        let pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some(label),
-            layout: Some(&self.pipeline_layout),
-            module: &module,
-            entry_point: Some(entry),
-            cache: None,
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        });
+        let module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(label),
+                source: wgpu::ShaderSource::Wgsl(wgsl.into()),
+            });
+        let pipeline = self
+            .device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some(label),
+                layout: Some(&self.pipeline_layout),
+                module: &module,
+                entry_point: Some(entry),
+                cache: None,
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            });
         if let Some(err) = pollster::block_on(scope.pop()) {
             return Err(format!("{label} kernel ({entry}) failed to compile: {err}"));
         }
@@ -523,11 +563,24 @@ impl GpuContext {
 /// A plan register held on the GPU.
 #[derive(Clone)]
 enum GpuValue {
-    Signal { buf: wgpu::Buffer, len: usize, rate: u32, channel: String, start_ns: i64 },
-    Spectrum { buf: wgpu::Buffer, len: usize },
+    Signal {
+        buf: wgpu::Buffer,
+        len: usize,
+        rate: u32,
+        channel: String,
+        start_ns: i64,
+    },
+    Spectrum {
+        buf: wgpu::Buffer,
+        len: usize,
+    },
     /// Raw output of a scalar kernel (statistics, band power), turned into
     /// the scalar on readback by `GpuKernel::finish_scalar`.
-    Scalar { buf: wgpu::Buffer, kernel: GpuKernel, n: usize },
+    Scalar {
+        buf: wgpu::Buffer,
+        kernel: GpuKernel,
+        n: usize,
+    },
 }
 
 /// Run a whole plan on the GPU, or say why it cannot.
@@ -572,13 +625,15 @@ fn run_on_gpu(
         })
     };
 
-    let mut regs: Vec<Option<GpuValue>> = vec![None; plan.allocate_resources().num_registers as usize];
-    let reg = |regs: &Vec<Option<GpuValue>>, r: sigql::compile::RegisterId| -> Result<GpuValue, String> {
-        regs.get(r.0 as usize)
-            .cloned()
-            .flatten()
-            .ok_or_else(|| format!("register {} is empty", r.0))
-    };
+    let mut regs: Vec<Option<GpuValue>> =
+        vec![None; plan.allocate_resources().num_registers as usize];
+    let reg =
+        |regs: &Vec<Option<GpuValue>>, r: sigql::compile::RegisterId| -> Result<GpuValue, String> {
+            regs.get(r.0 as usize)
+                .cloned()
+                .flatten()
+                .ok_or_else(|| format!("register {} is empty", r.0))
+        };
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("sigql"),
     });
@@ -598,9 +653,15 @@ fn run_on_gpu(
                     .ok_or_else(|| format!("signal source '{source}' is not in storage"))?;
                 let bytes = (signal.samples.len() * 4) as u64;
                 if bytes > max_bytes {
-                    return Err(format!("signal '{source}' ({bytes} bytes) exceeds the adapter's storage binding limit"));
+                    return Err(format!(
+                        "signal '{source}' ({bytes} bytes) exceeds the adapter's storage binding limit"
+                    ));
                 }
-                let data: Vec<u8> = signal.samples.iter().flat_map(|v| (*v as f32).to_le_bytes()).collect();
+                let data: Vec<u8> = signal
+                    .samples
+                    .iter()
+                    .flat_map(|v| (*v as f32).to_le_bytes())
+                    .collect();
                 let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("sigql-load"),
                     contents: if data.is_empty() { &[0u8; 4] } else { &data },
@@ -631,15 +692,24 @@ fn run_on_gpu(
                     sigql::compile::codegen::step_output(step),
                 ) {
                     (Some(i), Some(o)) => (i, o),
-                    _ => return Err(format!("{} has no single input/output register", kernel.name())),
+                    _ => {
+                        return Err(format!(
+                            "{} has no single input/output register",
+                            kernel.name()
+                        ));
+                    }
                 };
                 let (buf, len, rate, channel, start_ns, is_spectrum) = match reg(&regs, input)? {
-                    GpuValue::Signal { buf, len, rate, channel, start_ns } => {
-                        (buf, len, rate, channel, start_ns, false)
-                    }
+                    GpuValue::Signal {
+                        buf,
+                        len,
+                        rate,
+                        channel,
+                        start_ns,
+                    } => (buf, len, rate, channel, start_ns, false),
                     GpuValue::Spectrum { buf, len } => (buf, len, 0, String::new(), 0, true),
                     GpuValue::Scalar { .. } => {
-                        return Err(format!("{} cannot take a scalar input", kernel.name()))
+                        return Err(format!("{} cannot take a scalar input", kernel.name()));
                     }
                 };
                 let second = match step {
@@ -671,14 +741,22 @@ fn run_on_gpu(
                 bytes_used += buf_bytes;
                 let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("sigql-params"),
-                    contents: &kernel.params(len).iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>(),
+                    contents: &kernel
+                        .params(len)
+                        .iter()
+                        .flat_map(|w| w.to_le_bytes())
+                        .collect::<Vec<u8>>(),
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
                 let aux = match &second {
                     Some((b, _)) => b.clone(),
                     None => device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("sigql-aux"),
-                        contents: &kernel.aux().iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>(),
+                        contents: &kernel
+                            .aux()
+                            .iter()
+                            .flat_map(|v| v.to_le_bytes())
+                            .collect::<Vec<u8>>(),
                         usage: wgpu::BufferUsages::STORAGE,
                     }),
                 };
@@ -694,10 +772,22 @@ fn run_on_gpu(
                     label: Some(kernel.name()),
                     layout: &ctx.layout,
                     entries: &[
-                        wgpu::BindGroupEntry { binding: 0, resource: buf.as_entire_binding() },
-                        wgpu::BindGroupEntry { binding: 1, resource: out.as_entire_binding() },
-                        wgpu::BindGroupEntry { binding: 2, resource: params.as_entire_binding() },
-                        wgpu::BindGroupEntry { binding: 3, resource: aux.as_entire_binding() },
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: out.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: aux.as_entire_binding(),
+                        },
                     ],
                 });
                 {
@@ -715,14 +805,33 @@ fn run_on_gpu(
                 }
                 names.push(kernel.name());
                 regs[output.0 as usize] = Some(if matches!(kernel, GpuKernel::Spectrum { .. }) {
-                    GpuValue::Spectrum { buf: out, len: out_len }
+                    GpuValue::Spectrum {
+                        buf: out,
+                        len: out_len,
+                    }
                 } else if kernel.is_scalar() {
-                    GpuValue::Scalar { buf: out, kernel, n: len }
+                    GpuValue::Scalar {
+                        buf: out,
+                        kernel,
+                        n: len,
+                    }
                 } else if matches!(kernel, GpuKernel::CrossCorrelate { .. }) {
                     // Runtime::cross_correlate names and times its output so.
-                    GpuValue::Signal { buf: out, len: out_len, rate, channel: "cross_correlation".into(), start_ns: 0 }
+                    GpuValue::Signal {
+                        buf: out,
+                        len: out_len,
+                        rate,
+                        channel: "cross_correlation".into(),
+                        start_ns: 0,
+                    }
                 } else {
-                    GpuValue::Signal { buf: out, len: out_len, rate: kernel.output_rate(rate), channel, start_ns }
+                    GpuValue::Signal {
+                        buf: out,
+                        len: out_len,
+                        rate: kernel.output_rate(rate),
+                        channel,
+                        start_ns,
+                    }
                 });
             }
             (other, None) => {
@@ -780,9 +889,12 @@ fn run_on_gpu(
             .collect();
         staging.unmap();
         let out = match value {
-            GpuValue::Signal { rate, channel, start_ns, .. } => {
-                OutputValue::Signal(DynSignal::new(channel, data, rate, start_ns))
-            }
+            GpuValue::Signal {
+                rate,
+                channel,
+                start_ns,
+                ..
+            } => OutputValue::Signal(DynSignal::new(channel, data, rate, start_ns)),
             GpuValue::Spectrum { .. } => OutputValue::Spectrum(data),
             GpuValue::Scalar { kernel, n, .. } => OutputValue::Scalar(
                 kernel
@@ -802,7 +914,11 @@ fn run_on_gpu(
                 memory_used: bytes_used as usize,
             },
         },
-        GpuRun { adapter: ctx.adapter.clone(), kernels: names, setup },
+        GpuRun {
+            adapter: ctx.adapter.clone(),
+            kernels: names,
+            setup,
+        },
     ))
 }
 
@@ -1478,7 +1594,11 @@ mod tests {
                         ctx.adapter,
                         auto.warnings
                     );
-                    assert!(auto.warnings.iter().any(|w| w.contains("WGSL kernel")), "{:?}", auto.warnings);
+                    assert!(
+                        auto.warnings.iter().any(|w| w.contains("WGSL kernel")),
+                        "{:?}",
+                        auto.warnings
+                    );
                     assert_eq!(auto.columns, cpu.columns, "{sql}");
                     let (a, b) = (numbers(&auto), numbers(&cpu));
                     assert!(!b.is_empty(), "{sql}: no output");
@@ -1488,7 +1608,9 @@ mod tests {
                     assert_eq!(auto.rows.len(), cpu.rows.len(), "{sql}");
                     for (ra, rc) in auto.rows.iter().zip(&cpu.rows) {
                         for (c, name) in cpu.columns.iter().enumerate() {
-                            if !["value", "magnitude", "lower_bound", "upper_bound"].contains(&name.as_str()) {
+                            if !["value", "magnitude", "lower_bound", "upper_bound"]
+                                .contains(&name.as_str())
+                            {
                                 assert_eq!(ra[c], rc[c], "{sql}: column {name}");
                             }
                         }
@@ -1500,7 +1622,11 @@ mod tests {
                             "{sql}: element {i} GPU {x} vs CPU {y} (scale {scale})"
                         );
                     }
-                    eprintln!("{sql}: webgpu on {} matches CPU ({} values)", ctx.adapter, a.len());
+                    eprintln!(
+                        "{sql}: webgpu on {} matches CPU ({} values)",
+                        ctx.adapter,
+                        a.len()
+                    );
                 }
                 Err(reason) => {
                     assert_eq!(auto.device_target.as_deref(), Some("cpu"));
@@ -1514,13 +1640,18 @@ mod tests {
             }
         }
         if std::env::var("JOULE_REQUIRE_WEBGPU").is_ok_and(|v| v == "1") {
-            let ctx = gpu.as_ref().expect("JOULE_REQUIRE_WEBGPU=1 but no wgpu adapter");
+            let ctx = gpu
+                .as_ref()
+                .expect("JOULE_REQUIRE_WEBGPU=1 but no wgpu adapter");
             eprintln!("WebGPU adapter: {}", ctx.adapter);
         }
     }
 
     /// Compile `sql` and bind every source it loads to `samples` at 1 kHz.
-    fn long_plan(sql: &str, samples: &[f64]) -> (sigql::ExecutionPlan, Vec<(String, DynSignal<f64>)>) {
+    fn long_plan(
+        sql: &str,
+        samples: &[f64],
+    ) -> (sigql::ExecutionPlan, Vec<(String, DynSignal<f64>)>) {
         let plan = sigql::compile(&sigql::parse(sql).unwrap(), Target::Simd).unwrap();
         let sources = plan
             .steps
@@ -1529,7 +1660,12 @@ mod tests {
                 sigql::compile::PlanStep::LoadSignal { source, .. } => Some(source.to_string()),
                 _ => None,
             })
-            .map(|name| (name.clone(), DynSignal::new(name.as_str(), samples.to_vec(), 1000, 0)))
+            .map(|name| {
+                (
+                    name.clone(),
+                    DynSignal::new(name.as_str(), samples.to_vec(), 1000, 0),
+                )
+            })
             .collect();
         (plan, sources)
     }
@@ -1545,7 +1681,10 @@ mod tests {
             .expect("a signal output")
     }
 
-    fn cpu_run(plan: &sigql::ExecutionPlan, sources: &[(String, DynSignal<f64>)]) -> sigql::runtime::ExecutionResult {
+    fn cpu_run(
+        plan: &sigql::ExecutionPlan,
+        sources: &[(String, DynSignal<f64>)],
+    ) -> sigql::runtime::ExecutionResult {
         let mut runtime = Runtime::new(RuntimeConfig::default());
         for (name, signal) in sources {
             runtime.register_signal(name.clone(), signal.clone());
@@ -1591,8 +1730,13 @@ mod tests {
         for sql in LONG_IIR_QUERIES {
             let (plan, sources) = long_plan(sql, &samples);
             let cpu = signal_output(&cpu_run(&plan, &sources));
-            let (result, run) = execute_plan_webgpu(&plan, &sources).unwrap_or_else(|e| panic!("{sql}: {e}"));
-            assert!(run.kernels.iter().any(|k| *k == "iir" || *k == "decimate"), "{sql}: {:?}", run.kernels);
+            let (result, run) =
+                execute_plan_webgpu(&plan, &sources).unwrap_or_else(|e| panic!("{sql}: {e}"));
+            assert!(
+                run.kernels.iter().any(|k| *k == "iir" || *k == "decimate"),
+                "{sql}: {:?}",
+                run.kernels
+            );
             let gpu = signal_output(&result);
             assert_eq!(gpu.len(), cpu.len(), "{sql}");
             let scale = cpu.iter().fold(1.0f64, |m, v| m.max(v.abs()));
@@ -1601,7 +1745,10 @@ mod tests {
                 .zip(&cpu)
                 .map(|(a, b)| (a - b).abs())
                 .fold(0.0f64, f64::max);
-            assert!(worst <= 2e-4 * scale, "{sql}: max error {worst} (scale {scale})");
+            assert!(
+                worst <= 2e-4 * scale,
+                "{sql}: max error {worst} (scale {scale})"
+            );
             eprintln!(
                 "{sql}: {} samples on {} match CPU, max error {:.2e} of scale {scale:.3}",
                 samples.len(),
@@ -1646,10 +1793,25 @@ mod tests {
     ) -> BenchKernel {
         let pipelines = passes
             .iter()
-            .map(|(entry, groups)| (*entry, ctx.pipeline(&wgsl, entry, "bench").unwrap(), *groups))
+            .map(|(entry, groups)| {
+                (
+                    *entry,
+                    ctx.pipeline(&wgsl, entry, "bench").unwrap(),
+                    *groups,
+                )
+            })
             .collect();
         let (bind, out) = bench_bind(ctx, samples, out_floats, params, &aux);
-        BenchKernel { bind, out, pipelines, read_floats, wgsl, params, aux, out_floats }
+        BenchKernel {
+            bind,
+            out,
+            pipelines,
+            read_floats,
+            wgsl,
+            params,
+            aux,
+            out_floats,
+        }
     }
 
     fn bench_bind(
@@ -1675,7 +1837,10 @@ mod tests {
         });
         let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("bench-params"),
-            contents: &params.iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>(),
+            contents: &params
+                .iter()
+                .flat_map(|w| w.to_le_bytes())
+                .collect::<Vec<u8>>(),
             usage: wgpu::BufferUsages::UNIFORM,
         });
         let aux = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1687,20 +1852,42 @@ mod tests {
             label: Some("bench"),
             layout: &ctx.layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: input.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: out.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: aux.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: input.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: out.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: aux.as_entire_binding(),
+                },
             ],
         });
         (bind, out)
     }
 
     /// Submit `range` of the kernel's passes and wait; returns the wall time.
-    fn bench_submit(ctx: &GpuContext, k: &BenchKernel, bind: &wgpu::BindGroup, range: std::ops::Range<usize>) -> std::time::Duration {
-        let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    fn bench_submit(
+        ctx: &GpuContext,
+        k: &BenchKernel,
+        bind: &wgpu::BindGroup,
+        range: std::ops::Range<usize>,
+    ) -> std::time::Duration {
+        let mut encoder = ctx
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes: None });
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
             pass.set_bind_group(0, bind, &[]);
             for (_, p, g) in &k.pipelines[range] {
                 pass.set_pipeline(p);
@@ -1724,7 +1911,12 @@ mod tests {
     }
 
     /// End to end: upload (f64 -> f32), every pass, readback of the output.
-    fn e2e_time(ctx: &GpuContext, k: &BenchKernel, samples: &[f64], reps: usize) -> std::time::Duration {
+    fn e2e_time(
+        ctx: &GpuContext,
+        k: &BenchKernel,
+        samples: &[f64],
+        reps: usize,
+    ) -> std::time::Duration {
         best_of(reps, || {
             let t = Instant::now();
             let (bind, out) = bench_bind(ctx, samples, k.out_floats, k.params, &k.aux);
@@ -1734,9 +1926,14 @@ mod tests {
                 usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            let mut encoder = ctx
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
             {
-                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes: None });
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
                 pass.set_bind_group(0, &bind, &[]);
                 for (_, p, g) in &k.pipelines {
                     pass.set_pipeline(p);
@@ -1761,7 +1958,11 @@ mod tests {
     /// GPU time per pass from timestamps written at each compute pass's
     /// start and end, all passes in one submission; best of `reps`. `None`
     /// when the adapter has no timestamp queries.
-    fn gpu_pass_times(ctx: &GpuContext, k: &BenchKernel, reps: usize) -> Option<Vec<(&'static str, f64)>> {
+    fn gpu_pass_times(
+        ctx: &GpuContext,
+        k: &BenchKernel,
+        reps: usize,
+    ) -> Option<Vec<(&'static str, f64)>> {
         if !ctx.timestamps {
             return None;
         }
@@ -1786,7 +1987,9 @@ mod tests {
                 usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            let mut encoder = ctx
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
             for (i, (_, p, g)) in k.pipelines.iter().enumerate() {
                 let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                     label: None,
@@ -1821,7 +2024,13 @@ mod tests {
                 Some(b) => b,
             });
         }
-        best.map(|t| k.pipelines.iter().map(|(name, _, _)| *name).zip(t).collect())
+        best.map(|t| {
+            k.pipelines
+                .iter()
+                .map(|(name, _, _)| *name)
+                .zip(t)
+                .collect()
+        })
     }
 
     /// Per-pass GPU profile, scan levels grouped: `"chunk_state 0.012, ..."`
@@ -1832,19 +2041,30 @@ mod tests {
         };
         let mut groups: Vec<(String, f64)> = Vec::new();
         for (name, t) in times {
-            let label = if name.starts_with("scan_") { "scan".to_string() } else { name.to_string() };
+            let label = if name.starts_with("scan_") {
+                "scan".to_string()
+            } else {
+                name.to_string()
+            };
             match groups.last_mut() {
                 Some((l, acc)) if *l == label => *acc += t,
                 _ => groups.push((label, t)),
             }
         }
         let total: f64 = groups.iter().map(|(_, t)| t).sum();
-        let levels = k.pipelines.iter().filter(|(n, _, _)| n.starts_with("scan_") && *n != "scan_block").count();
+        let levels = k
+            .pipelines
+            .iter()
+            .filter(|(n, _, _)| n.starts_with("scan_") && *n != "scan_block")
+            .count();
         let text = groups
             .iter()
             .map(|(l, t)| {
                 if l == "scan" {
-                    format!("scan(block+{levels} levels) {t:.3} ({:.0}%)", 100.0 * t / total)
+                    format!(
+                        "scan(block+{levels} levels) {t:.3} ({:.0}%)",
+                        100.0 * t / total
+                    )
                 } else {
                     format!("{l} {t:.3} ({:.0}%)", 100.0 * t / total)
                 }
@@ -1854,7 +2074,11 @@ mod tests {
         (text, total)
     }
 
-    fn iir_kernel(sql: &str, n: usize, chunks: Option<sigql::compile::gpu::IirChunks>) -> GpuKernel {
+    fn iir_kernel(
+        sql: &str,
+        n: usize,
+        chunks: Option<sigql::compile::gpu::IirChunks>,
+    ) -> GpuKernel {
         let (plan, _) = long_plan(sql, &[0.0]);
         let step = plan
             .steps
@@ -1864,10 +2088,19 @@ mod tests {
         let bound = GpuKernel::from_step(step)
             .unwrap()
             .unwrap()
-            .bind(&GpuInput { len: n, rate: 1000, is_spectrum: false, second_len: None, default_rate: 1000 })
+            .bind(&GpuInput {
+                len: n,
+                rate: 1000,
+                is_spectrum: false,
+                second_len: None,
+                default_rate: 1000,
+            })
             .unwrap();
         match (bound, chunks) {
-            (GpuKernel::Iir { sections, .. }, Some(c)) => GpuKernel::Iir { sections, chunks: Some(c) },
+            (GpuKernel::Iir { sections, .. }, Some(c)) => GpuKernel::Iir {
+                sections,
+                chunks: Some(c),
+            },
             (k, _) => k,
         }
     }
@@ -1880,28 +2113,64 @@ mod tests {
     #[test]
     #[ignore = "benchmark"]
     fn sigql_iir_timing() {
-        use sigql::compile::gpu::{serial_carry_iir_wgsl, IirChunks};
+        use sigql::compile::gpu::{IirChunks, serial_carry_iir_wgsl};
         let ctx = gpu_context().expect("a wgpu adapter");
         eprintln!("adapter: {}", ctx.adapter);
         let reps = 5;
         let ms = |d: std::time::Duration| d.as_secs_f64() * 1e3;
-        let mk = |kernel: &GpuKernel, wgsl: String, passes: Vec<(&'static str, u32)>, samples: &[f64]| {
+        let mk = |kernel: &GpuKernel,
+                  wgsl: String,
+                  passes: Vec<(&'static str, u32)>,
+                  samples: &[f64]| {
             let n = samples.len();
-            bench_kernel(ctx, wgsl, &passes, samples, kernel.buffer_len(n), kernel.output_len(n), kernel.params(n), kernel.aux())
+            bench_kernel(
+                ctx,
+                wgsl,
+                &passes,
+                samples,
+                kernel.buffer_len(n),
+                kernel.output_len(n),
+                kernel.params(n),
+                kernel.aux(),
+            )
         };
         for n in [1usize << 16, 1 << 20, 1 << 22] {
             let samples = long_signal(n);
-            for sql in ["FROM bench.sig TRANSFORM lowpass(50Hz)", "FROM bench.sig TRANSFORM bandpass(4Hz, 12Hz)"] {
+            for sql in [
+                "FROM bench.sig TRANSFORM lowpass(50Hz)",
+                "FROM bench.sig TRANSFORM bandpass(4Hz, 12Hz)",
+            ] {
                 let tree = ctx.tune(iir_kernel(sql, n, None), n);
-                let GpuKernel::Iir { sections, chunks: Some(tc) } = &tree else { panic!("{tree:?}") };
+                let GpuKernel::Iir {
+                    sections,
+                    chunks: Some(tc),
+                } = &tree
+                else {
+                    panic!("{tree:?}")
+                };
                 // Phase C: ~sqrt(16 n) chunks (capped 8192), serial carry.
-                let old_chunks = IirChunks::with_chunks(sections, n, ((16.0 * n as f64).sqrt().ceil() as usize).min(8192));
+                let old_chunks = IirChunks::with_chunks(
+                    sections,
+                    n,
+                    ((16.0 * n as f64).sqrt().ceil() as usize).min(8192),
+                );
                 let old = iir_kernel(sql, n, Some(old_chunks.clone()));
                 let groups = old_chunks.chunks.div_ceil(64);
-                let old_b = mk(&old, serial_carry_iir_wgsl(sections), vec![("chunk_state", groups), ("carry", 1), ("main", groups)], &samples);
+                let old_b = mk(
+                    &old,
+                    serial_carry_iir_wgsl(sections),
+                    vec![("chunk_state", groups), ("carry", 1), ("main", groups)],
+                    &samples,
+                );
                 let tree_b = mk(&tree, tree.wgsl(), tree.passes(n), &samples);
-                let (old_k, old_e) = (kernel_time(ctx, &old_b, reps), e2e_time(ctx, &old_b, &samples, reps));
-                let (tree_k, tree_e) = (kernel_time(ctx, &tree_b, reps), e2e_time(ctx, &tree_b, &samples, reps));
+                let (old_k, old_e) = (
+                    kernel_time(ctx, &old_b, reps),
+                    e2e_time(ctx, &old_b, &samples, reps),
+                );
+                let (tree_k, tree_e) = (
+                    kernel_time(ctx, &tree_b, reps),
+                    e2e_time(ctx, &tree_b, &samples, reps),
+                );
                 let floor = best_of(reps, || bench_submit(ctx, &tree_b, &tree_b.bind, 0..0));
                 let (plan, sources) = long_plan(sql, &samples);
                 let cpu = best_of(reps, || {
@@ -1917,13 +2186,25 @@ mod tests {
                 eprintln!(
                     "TIMING n={n} {sql} sections={} | chunked(serial carry) {}x{}: kernel {:.3} ms, e2e {:.3} ms | tree {}x{} levels={}: kernel {:.3} ms, e2e {:.3} ms | CPU {:.3} ms | executor e2e {:.3} ms | tree vs chunked kernel {:.1}x | empty submit {:.3} ms",
                     sections.len(),
-                    old_chunks.chunks, old_chunks.chunk_len, ms(old_k), ms(old_e),
-                    tc.chunks, tc.chunk_len, tc.levels, ms(tree_k), ms(tree_e),
-                    ms(cpu), ms(executor), ms(old_k) / ms(tree_k), ms(floor),
+                    old_chunks.chunks,
+                    old_chunks.chunk_len,
+                    ms(old_k),
+                    ms(old_e),
+                    tc.chunks,
+                    tc.chunk_len,
+                    tc.levels,
+                    ms(tree_k),
+                    ms(tree_e),
+                    ms(cpu),
+                    ms(executor),
+                    ms(old_k) / ms(tree_k),
+                    ms(floor),
                 );
                 for (label, k) in [("chunked", &old_b), ("tree", &tree_b)] {
                     let (prof, total) = pass_profile(ctx, k, reps);
-                    eprintln!("PROFILE n={n} {sql} {label}: GPU {total:.3} ms = {prof} (ms, timestamps)");
+                    eprintln!(
+                        "PROFILE n={n} {sql} {label}: GPU {total:.3} ms = {prof} (ms, timestamps)"
+                    );
                 }
                 if n >= 1 << 20 {
                     for len in [16usize, 32, 64, 128, 256, 1024] {
@@ -1932,7 +2213,11 @@ mod tests {
                         let b = mk(&k, k.wgsl(), k.passes(n), &samples);
                         eprintln!(
                             "SWEEP n={n} {sql} chunk_len={} chunks={} levels={}: kernel wall {:.3} ms, GPU {:.3} ms",
-                            c.chunk_len, c.chunks, c.levels, ms(kernel_time(ctx, &b, reps)), pass_profile(ctx, &b, reps).1
+                            c.chunk_len,
+                            c.chunks,
+                            c.levels,
+                            ms(kernel_time(ctx, &b, reps)),
+                            pass_profile(ctx, &b, reps).1
                         );
                     }
                 }
@@ -1942,11 +2227,16 @@ mod tests {
     }
 
     fn receipt(resp: &QueryResponse) -> crate::cost_model::RouteReceipt {
-        resp.energy_receipt.clone().expect("SigQL responses carry a routing receipt")
+        resp.energy_receipt
+            .clone()
+            .expect("SigQL responses carry a routing receipt")
     }
 
     fn assert_real(device: &str) {
-        assert!(matches!(device, "cpu" | "gpu" | "npu" | "tpu" | "lpu"), "not a processor: {device:?}");
+        assert!(
+            matches!(device, "cpu" | "gpu" | "npu" | "tpu" | "lpu"),
+            "not a processor: {device:?}"
+        );
     }
 
     /// An injected cost model decides where SigQL runs: the cheaper device
@@ -1959,14 +2249,32 @@ mod tests {
         let samples = long_signal(4096);
         let amorphic = signal_table("route_sig", &samples);
         let sql = "FROM route.sig TRANSFORM lowpass(50Hz)";
-        let gpu = gpu_context().ok().map(|ctx| Candidate::new("gpu", ctx.backend.clone()));
+        let gpu = gpu_context()
+            .ok()
+            .map(|ctx| Candidate::new("gpu", ctx.backend.clone()));
         for (cpu_j, gpu_j) in [(1e-4, 1e-2), (1e-2, 1e-4)] {
             let mut model = CostModel::new();
             model.explore_every = 0;
             // Injected measured incremental joules, equal times: energy decides.
-            model.record_cost("sigql:iir", samples.len(), &Candidate::cpu(), 1e-3, cpu_j, Some(cpu_j), "injected");
+            model.record_cost(
+                "sigql:iir",
+                samples.len(),
+                &Candidate::cpu(),
+                1e-3,
+                cpu_j,
+                Some(cpu_j),
+                "injected",
+            );
             if let Some(gpu) = &gpu {
-                model.record_cost("sigql:iir", samples.len(), gpu, 1e-3, gpu_j, Some(gpu_j), "injected");
+                model.record_cost(
+                    "sigql:iir",
+                    samples.len(),
+                    gpu,
+                    1e-3,
+                    gpu_j,
+                    Some(gpu_j),
+                    "injected",
+                );
             }
             let resp = execute_sigql_routed(sql, &amorphic, Instant::now(), &model).unwrap();
             let r = receipt(&resp);
@@ -1981,14 +2289,38 @@ mod tests {
             match &gpu {
                 Some(g) => {
                     assert_eq!(r.requested_device, "gpu");
-                    let want = if cpu_j < gpu_j { Candidate::cpu() } else { g.clone() };
-                    assert_eq!((r.device.clone(), r.backend.clone()), (want.device.clone(), want.backend.clone()));
-                    assert_eq!(r.route_reason, format!("cost_model_{}_cheaper", want.device));
+                    let want = if cpu_j < gpu_j {
+                        Candidate::cpu()
+                    } else {
+                        g.clone()
+                    };
+                    assert_eq!(
+                        (r.device.clone(), r.backend.clone()),
+                        (want.device.clone(), want.backend.clone())
+                    );
+                    assert_eq!(
+                        r.route_reason,
+                        format!("cost_model_{}_cheaper", want.device)
+                    );
                     assert_eq!(r.fallback, if want.device == "cpu" { "gpu" } else { "cpu" });
-                    assert_eq!(resp.device_target.as_deref(), Some(if want.device == "cpu" { "cpu" } else { "webgpu" }));
+                    assert_eq!(
+                        resp.device_target.as_deref(),
+                        Some(if want.device == "cpu" {
+                            "cpu"
+                        } else {
+                            "webgpu"
+                        })
+                    );
                 }
                 None => {
-                    assert_eq!((r.device.as_str(), r.route_reason.as_str(), r.fallback.as_str()), ("cpu", "only_candidate", "cpu"));
+                    assert_eq!(
+                        (
+                            r.device.as_str(),
+                            r.route_reason.as_str(),
+                            r.fallback.as_str()
+                        ),
+                        ("cpu", "only_candidate", "cpu")
+                    );
                 }
             }
         }
@@ -2006,7 +2338,9 @@ mod tests {
         let mut model = CostModel::new();
         model.explore_every = 4;
         let reasons: Vec<crate::cost_model::RouteReceipt> = (0..8)
-            .map(|_| receipt(&execute_sigql_routed(sql, &amorphic, Instant::now(), &model).unwrap()))
+            .map(|_| {
+                receipt(&execute_sigql_routed(sql, &amorphic, Instant::now(), &model).unwrap())
+            })
             .collect();
         for r in &reasons {
             eprintln!("{}", r.line());
@@ -2016,18 +2350,35 @@ mod tests {
         match gpu_context() {
             Ok(ctx) => {
                 let gpu = Candidate::new("gpu", ctx.backend.clone());
-                assert_eq!((reasons[0].device.as_str(), reasons[0].route_reason.as_str()), ("gpu", "no_history"));
-                assert_eq!((reasons[1].device.as_str(), reasons[1].route_reason.as_str()), ("cpu", "explore"));
-                let explores = reasons[2..].iter().filter(|r| r.route_reason == "explore").count();
+                assert_eq!(
+                    (reasons[0].device.as_str(), reasons[0].route_reason.as_str()),
+                    ("gpu", "no_history")
+                );
+                assert_eq!(
+                    (reasons[1].device.as_str(), reasons[1].route_reason.as_str()),
+                    ("cpu", "explore")
+                );
+                let explores = reasons[2..]
+                    .iter()
+                    .filter(|r| r.route_reason == "explore")
+                    .count();
                 assert_eq!(explores, 2, "calls 4 and 8 re-measure the runner-up");
                 for r in reasons[2..].iter().filter(|r| r.route_reason != "explore") {
                     assert!(r.route_reason.starts_with("cost_model_"), "{}", r.line());
                 }
                 assert!(model.observed("sigql:iir", samples.len(), &gpu).is_some());
-                assert!(model.observed("sigql:iir", samples.len(), &Candidate::cpu()).is_some());
+                assert!(
+                    model
+                        .observed("sigql:iir", samples.len(), &Candidate::cpu())
+                        .is_some()
+                );
             }
             Err(_) => {
-                assert!(reasons.iter().all(|r| r.device == "cpu" && r.route_reason == "only_candidate"));
+                assert!(
+                    reasons
+                        .iter()
+                        .all(|r| r.device == "cpu" && r.route_reason == "only_candidate")
+                );
             }
         }
     }
@@ -2040,19 +2391,28 @@ mod tests {
         use crate::cost_model::{Candidate, CostModel};
         for n in [1usize << 16, 1 << 20] {
             // Sources bound directly (a 1M-row table insert would dominate).
-            let (plan, sources) = long_plan("FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)", &long_signal(n));
+            let (plan, sources) = long_plan(
+                "FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)",
+                &long_signal(n),
+            );
             let mut model = CostModel::new();
             model.explore_every = 0;
             let mut receipts = Vec::new();
             for _ in 0..8 {
-                let resp =
-                    run_routed(&plan, &sources, Instant::now(), &model, crate::power_meter::Meter::global()).unwrap();
+                let resp = run_routed(
+                    &plan,
+                    &sources,
+                    Instant::now(),
+                    &model,
+                    crate::power_meter::Meter::global(),
+                )
+                .unwrap();
                 receipts.push(receipt(&resp));
             }
             let cpu = model.observed("sigql:iir", n, &Candidate::cpu()).unwrap();
-            let gpu = gpu_context()
-                .ok()
-                .and_then(|ctx| model.observed("sigql:iir", n, &Candidate::new("gpu", ctx.backend.clone())));
+            let gpu = gpu_context().ok().and_then(|ctx| {
+                model.observed("sigql:iir", n, &Candidate::new("gpu", ctx.backend.clone()))
+            });
             for r in &receipts {
                 eprintln!("LIVE n={n} {}", r.line());
                 assert_real(&r.fallback);
@@ -2077,7 +2437,11 @@ mod tests {
                         by_time.device
                     );
                     let last = receipts.last().unwrap();
-                    assert!(last.route_reason.starts_with("cost_model_"), "{}", last.line());
+                    assert!(
+                        last.route_reason.starts_with("cost_model_"),
+                        "{}",
+                        last.line()
+                    );
                     // The next decision follows the recorded costs.
                     assert_eq!(model.choose("sigql:iir", n, &both).chosen, by_energy);
                 }
@@ -2100,8 +2464,10 @@ mod tests {
         .unwrap();
         assert_eq!(resp.device_target.as_deref(), Some("cpu"));
         assert!(
-            resp.warnings.iter().any(|w| w.contains("Interpolate has no GPU kernel")
-                || w.contains("no wgpu adapter")),
+            resp.warnings
+                .iter()
+                .any(|w| w.contains("Interpolate has no GPU kernel")
+                    || w.contains("no wgpu adapter")),
             "{:?}",
             resp.warnings
         );
@@ -2224,15 +2590,24 @@ mod tests {
     fn measured_power_live_iir() {
         use crate::cost_model::{Candidate, CostModel, RouteReceipt};
         let meter = crate::power_meter::Meter::global();
-        eprintln!("POWER meter={} {}", meter.source(), crate::power_meter::nvml_status());
+        eprintln!(
+            "POWER meter={} {}",
+            meter.source(),
+            crate::power_meter::nvml_status()
+        );
         std::thread::sleep(std::time::Duration::from_millis(1500));
         for n in [1usize << 16, 1 << 20] {
-            let (plan, sources) = long_plan("FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)", &long_signal(n));
+            let (plan, sources) = long_plan(
+                "FROM live.sig TRANSFORM bandpass(4Hz, 12Hz)",
+                &long_signal(n),
+            );
             let mut model = CostModel::new();
             // Alternate so both devices keep fresh measurements.
             model.explore_every = 2;
             let rs: Vec<RouteReceipt> = (0..16)
-                .map(|_| receipt(&run_routed(&plan, &sources, Instant::now(), &model, meter).unwrap()))
+                .map(|_| {
+                    receipt(&run_routed(&plan, &sources, Instant::now(), &model, meter).unwrap())
+                })
                 .collect();
             for r in &rs {
                 eprintln!("POWER iir n={n} {}", r.line());
@@ -2240,16 +2615,23 @@ mod tests {
             }
             for dev in ["gpu", "cpu"] {
                 // Skip runs that paid real setup (the first GPU call's pipeline compile).
-                let v: Vec<&RouteReceipt> =
-                    rs.iter().filter(|r| r.device == dev && r.setup_seconds.unwrap_or(0.0) < 1e-3).collect();
+                let v: Vec<&RouteReceipt> = rs
+                    .iter()
+                    .filter(|r| r.device == dev && r.setup_seconds.unwrap_or(0.0) < 1e-3)
+                    .collect();
                 if v.is_empty() {
                     continue;
                 }
                 let k = v.len() as f64;
-                let mean = |f: &dyn Fn(&RouteReceipt) -> f64| v.iter().map(|r| f(r)).sum::<f64>() / k;
+                let mean =
+                    |f: &dyn Fn(&RouteReceipt) -> f64| v.iter().map(|r| f(r)).sum::<f64>() / k;
                 let opt = |f: &dyn Fn(&RouteReceipt) -> Option<f64>| {
                     let x: Vec<f64> = v.iter().filter_map(|r| f(r)).collect();
-                    if x.is_empty() { "none".to_string() } else { format!("{:.3}", x.iter().sum::<f64>() / x.len() as f64) }
+                    if x.is_empty() {
+                        "none".to_string()
+                    } else {
+                        format!("{:.3}", x.iter().sum::<f64>() / x.len() as f64)
+                    }
                 };
                 let conf: Vec<&str> = v.iter().map(|r| r.energy_confidence.as_str()).collect();
                 eprintln!(
@@ -2287,4 +2669,3 @@ mod tests {
         }
     }
 }
-

@@ -6,10 +6,10 @@
 
 use crate::mcp_bridge::DatabaseToolHandler;
 use axum::Json;
+use axum::Router;
 use axum::extract::State;
 use axum::response::sse::{Event, Sse};
 use axum::routing::{get, post};
-use axum::Router;
 use futures::stream::Stream;
 use inv_mcp_core::ToolCallRequest;
 use serde::{Deserialize, Serialize};
@@ -261,7 +261,8 @@ fn handle_resources_list(request: &McpRequest) -> McpResponse {
         McpResourceDef {
             uri: "jouledb://timeseries".to_string(),
             name: "Time Series Metrics".to_string(),
-            description: "Metrics stored in the joule-db-features TimeSeriesStore (TSLIST)".to_string(),
+            description: "Metrics stored in the joule-db-features TimeSeriesStore (TSLIST)"
+                .to_string(),
             mime_type: "application/json".to_string(),
         },
     ];
@@ -270,7 +271,6 @@ fn handle_resources_list(request: &McpRequest) -> McpResponse {
         serde_json::json!({ "resources": resources }),
     )
 }
-
 
 fn handle_resources_read(
     request: &McpRequest,
@@ -791,13 +791,13 @@ mod tests {
 
         struct MockExec;
         impl QueryExecutor for MockExec {
-            fn execute(
-                &self,
-                request: &QueryRequest,
-            ) -> Result<QueryResponse, QueryErrorResponse> {
+            fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
                 Ok(QueryResponse {
                     columns: vec!["result".into()],
-                    rows: vec![vec![serde_json::json!(format!("executed: {}", request.sql))]],
+                    rows: vec![vec![serde_json::json!(format!(
+                        "executed: {}",
+                        request.sql
+                    ))]],
                     affected_rows: Some(1),
                     execution_time_ms: 1,
                     truncated: false,
@@ -865,10 +865,7 @@ mod tests {
 
         struct MockExec;
         impl QueryExecutor for MockExec {
-            fn execute(
-                &self,
-                request: &QueryRequest,
-            ) -> Result<QueryResponse, QueryErrorResponse> {
+            fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
                 Ok(QueryResponse {
                     columns: vec!["sql".into()],
                     rows: vec![vec![serde_json::json!(request.sql.clone())]],
@@ -905,7 +902,10 @@ mod tests {
         };
         let resp = handle_mcp_request(&req, Some(&handler));
         assert!(resp.error.is_none(), "{:?}", resp.error);
-        let text = resp.result.unwrap()["contents"][0]["text"].as_str().unwrap().to_string();
+        let text = resp.result.unwrap()["contents"][0]["text"]
+            .as_str()
+            .unwrap()
+            .to_string();
         assert!(text.contains("information_schema.tables"), "{text}");
 
         let series = McpRequest {

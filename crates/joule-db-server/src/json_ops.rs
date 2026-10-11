@@ -17,7 +17,11 @@ use joule_db_query::ast::{Expression, OrderBy, Value as AstValue};
 pub fn json_equals(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     let result = json_equals_inner(a, b);
     // Contract: commutativity
-    debug_assert_eq!(result, json_equals_inner(b, a), "json_equals commutativity violated");
+    debug_assert_eq!(
+        result,
+        json_equals_inner(b, a),
+        "json_equals commutativity violated"
+    );
     result
 }
 
@@ -25,9 +29,7 @@ fn json_equals_inner(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     match (a, b) {
         (serde_json::Value::Null, serde_json::Value::Null) => true,
         (serde_json::Value::Bool(a), serde_json::Value::Bool(b)) => a == b,
-        (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
-            a.as_f64() == b.as_f64()
-        }
+        (serde_json::Value::Number(a), serde_json::Value::Number(b)) => a.as_f64() == b.as_f64(),
         (serde_json::Value::String(a), serde_json::Value::String(b)) => a == b,
         // Implicit type coercion: Number vs String
         (serde_json::Value::Number(n), serde_json::Value::String(s))
@@ -103,7 +105,10 @@ pub fn json_compare(a: &serde_json::Value, b: &serde_json::Value) -> i32 {
         _ => 0,
     };
     // Contract: output bounded
-    debug_assert!(result >= -1 && result <= 1, "json_compare contract: result must be -1/0/1");
+    debug_assert!(
+        result >= -1 && result <= 1,
+        "json_compare contract: result must be -1/0/1"
+    );
     result
 }
 
@@ -118,14 +123,11 @@ pub fn json_order_by_equal(
 ) -> bool {
     for ob in order_by {
         if let Expression::Column(name) = &ob.expr {
-            let ci = columns
-                .iter()
-                .position(|c| c == name)
-                .or_else(|| {
-                    columns
-                        .iter()
-                        .position(|c| c.ends_with(&format!(".{}", name)))
-                });
+            let ci = columns.iter().position(|c| c == name).or_else(|| {
+                columns
+                    .iter()
+                    .position(|c| c.ends_with(&format!(".{}", name)))
+            });
             if let Some(ci) = ci {
                 let va = rows.get(idx_a).and_then(|r| r.get(ci));
                 let vb = rows.get(idx_b).and_then(|r| r.get(ci));
@@ -431,8 +433,9 @@ pub fn compute_json_aggregate(
                         rows.get(idx).and_then(|r| r.get(ci))
                     {
                         let v = n.as_f64().unwrap_or(0.0);
-                        let is_smaller =
-                            min_val.as_ref().map_or(true, |m| v < m.as_f64().unwrap_or(0.0));
+                        let is_smaller = min_val
+                            .as_ref()
+                            .map_or(true, |m| v < m.as_f64().unwrap_or(0.0));
                         if is_smaller {
                             min_val = Some(n.clone());
                         }
@@ -453,8 +456,9 @@ pub fn compute_json_aggregate(
                         rows.get(idx).and_then(|r| r.get(ci))
                     {
                         let v = n.as_f64().unwrap_or(0.0);
-                        let is_larger =
-                            max_val.as_ref().map_or(true, |m| v > m.as_f64().unwrap_or(0.0));
+                        let is_larger = max_val
+                            .as_ref()
+                            .map_or(true, |m| v > m.as_f64().unwrap_or(0.0));
                         if is_larger {
                             max_val = Some(n.clone());
                         }
@@ -542,17 +546,13 @@ pub fn validate_column_refs(expr: &Expression, available: &[String]) -> Result<(
     match expr {
         Expression::Column(name) => {
             if available.iter().any(|c| c == name)
-                || available
-                    .iter()
-                    .any(|c| c.ends_with(&format!(".{}", name)))
+                || available.iter().any(|c| c.ends_with(&format!(".{}", name)))
             {
                 Ok(())
             } else if name.contains('.') {
                 let bare = name.rsplit('.').next().unwrap();
                 if available.iter().any(|c| c == bare)
-                    || available
-                        .iter()
-                        .any(|c| c.ends_with(&format!(".{}", bare)))
+                    || available.iter().any(|c| c.ends_with(&format!(".{}", bare)))
                 {
                     Ok(())
                 } else {
@@ -752,30 +752,18 @@ mod tests {
 
     #[test]
     fn test_json_equals_same_type() {
-        assert!(json_equals(
-            &serde_json::json!(42),
-            &serde_json::json!(42)
-        ));
+        assert!(json_equals(&serde_json::json!(42), &serde_json::json!(42)));
         assert!(json_equals(
             &serde_json::json!("hello"),
             &serde_json::json!("hello")
         ));
-        assert!(!json_equals(
-            &serde_json::json!(42),
-            &serde_json::json!(43)
-        ));
+        assert!(!json_equals(&serde_json::json!(42), &serde_json::json!(43)));
     }
 
     #[test]
     fn test_json_equals_cross_type() {
-        assert!(json_equals(
-            &serde_json::json!(5),
-            &serde_json::json!("5")
-        ));
-        assert!(json_equals(
-            &serde_json::json!(true),
-            &serde_json::json!(1)
-        ));
+        assert!(json_equals(&serde_json::json!(5), &serde_json::json!("5")));
+        assert!(json_equals(&serde_json::json!(true), &serde_json::json!(1)));
         assert!(json_equals(
             &serde_json::json!(true),
             &serde_json::json!("TRUE")
@@ -784,9 +772,18 @@ mod tests {
 
     #[test]
     fn test_json_compare_ordering() {
-        assert_eq!(json_compare(&serde_json::json!(1), &serde_json::json!(2)), -1);
-        assert_eq!(json_compare(&serde_json::json!(2), &serde_json::json!(1)), 1);
-        assert_eq!(json_compare(&serde_json::json!(1), &serde_json::json!(1)), 0);
+        assert_eq!(
+            json_compare(&serde_json::json!(1), &serde_json::json!(2)),
+            -1
+        );
+        assert_eq!(
+            json_compare(&serde_json::json!(2), &serde_json::json!(1)),
+            1
+        );
+        assert_eq!(
+            json_compare(&serde_json::json!(1), &serde_json::json!(1)),
+            0
+        );
         // Cross-type: Null < Number
         assert_eq!(
             json_compare(&serde_json::Value::Null, &serde_json::json!(0)),
@@ -796,17 +793,38 @@ mod tests {
 
     #[test]
     fn test_json_arithmetic() {
-        assert_eq!(json_add(&serde_json::json!(2), &serde_json::json!(3)), serde_json::json!(5));
-        assert_eq!(json_sub(&serde_json::json!(5), &serde_json::json!(3)), serde_json::json!(2));
-        assert_eq!(json_mul(&serde_json::json!(4), &serde_json::json!(3)), serde_json::json!(12));
-        assert_eq!(json_div(&serde_json::json!(10), &serde_json::json!(3)), serde_json::json!(3));
-        assert_eq!(json_div(&serde_json::json!(10), &serde_json::json!(0)), serde_json::Value::Null);
+        assert_eq!(
+            json_add(&serde_json::json!(2), &serde_json::json!(3)),
+            serde_json::json!(5)
+        );
+        assert_eq!(
+            json_sub(&serde_json::json!(5), &serde_json::json!(3)),
+            serde_json::json!(2)
+        );
+        assert_eq!(
+            json_mul(&serde_json::json!(4), &serde_json::json!(3)),
+            serde_json::json!(12)
+        );
+        assert_eq!(
+            json_div(&serde_json::json!(10), &serde_json::json!(3)),
+            serde_json::json!(3)
+        );
+        assert_eq!(
+            json_div(&serde_json::json!(10), &serde_json::json!(0)),
+            serde_json::Value::Null
+        );
     }
 
     #[test]
     fn test_normalize_int() {
-        assert_eq!(normalize_int(serde_json::json!(120000.0)), serde_json::json!(120000));
-        assert_eq!(normalize_int(serde_json::json!(3.14)), serde_json::json!(3.14));
+        assert_eq!(
+            normalize_int(serde_json::json!(120000.0)),
+            serde_json::json!(120000)
+        );
+        assert_eq!(
+            normalize_int(serde_json::json!(3.14)),
+            serde_json::json!(3.14)
+        );
         assert_eq!(normalize_int(serde_json::json!(42)), serde_json::json!(42));
     }
 
@@ -826,9 +844,15 @@ mod tests {
             vec![serde_json::json!(3), serde_json::Value::Null],
         ];
         // COUNT(*) — all rows
-        assert_eq!(compute_json_aggregate("COUNT", &rows, &[0, 1, 2], None), serde_json::json!(3));
+        assert_eq!(
+            compute_json_aggregate("COUNT", &rows, &[0, 1, 2], None),
+            serde_json::json!(3)
+        );
         // COUNT(col1) — non-null only
-        assert_eq!(compute_json_aggregate("COUNT", &rows, &[0, 1, 2], Some(1)), serde_json::json!(2));
+        assert_eq!(
+            compute_json_aggregate("COUNT", &rows, &[0, 1, 2], Some(1)),
+            serde_json::json!(2)
+        );
     }
 
     #[test]
@@ -838,7 +862,13 @@ mod tests {
             vec![serde_json::json!(20)],
             vec![serde_json::json!(30)],
         ];
-        assert_eq!(compute_json_aggregate("SUM", &rows, &[0, 1, 2], Some(0)), serde_json::json!(60));
-        assert_eq!(compute_json_aggregate("AVG", &rows, &[0, 1, 2], Some(0)), serde_json::json!(20.0));
+        assert_eq!(
+            compute_json_aggregate("SUM", &rows, &[0, 1, 2], Some(0)),
+            serde_json::json!(60)
+        );
+        assert_eq!(
+            compute_json_aggregate("AVG", &rows, &[0, 1, 2], Some(0)),
+            serde_json::json!(20.0)
+        );
     }
 }

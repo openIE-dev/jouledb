@@ -185,7 +185,9 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftRpcServer<S, T> 
                 };
 
                 // Verify HMAC — reject on failure
-                let bincode_check = bincode::serde::encode_to_vec(&envelope, bincode::config::standard()).unwrap_or_default();
+                let bincode_check =
+                    bincode::serde::encode_to_vec(&envelope, bincode::config::standard())
+                        .unwrap_or_default();
                 if let Err(e) = key_mgr.verify_token(token, msg_term, &bincode_check) {
                     tracing::warn!(
                         "HRP security: REJECTING message from {} — token verification failed: {}",
@@ -231,7 +233,9 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftRpcServer<S, T> 
             // HRP Phase 3: Reply with v2 format when security is configured
             let write_result = if let Some(ref key_mgr) = security {
                 let term = node.current_term().await;
-                let bincode_data = bincode::serde::encode_to_vec(&response_envelope, bincode::config::standard()).unwrap_or_default();
+                let bincode_data =
+                    bincode::serde::encode_to_vec(&response_envelope, bincode::config::standard())
+                        .unwrap_or_default();
                 let token = key_mgr.generate_token(term, &bincode_data);
                 let hmac_key = key_mgr.current_key();
                 write_hrp_v2_envelope(

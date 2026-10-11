@@ -386,16 +386,15 @@ impl AuthenticationManager {
         roles: Vec<String>,
         expires_in_secs: Option<u64>,
     ) -> Result<(String, String), AuthError> {
-        let expires_at = expires_in_secs.map(|secs| {
-            chrono::Utc::now() + chrono::TimeDelta::seconds(secs as i64)
-        });
+        let expires_at = expires_in_secs
+            .map(|secs| chrono::Utc::now() + chrono::TimeDelta::seconds(secs as i64));
 
         // Delegate creation to inv-auth
         let result = self.api_key_service.create(
-            "joule_db", // org
-            client_id,  // name (we use client_id as the key name)
+            "joule_db",            // org
+            client_id,             // name (we use client_id as the key name)
             inv_auth::Role::Admin, // placeholder role (actual authz uses string roles)
-            vec![],     // no specific permissions (string roles used instead)
+            vec![],                // no specific permissions (string roles used instead)
             expires_at,
         );
 
@@ -418,7 +417,10 @@ impl AuthenticationManager {
 
     /// Validate API key - delegates to inv-auth::ApiKeyService
     pub fn validate_api_key(&self, key: &str) -> Result<ApiKey, AuthError> {
-        let inv_key = self.api_key_service.validate(key).map_err(from_inv_auth_error)?;
+        let inv_key = self
+            .api_key_service
+            .validate(key)
+            .map_err(from_inv_auth_error)?;
 
         let key_id = format!("key_{}", inv_key.id);
 
@@ -455,7 +457,9 @@ impl AuthenticationManager {
         let inv_id = meta.inv_id;
         drop(meta_guard);
 
-        self.api_key_service.revoke(inv_id).map_err(from_inv_auth_error)?;
+        self.api_key_service
+            .revoke(inv_id)
+            .map_err(from_inv_auth_error)?;
         crate::lock_util::write_lock(&self.api_key_meta).remove(key_id);
 
         Ok(())
@@ -465,7 +469,13 @@ impl AuthenticationManager {
     pub fn list_api_keys(&self) -> Vec<(String, String, Vec<String>)> {
         crate::lock_util::read_lock(&self.api_key_meta)
             .values()
-            .map(|m| (format!("key_{}", m.inv_id), m.client_id.clone(), m.roles.clone()))
+            .map(|m| {
+                (
+                    format!("key_{}", m.inv_id),
+                    m.client_id.clone(),
+                    m.roles.clone(),
+                )
+            })
             .collect()
     }
 
@@ -507,8 +517,7 @@ impl AuthenticationManager {
             user_agent: user_agent.clone(),
         };
 
-        crate::lock_util::write_lock(&self.session_meta)
-            .insert(session_id.clone(), meta);
+        crate::lock_util::write_lock(&self.session_meta).insert(session_id.clone(), meta);
 
         Session {
             id: session_id,
@@ -525,7 +534,9 @@ impl AuthenticationManager {
     /// Validate session
     pub fn validate_session(&self, session_id: &str) -> Result<Session, AuthError> {
         let mut sessions = crate::lock_util::write_lock(&self.session_meta);
-        let meta = sessions.get_mut(session_id).ok_or(AuthError::SessionNotFound)?;
+        let meta = sessions
+            .get_mut(session_id)
+            .ok_or(AuthError::SessionNotFound)?;
 
         let now = Self::current_timestamp();
 

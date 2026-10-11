@@ -1,7 +1,7 @@
 //! Schema management: create/drop tables, column definitions, column families, ALTER TABLE, sequences.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     /// Ensure a schema record exists for the given table, creating or merging as needed.

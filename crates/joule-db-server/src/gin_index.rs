@@ -98,9 +98,7 @@ impl GinIndexManager {
     pub fn find_index_for(&self, table: &str, column: &str) -> Option<String> {
         let indexes = crate::lock_util::read_lock(&self.indexes);
         for (name, info) in indexes.iter() {
-            if info.table.eq_ignore_ascii_case(table)
-                && info.column.eq_ignore_ascii_case(column)
-            {
+            if info.table.eq_ignore_ascii_case(table) && info.column.eq_ignore_ascii_case(column) {
                 return Some(name.clone());
             }
         }
@@ -118,11 +116,7 @@ impl GinIndexManager {
     }
 
     /// Search: JSONB `@>` containment.  Returns matching amorphic record IDs.
-    pub fn search_contains(
-        &self,
-        index_name: &str,
-        query: &serde_json::Value,
-    ) -> Vec<String> {
+    pub fn search_contains(&self, index_name: &str, query: &serde_json::Value) -> Vec<String> {
         let indexes = crate::lock_util::read_lock(&self.indexes);
         match indexes.get(index_name) {
             Some(info) => {
@@ -134,11 +128,7 @@ impl GinIndexManager {
     }
 
     /// Search: array overlap `&&`.  Returns matching amorphic record IDs.
-    pub fn search_overlap(
-        &self,
-        index_name: &str,
-        elements: &[serde_json::Value],
-    ) -> Vec<String> {
+    pub fn search_overlap(&self, index_name: &str, elements: &[serde_json::Value]) -> Vec<String> {
         let indexes = crate::lock_util::read_lock(&self.indexes);
         match indexes.get(index_name) {
             Some(info) => {
@@ -150,11 +140,7 @@ impl GinIndexManager {
     }
 
     /// Search: full-text query.  Returns matching amorphic record IDs.
-    pub fn search_text(
-        &self,
-        index_name: &str,
-        query: &str,
-    ) -> Vec<String> {
+    pub fn search_text(&self, index_name: &str, query: &str) -> Vec<String> {
         let indexes = crate::lock_util::read_lock(&self.indexes);
         match indexes.get(index_name) {
             Some(info) => {
@@ -166,11 +152,7 @@ impl GinIndexManager {
     }
 
     /// Search: trigram LIKE/ILIKE.  Returns matching amorphic record IDs.
-    pub fn search_trigram(
-        &self,
-        index_name: &str,
-        pattern: &str,
-    ) -> Vec<String> {
+    pub fn search_trigram(&self, index_name: &str, pattern: &str) -> Vec<String> {
         let indexes = crate::lock_util::read_lock(&self.indexes);
         match indexes.get(index_name) {
             Some(info) => {
@@ -316,13 +298,7 @@ mod tests {
     #[test]
     fn test_gin_manager_insert_and_remove() {
         let manager = GinIndexManager::new();
-        manager.build_index(
-            "idx",
-            "t",
-            "data",
-            GinStrategy::JsonbPathOps,
-            vec![],
-        );
+        manager.build_index("idx", "t", "data", GinStrategy::JsonbPathOps, vec![]);
 
         manager.insert_into_index("idx", "r1".into(), &json!({"color": "red"}));
         manager.insert_into_index("idx", "r2".into(), &json!({"color": "blue"}));

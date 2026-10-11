@@ -424,8 +424,15 @@ where
                     write_empty_query_response(&mut writer).await?;
                 } else if let Some(copy) = parse_copy(&sql) {
                     let timeout = (config.query_timeout_ms > 0).then_some(config.query_timeout_ms);
-                    handle_copy(copy, &mut reader, &mut writer, &executor, &mut conn_state, timeout)
-                        .await?;
+                    handle_copy(
+                        copy,
+                        &mut reader,
+                        &mut writer,
+                        &executor,
+                        &mut conn_state,
+                        timeout,
+                    )
+                    .await?;
                 } else {
                     let timeout = if config.query_timeout_ms > 0 {
                         Some(config.query_timeout_ms)
@@ -475,7 +482,12 @@ where
                     if o + 4 > body.len() {
                         break;
                     }
-                    oids.push(i32::from_be_bytes([body[o], body[o + 1], body[o + 2], body[o + 3]]));
+                    oids.push(i32::from_be_bytes([
+                        body[o],
+                        body[o + 1],
+                        body[o + 2],
+                        body[o + 3],
+                    ]));
                 }
                 let oid_key = stmt_name.clone();
                 conn_state.param_oids.insert(oid_key, oids);
@@ -531,7 +543,11 @@ where
                     }
                     offset += skip;
                 }
-                let stmt_oids = conn_state.param_oids.get(&stmt_name).cloned().unwrap_or_default();
+                let stmt_oids = conn_state
+                    .param_oids
+                    .get(&stmt_name)
+                    .cloned()
+                    .unwrap_or_default();
 
                 // Parse parameter values
                 let mut params = Vec::new();
@@ -642,7 +658,11 @@ where
                             .get(&name)
                             .map(|s| s.param_count.max(count_placeholders(&s.sql)))
                             .unwrap_or(0);
-                        let declared = conn_state.param_oids.get(&name).cloned().unwrap_or_default();
+                        let declared = conn_state
+                            .param_oids
+                            .get(&name)
+                            .cloned()
+                            .unwrap_or_default();
                         // ParameterDescription
                         let mut pd = Vec::new();
                         pd.extend_from_slice(&(param_count as i16).to_be_bytes());
@@ -678,8 +698,13 @@ where
                                 match &res {
                                     Ok(r) => {
                                         let oids = column_oids(&r.rows, r.columns.len(), &formats);
-                                        write_row_description_fmt(&mut writer, &r.columns, &oids, &formats)
-                                            .await?;
+                                        write_row_description_fmt(
+                                            &mut writer,
+                                            &r.columns,
+                                            &oids,
+                                            &formats,
+                                        )
+                                        .await?;
                                     }
                                     Err(_) => write_message(&mut writer, b'n', &[]).await?,
                                 }
@@ -718,8 +743,15 @@ where
                         None
                     };
                     if let Some(copy) = parse_copy(&sql) {
-                        handle_copy(copy, &mut reader, &mut writer, &executor, &mut conn_state, timeout)
-                            .await?;
+                        handle_copy(
+                            copy,
+                            &mut reader,
+                            &mut writer,
+                            &executor,
+                            &mut conn_state,
+                            timeout,
+                        )
+                        .await?;
                         continue;
                     }
                     stats.queries_executed.fetch_add(1, Ordering::Relaxed);
@@ -727,8 +759,16 @@ where
                         Some(r) => r,
                         None => run_statement(&sql, &executor, &mut conn_state, timeout),
                     };
-                    write_statement_result(&sql, res, &mut writer, stats, &mut conn_state, false, &formats)
-                        .await?;
+                    write_statement_result(
+                        &sql,
+                        res,
+                        &mut writer,
+                        stats,
+                        &mut conn_state,
+                        false,
+                        &formats,
+                    )
+                    .await?;
                 } else {
                     write_error_response(
                         &mut writer,
@@ -1282,7 +1322,10 @@ fn is_tx_begin(sql: &str) -> bool {
 
 fn is_tx_end(sql: &str) -> bool {
     let u = sql.trim_start().to_ascii_uppercase();
-    u.starts_with("COMMIT") || u.starts_with("ROLLBACK") || u.starts_with("END") || u.starts_with("ABORT")
+    u.starts_with("COMMIT")
+        || u.starts_with("ROLLBACK")
+        || u.starts_with("END")
+        || u.starts_with("ABORT")
 }
 
 /// Infer PostgreSQL type OIDs from the first row of data
@@ -1311,7 +1354,12 @@ fn run_statement(
         let mut w = u.split_whitespace();
         let first = w.next().unwrap_or("");
         if first == "DEALLOCATE" || u == "DISCARD ALL" {
-            let name = t.split_whitespace().last().unwrap_or("").trim_matches('"').to_string();
+            let name = t
+                .split_whitespace()
+                .last()
+                .unwrap_or("")
+                .trim_matches('"')
+                .to_string();
             if u == "DISCARD ALL" || name.eq_ignore_ascii_case("ALL") {
                 conn_state.prepared_statements = PreparedStatementCache::new(256);
                 conn_state.param_oids.clear();
@@ -1419,9 +1467,9 @@ fn show_setting(sql: &str) -> Option<QueryResponse> {
     let name = w.collect::<Vec<_>>().join(" ").to_ascii_lowercase();
     let value = match name.as_str() {
         "standard_conforming_strings" => "on",
-        "transaction isolation level" | "transaction_isolation" | "default_transaction_isolation" => {
-            "repeatable read"
-        }
+        "transaction isolation level"
+        | "transaction_isolation"
+        | "default_transaction_isolation" => "repeatable read",
         "server_version" => "16.0",
         "server_version_num" => "160000",
         "server_encoding" | "client_encoding" => "UTF8",
@@ -1460,7 +1508,9 @@ fn type_info_lookup(sql: &str) -> Option<QueryResponse> {
         return None;
     }
     Some(QueryResponse {
-        columns: ["name", "oid", "array_oid", "regtype", "delimiter"].map(String::from).to_vec(),
+        columns: ["name", "oid", "array_oid", "regtype", "delimiter"]
+            .map(String::from)
+            .to_vec(),
         rows: Vec::new(),
         affected_rows: None,
         execution_time_ms: 0,
@@ -1491,7 +1541,8 @@ fn strip_pg_catalog(sql: &str) -> String {
         if !in_str
             && b.len() - i >= P.len()
             && b[i..i + P.len()].eq_ignore_ascii_case(P.as_bytes())
-            && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b'.'))
+            && (i == 0
+                || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b'.'))
         {
             i += P.len();
             continue;
@@ -1590,7 +1641,9 @@ fn parse_copy(sql: &str) -> Option<CopySpec> {
         rest = rest[e + 1..].trim_start();
         (q, true)
     } else {
-        let e = rest.find(|c: char| c.is_whitespace() || c == '(').unwrap_or(rest.len());
+        let e = rest
+            .find(|c: char| c.is_whitespace() || c == '(')
+            .unwrap_or(rest.len());
         let name = rest[..e].trim_matches('"').to_string();
         rest = rest[e..].trim_start();
         (name, false)
@@ -1625,10 +1678,25 @@ fn parse_copy(sql: &str) -> Option<CopySpec> {
         Some(after[a + 1..a + 1 + b].to_string())
     };
     let delimiter = quoted("DELIMITER")
-        .and_then(|d| if d == "\\t" { Some('\t') } else { d.chars().next() })
+        .and_then(|d| {
+            if d == "\\t" {
+                Some('\t')
+            } else {
+                d.chars().next()
+            }
+        })
         .unwrap_or(if csv { ',' } else { '\t' });
     let null = quoted("NULL").unwrap_or_else(|| if csv { String::new() } else { "\\N".into() });
-    Some(CopySpec { target, is_query, columns, from_stdin, csv, header, delimiter, null })
+    Some(CopySpec {
+        target,
+        is_query,
+        columns,
+        from_stdin,
+        csv,
+        header,
+        delimiter,
+        null,
+    })
 }
 
 /// Split one line of COPY text format (backslash escapes) into fields.
@@ -1671,7 +1739,10 @@ fn split_csv(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>> {
         let mut cuts = vec![0usize];
         let mut at = 0;
         while at + step < data.len() {
-            match data.as_bytes()[at + step..].iter().position(|&b| b == b'\n') {
+            match data.as_bytes()[at + step..]
+                .iter()
+                .position(|&b| b == b'\n')
+            {
                 Some(p) => {
                     at = at + step + p + 1;
                     cuts.push(at);
@@ -1697,7 +1768,11 @@ fn split_csv_seq(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>
     let (mut in_q, mut was_q) = (false, false);
     let mut chars = data.chars().peekable();
     let finish = |field: &mut String, was_q: &mut bool, row: &mut Vec<Option<String>>| {
-        let v = if !*was_q && field == null { None } else { Some(std::mem::take(field)) };
+        let v = if !*was_q && field == null {
+            None
+        } else {
+            Some(std::mem::take(field))
+        };
         field.clear();
         *was_q = false;
         row.push(v);
@@ -1766,20 +1841,34 @@ fn csv_field(s: &str, delim: char) -> String {
 }
 
 fn copy_text_field(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
+    s.replace('\\', "\\\\")
+        .replace('\t', "\\t")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }
 
 async fn read_copy_message<R: AsyncReadExt + Unpin>(
     reader: &mut R,
 ) -> Result<(u8, Vec<u8>), PgWireError> {
-    let t = reader.read_u8().await.map_err(|e| PgWireError::Io(e.to_string()))?;
-    let len = reader.read_i32().await.map_err(|e| PgWireError::Io(e.to_string()))?;
+    let t = reader
+        .read_u8()
+        .await
+        .map_err(|e| PgWireError::Io(e.to_string()))?;
+    let len = reader
+        .read_i32()
+        .await
+        .map_err(|e| PgWireError::Io(e.to_string()))?;
     let n = (len as usize).saturating_sub(4);
     if n > MAX_PGWIRE_MESSAGE_SIZE {
-        return Err(PgWireError::Protocol(format!("CopyData message too large ({n} bytes)")));
+        return Err(PgWireError::Protocol(format!(
+            "CopyData message too large ({n} bytes)"
+        )));
     }
     let mut body = vec![0u8; n];
-    reader.read_exact(&mut body).await.map_err(|e| PgWireError::Io(e.to_string()))?;
+    reader
+        .read_exact(&mut body)
+        .await
+        .map_err(|e| PgWireError::Io(e.to_string()))?;
     Ok((t, body))
 }
 
@@ -1819,7 +1908,10 @@ where
             b.extend_from_slice(&0i16.to_be_bytes());
         }
         write_message(writer, b'G', &b).await?;
-        writer.flush().await.map_err(|e| PgWireError::Io(e.to_string()))?;
+        writer
+            .flush()
+            .await
+            .map_err(|e| PgWireError::Io(e.to_string()))?;
         let mut data = Vec::new();
         loop {
             let (t, body) = read_copy_message(reader).await?;
@@ -1827,10 +1919,16 @@ where
                 b'd' => data.extend_from_slice(&body),
                 b'c' => break,
                 b'f' => {
-                    let msg = String::from_utf8_lossy(&body).trim_end_matches('\0').to_string();
+                    let msg = String::from_utf8_lossy(&body)
+                        .trim_end_matches('\0')
+                        .to_string();
                     conn_state.set_error_in_transaction();
-                    write_error_response(writer, "57014", &format!("COPY from stdin failed: {msg}"))
-                        .await?;
+                    write_error_response(
+                        writer,
+                        "57014",
+                        &format!("COPY from stdin failed: {msg}"),
+                    )
+                    .await?;
                     return Ok(());
                 }
                 b'H' | b'S' => {} // Flush/Sync may arrive mid-copy in extended mode
@@ -1838,7 +1936,7 @@ where
                     return Err(PgWireError::Protocol(format!(
                         "unexpected message '{}' during COPY",
                         other as char
-                    )))
+                    )));
                 }
             }
         }
@@ -1884,17 +1982,31 @@ where
             let t0 = std::time::Instant::now();
             let values: Vec<String> = chunk
                 .iter()
-                .map(|r| format!("({})", r.iter().map(sql_literal).collect::<Vec<_>>().join(", ")))
+                .map(|r| {
+                    format!(
+                        "({})",
+                        r.iter().map(sql_literal).collect::<Vec<_>>().join(", ")
+                    )
+                })
                 .collect();
-            let sql = format!("INSERT INTO {}{} VALUES {}", spec.target, cols, values.join(", "));
+            let sql = format!(
+                "INSERT INTO {}{} VALUES {}",
+                spec.target,
+                cols,
+                values.join(", ")
+            );
             let t1 = std::time::Instant::now();
             t_fmt += t1 - t0;
             let r = run_statement(&sql, executor, conn_state, timeout);
             t_run += t1.elapsed();
             if let Err(e) = r {
                 conn_state.set_error_in_transaction();
-                write_error_response(writer, &e.code, &format!("COPY row {}: {}", total + 1, e.message))
-                    .await?;
+                write_error_response(
+                    writer,
+                    &e.code,
+                    &format!("COPY row {}: {}", total + 1, e.message),
+                )
+                .await?;
                 return Ok(());
             }
             total += chunk.len();
@@ -1931,7 +2043,13 @@ where
     let d = spec.delimiter.to_string();
     let line = |vals: Vec<String>| format!("{}\n", vals.join(&d));
     if spec.header {
-        let h = resp.columns.iter().map(|c| if spec.csv { csv_field(c, spec.delimiter) } else { copy_text_field(c) });
+        let h = resp.columns.iter().map(|c| {
+            if spec.csv {
+                csv_field(c, spec.delimiter)
+            } else {
+                copy_text_field(c)
+            }
+        });
         write_message(writer, b'd', line(h.collect()).as_bytes()).await?;
     }
     for r in &resp.rows {
@@ -1941,7 +2059,11 @@ where
                 serde_json::Value::Null => spec.null.clone(),
                 other => {
                     let t = text_value(other);
-                    if spec.csv { csv_field(&t, spec.delimiter) } else { copy_text_field(&t) }
+                    if spec.csv {
+                        csv_field(&t, spec.delimiter)
+                    } else {
+                        copy_text_field(&t)
+                    }
                 }
             })
             .collect();
@@ -1983,10 +2105,15 @@ fn count_placeholders(sql: &str) -> usize {
 
 /// Statements whose result has columns, so Describe should report them.
 fn returns_rows(sql: &str) -> bool {
-    let u = sql.trim_start().trim_start_matches('(').to_ascii_uppercase();
+    let u = sql
+        .trim_start()
+        .trim_start_matches('(')
+        .to_ascii_uppercase();
     let w = u.split_whitespace().next().unwrap_or("");
-    matches!(w, "SELECT" | "WITH" | "VALUES" | "SHOW" | "TABLE" | "EXPLAIN")
-        || u.contains(" RETURNING ")
+    matches!(
+        w,
+        "SELECT" | "WITH" | "VALUES" | "SHOW" | "TABLE" | "EXPLAIN"
+    ) || u.contains(" RETURNING ")
 }
 
 /// Decode one Bind parameter using its format code and declared type OID.
@@ -2004,15 +2131,25 @@ fn decode_param(raw: &[u8], fmt: i16, oid: i32) -> serde_json::Value {
         let v = match oid {
             16 => raw.first().map(|b| Value::Bool(*b != 0)),
             20 | 21 | 23 => int(raw).map(Value::from),
-            700 => raw.try_into().ok().map(|a| Value::from(f32::from_be_bytes(a) as f64)),
-            701 => raw.try_into().ok().map(|a| Value::from(f64::from_be_bytes(a))),
+            700 => raw
+                .try_into()
+                .ok()
+                .map(|a| Value::from(f32::from_be_bytes(a) as f64)),
+            701 => raw
+                .try_into()
+                .ok()
+                .map(|a| Value::from(f64::from_be_bytes(a))),
             _ => None,
         };
         return v.unwrap_or_else(|| Value::String(String::from_utf8_lossy(raw).into_owned()));
     }
     let text = String::from_utf8_lossy(raw).into_owned();
     match oid {
-        20 | 21 | 23 | 26 => text.trim().parse::<i64>().map(Value::from).unwrap_or(Value::String(text)),
+        20 | 21 | 23 | 26 => text
+            .trim()
+            .parse::<i64>()
+            .map(Value::from)
+            .unwrap_or(Value::String(text)),
         700 | 701 | 1700 => match text.trim().parse::<f64>() {
             Ok(f) if f.is_finite() => Value::from(f),
             _ => Value::String(text),
@@ -2132,9 +2269,15 @@ async fn write_data_row_fmt<W: AsyncWriteExt + Unpin>(
         let bytes: Vec<u8> = if result_format(formats, i) == 1 {
             match (oids.get(i).copied().unwrap_or(25), v) {
                 (16, serde_json::Value::Bool(b)) => vec![*b as u8],
-                (23, serde_json::Value::Number(n)) => (n.as_i64().unwrap_or(0) as i32).to_be_bytes().to_vec(),
-                (20, serde_json::Value::Number(n)) => n.as_i64().unwrap_or(0).to_be_bytes().to_vec(),
-                (701, serde_json::Value::Number(n)) => n.as_f64().unwrap_or(0.0).to_be_bytes().to_vec(),
+                (23, serde_json::Value::Number(n)) => {
+                    (n.as_i64().unwrap_or(0) as i32).to_be_bytes().to_vec()
+                }
+                (20, serde_json::Value::Number(n)) => {
+                    n.as_i64().unwrap_or(0).to_be_bytes().to_vec()
+                }
+                (701, serde_json::Value::Number(n)) => {
+                    n.as_f64().unwrap_or(0.0).to_be_bytes().to_vec()
+                }
                 _ => text_value(v).into_bytes(),
             }
         } else {
@@ -4453,10 +4596,16 @@ mod tests {
         let o = parse_copy("COPY (SELECT 1) TO STDOUT").unwrap();
         assert!(o.is_query && !o.from_stdin && o.delimiter == '\t');
         assert!(parse_copy("COPY t FROM '/etc/passwd'").is_none());
-        assert_eq!(split_copy_text("1\t\\N\ta\\tb", '\t', "\\N"), vec![Some("1".into()), None, Some("a\tb".into())]);
+        assert_eq!(
+            split_copy_text("1\t\\N\ta\\tb", '\t', "\\N"),
+            vec![Some("1".into()), None, Some("a\tb".into())]
+        );
         let rows = split_csv("1,\"x,y\",\n2,\"q\"\"\",z\n", ',', "");
         assert_eq!(rows[0], vec![Some("1".into()), Some("x,y".into()), None]);
-        assert_eq!(rows[1], vec![Some("2".into()), Some("q\"".into()), Some("z".into())]);
+        assert_eq!(
+            rows[1],
+            vec![Some("2".into()), Some("q\"".into()), Some("z".into())]
+        );
         assert_eq!(sql_literal(&Some("007".into())), "'007'");
         assert_eq!(sql_literal(&Some("2.5".into())), "2.5");
         assert_eq!(sql_literal(&Some("o'k".into())), "'o''k'");
@@ -4467,21 +4616,43 @@ mod tests {
         assert_eq!(decode_param(b"42", 0, 23), serde_json::json!(42));
         assert_eq!(decode_param(b"1.5", 0, 701), serde_json::json!(1.5));
         assert_eq!(decode_param(b"42", 0, 0), serde_json::json!("42"));
-        assert_eq!(decode_param(&7i32.to_be_bytes(), 1, 23), serde_json::json!(7));
-        assert_eq!(decode_param(&2.5f64.to_be_bytes(), 1, 701), serde_json::json!(2.5));
+        assert_eq!(
+            decode_param(&7i32.to_be_bytes(), 1, 23),
+            serde_json::json!(7)
+        );
+        assert_eq!(
+            decode_param(&2.5f64.to_be_bytes(), 1, 701),
+            serde_json::json!(2.5)
+        );
         assert_eq!(decode_param(b"t", 0, 16), serde_json::json!(true));
     }
 
     #[test]
     fn column_oids_are_consistent() {
-        let rows = vec![vec![serde_json::json!(1), serde_json::json!(1.5)], vec![serde_json::json!(5_000_000_000i64), serde_json::json!(2)]];
+        let rows = vec![
+            vec![serde_json::json!(1), serde_json::json!(1.5)],
+            vec![serde_json::json!(5_000_000_000i64), serde_json::json!(2)],
+        ];
         assert_eq!(column_oids(&rows, 2, &[]), vec![20, 701]);
-        assert_eq!(strip_pg_catalog("select pg_catalog.version(), 'pg_catalog.x' from pg_catalog.pg_class"), "select version(), 'pg_catalog.x' from pg_class");
+        assert_eq!(
+            strip_pg_catalog(
+                "select pg_catalog.version(), 'pg_catalog.x' from pg_catalog.pg_class"
+            ),
+            "select version(), 'pg_catalog.x' from pg_class"
+        );
         // multi-byte text must not split a char (stress_pgwire unicode regression)
-        assert_eq!(strip_pg_catalog("SELECT 'héllo 世界 🎉' FROM t"), "SELECT 'héllo 世界 🎉' FROM t");
-        assert_eq!(strip_pg_catalog("SELECT 世界, pg_catalog.version()"), "SELECT 世界, version()");
-        assert!(returns_rows("  WITH a AS (SELECT 1) SELECT * FROM a") && !returns_rows("INSERT INTO t VALUES (1)"));
+        assert_eq!(
+            strip_pg_catalog("SELECT 'héllo 世界 🎉' FROM t"),
+            "SELECT 'héllo 世界 🎉' FROM t"
+        );
+        assert_eq!(
+            strip_pg_catalog("SELECT 世界, pg_catalog.version()"),
+            "SELECT 世界, version()"
+        );
+        assert!(
+            returns_rows("  WITH a AS (SELECT 1) SELECT * FROM a")
+                && !returns_rows("INSERT INTO t VALUES (1)")
+        );
         assert_eq!(count_placeholders("SELECT $1, $3"), 3);
     }
-
 }

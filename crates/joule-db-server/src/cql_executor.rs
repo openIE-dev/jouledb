@@ -107,8 +107,11 @@ fn execute_select(
     // Check for aggregate functions (COUNT, SUM, AVG, MIN, MAX)
     let has_agg = sel.columns.iter().any(|c| {
         let u = c.to_uppercase();
-        u.starts_with("COUNT(") || u.starts_with("SUM(") || u.starts_with("AVG(")
-            || u.starts_with("MIN(") || u.starts_with("MAX(")
+        u.starts_with("COUNT(")
+            || u.starts_with("SUM(")
+            || u.starts_with("AVG(")
+            || u.starts_with("MIN(")
+            || u.starts_with("MAX(")
     });
 
     if has_agg {
@@ -119,26 +122,45 @@ fn execute_select(
             if u.starts_with("COUNT(") {
                 agg_cols.push(col.clone());
                 agg_vals.push(serde_json::json!(filtered.len() as i64));
-            } else if u.starts_with("SUM(") || u.starts_with("AVG(")
-                || u.starts_with("MIN(") || u.starts_with("MAX(")
+            } else if u.starts_with("SUM(")
+                || u.starts_with("AVG(")
+                || u.starts_with("MIN(")
+                || u.starts_with("MAX(")
             {
-                let inner = &col[4..col.len()-1].trim().to_string();
-                let vals: Vec<f64> = filtered.iter().filter_map(|r| {
-                    r.get(inner).and_then(|v| {
-                        let s = value_to_string_cql(Some(v));
-                        s.parse::<f64>().ok()
+                let inner = &col[4..col.len() - 1].trim().to_string();
+                let vals: Vec<f64> = filtered
+                    .iter()
+                    .filter_map(|r| {
+                        r.get(inner).and_then(|v| {
+                            let s = value_to_string_cql(Some(v));
+                            s.parse::<f64>().ok()
+                        })
                     })
-                }).collect();
+                    .collect();
                 agg_cols.push(col.clone());
                 if u.starts_with("SUM(") {
                     agg_vals.push(serde_json::json!(vals.iter().sum::<f64>()));
                 } else if u.starts_with("AVG(") {
-                    let avg = if vals.is_empty() { 0.0 } else { vals.iter().sum::<f64>() / vals.len() as f64 };
+                    let avg = if vals.is_empty() {
+                        0.0
+                    } else {
+                        vals.iter().sum::<f64>() / vals.len() as f64
+                    };
                     agg_vals.push(serde_json::json!(avg));
                 } else if u.starts_with("MIN(") {
-                    agg_vals.push(vals.iter().copied().reduce(f64::min).map_or(serde_json::Value::Null, |v| serde_json::json!(v)));
+                    agg_vals.push(
+                        vals.iter()
+                            .copied()
+                            .reduce(f64::min)
+                            .map_or(serde_json::Value::Null, |v| serde_json::json!(v)),
+                    );
                 } else {
-                    agg_vals.push(vals.iter().copied().reduce(f64::max).map_or(serde_json::Value::Null, |v| serde_json::json!(v)));
+                    agg_vals.push(
+                        vals.iter()
+                            .copied()
+                            .reduce(f64::max)
+                            .map_or(serde_json::Value::Null, |v| serde_json::json!(v)),
+                    );
                 }
             } else {
                 agg_cols.push(col.clone());

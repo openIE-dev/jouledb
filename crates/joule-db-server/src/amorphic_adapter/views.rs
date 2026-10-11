@@ -1,7 +1,7 @@
 //! View and materialized view management.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     /// Create or replace a view.

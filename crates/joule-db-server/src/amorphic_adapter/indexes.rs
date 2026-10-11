@@ -1,7 +1,7 @@
 //! Index management: B-tree, spatial, and vector indexes; table statistics.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     /// Create an index on a table's columns.

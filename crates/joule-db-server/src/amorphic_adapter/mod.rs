@@ -240,30 +240,41 @@ impl HoloLock {
         let epoch = std::time::Instant::now();
         let _ = std::thread::Builder::new()
             .name("jouledb-holo-catchup".into())
-            .spawn(move || loop {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-                let Some(lock) = weak.upgrade() else { return };
-                if !flag.load(std::sync::atomic::Ordering::Acquire) {
-                    continue;
-                }
-                let now = epoch.elapsed().as_millis() as u64;
-                if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed)) < Self::IDLE_MS {
-                    continue;
-                }
-                // try_write: never queue behind a streaming bulk write and
-                // then grab the lock in the gap between its batches.
-                if let Ok(mut g) = lock.try_write() {
-                    let now = epoch.elapsed().as_millis() as u64;
-                    if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed)) < Self::IDLE_MS {
+            .spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    let Some(lock) = weak.upgrade() else { return };
+                    if !flag.load(std::sync::atomic::Ordering::Acquire) {
                         continue;
                     }
-                    g.catch_up_holograms(Self::STEP);
-                    if g.pending_holograms() == 0 {
-                        flag.store(false, std::sync::atomic::Ordering::Release);
+                    let now = epoch.elapsed().as_millis() as u64;
+                    if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
+                        < Self::IDLE_MS
+                    {
+                        continue;
+                    }
+                    // try_write: never queue behind a streaming bulk write and
+                    // then grab the lock in the gap between its batches.
+                    if let Ok(mut g) = lock.try_write() {
+                        let now = epoch.elapsed().as_millis() as u64;
+                        if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
+                            < Self::IDLE_MS
+                        {
+                            continue;
+                        }
+                        g.catch_up_holograms(Self::STEP);
+                        if g.pending_holograms() == 0 {
+                            flag.store(false, std::sync::atomic::Ordering::Release);
+                        }
                     }
                 }
             });
-        Self { inner, pending, last_bulk_ms, epoch }
+        Self {
+            inner,
+            pending,
+            last_bulk_ms,
+            epoch,
+        }
     }
 
     pub(crate) fn write(
@@ -276,7 +287,8 @@ impl HoloLock {
         &self,
     ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
         let now = self.epoch.elapsed().as_millis() as u64;
-        let ingesting = now.saturating_sub(self.last_bulk_ms.load(std::sync::atomic::Ordering::Relaxed))
+        let ingesting = now
+            .saturating_sub(self.last_bulk_ms.load(std::sync::atomic::Ordering::Relaxed))
             < Self::IDLE_MS;
         // While a bulk load is streaming, readers don't stall it: the
         // hypervector index catches up once writes go idle.
@@ -285,7 +297,8 @@ impl HoloLock {
             // if the lock is busy the background thread finishes the work.
             if let Ok(mut g) = self.inner.try_write() {
                 g.catch_up_holograms(usize::MAX);
-                self.pending.store(false, std::sync::atomic::Ordering::Release);
+                self.pending
+                    .store(false, std::sync::atomic::Ordering::Release);
             }
         }
         self.inner.read()
@@ -299,9 +312,12 @@ impl HoloLock {
 
     /// Note that bulk ingest queued hypervector work.
     pub(crate) fn mark_pending(&self) {
-        self.last_bulk_ms
-            .store(self.epoch.elapsed().as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
-        self.pending.store(true, std::sync::atomic::Ordering::Release);
+        self.last_bulk_ms.store(
+            self.epoch.elapsed().as_millis() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        self.pending
+            .store(true, std::sync::atomic::Ordering::Release);
     }
 }
 
@@ -309,7 +325,13 @@ pub struct AmorphicTableStorage {
     store: HoloLock,
     /// Columnar snapshots per table, keyed by the store generation they were built at
     col_cache: std::sync::Mutex<
-        HashMap<String, ((u64, usize), std::sync::Arc<crate::columnar_exec::TableColumns>)>,
+        HashMap<
+            String,
+            (
+                (u64, usize),
+                std::sync::Arc<crate::columnar_exec::TableColumns>,
+            ),
+        >,
     >,
 }
 

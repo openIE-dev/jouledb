@@ -1,7 +1,7 @@
 //! Full-text index management: create, drop, search, term freq, doc count, incremental updates.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     /// Create a full-text index on the specified columns of a table.

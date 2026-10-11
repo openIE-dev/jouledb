@@ -429,7 +429,8 @@ fn sec_erasure_shard_serialization() {
 
     for shard in &shards {
         let encoded = bincode::serde::encode_to_vec(shard, bincode::config::standard()).unwrap();
-        let (decoded, _): (ErasureShard, _) = bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
+        let (decoded, _): (ErasureShard, _) =
+            bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(decoded.index, shard.index);
         assert_eq!(decoded.data, shard.data);
         assert_eq!(decoded.original_len, shard.original_len);

@@ -471,7 +471,11 @@ pub(super) fn infer_column_type(value: &serde_json::Value) -> &'static str {
 }
 
 /// Apply implicit type coercion to row values based on column definitions.
-pub(super) fn coerce_row_types(columns: &[String], values: &mut Vec<AstValue>, column_defs: &[ColumnDefInfo]) {
+pub(super) fn coerce_row_types(
+    columns: &[String],
+    values: &mut Vec<AstValue>,
+    column_defs: &[ColumnDefInfo],
+) {
     for i in 0..columns.len() {
         if let Some(def) = column_defs.iter().find(|d| d.name == columns[i]) {
             let target = def.data_type.to_uppercase();

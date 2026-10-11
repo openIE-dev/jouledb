@@ -21,9 +21,8 @@ pub fn execute_sparql(
 ) -> Result<QueryResponse, QueryErrorResponse> {
     let triples = load_triples(amorphic);
 
-    let result = evaluate_sparql(query, &triples).map_err(|e| {
-        QueryErrorResponse::syntax_error(&e.to_string(), 1, 1)
-    })?;
+    let result = evaluate_sparql(query, &triples)
+        .map_err(|e| QueryErrorResponse::syntax_error(&e.to_string(), 1, 1))?;
 
     if let Some(ask) = result.ask_result {
         return Ok(QueryResponse {
@@ -46,7 +45,11 @@ pub fn execute_sparql(
     let rows: Vec<Vec<serde_json::Value>> = result
         .rows
         .iter()
-        .map(|row| row.iter().map(|s| serde_json::Value::String(s.clone())).collect())
+        .map(|row| {
+            row.iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect()
+        })
         .collect();
 
     Ok(QueryResponse {
@@ -86,7 +89,11 @@ fn load_triples(amorphic: &AmorphicTableStorage) -> Vec<Triple> {
                 Some(AstValue::String(s)) => s.clone(),
                 _ => return None,
             };
-            Some(Triple { subject, predicate, object })
+            Some(Triple {
+                subject,
+                predicate,
+                object,
+            })
         })
         .collect()
 }
@@ -95,7 +102,8 @@ fn load_triples(amorphic: &AmorphicTableStorage) -> Vec<Triple> {
 pub fn is_sparql_query(sql: &str) -> bool {
     let t = sql.trim();
     let upper = t.to_uppercase();
-    t.starts_with("PREFIX ") || t.starts_with("prefix ")
+    t.starts_with("PREFIX ")
+        || t.starts_with("prefix ")
         || upper.starts_with("ASK ")
         || upper.starts_with("CONSTRUCT ")
         || upper.starts_with("DESCRIBE ")

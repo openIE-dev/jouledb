@@ -1,7 +1,7 @@
 //! Constraint checking: PRIMARY KEY, UNIQUE, FOREIGN KEY.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     /// Check PRIMARY KEY uniqueness for a row about to be inserted.

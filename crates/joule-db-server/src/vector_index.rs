@@ -374,14 +374,11 @@ impl VectorIndexManager {
                     .map(|r| (r.id, r.distance))
                     .collect()
             }
-            VectorIndex::HnswCore(hnsw, id_to_str, _, _) => {
-                hnsw.search(query_vector, k)
-                    .into_iter()
-                    .filter_map(|(id, dist)| {
-                        id_to_str.get(&id).map(|s| (s.clone(), dist))
-                    })
-                    .collect()
-            }
+            VectorIndex::HnswCore(hnsw, id_to_str, _, _) => hnsw
+                .search(query_vector, k)
+                .into_iter()
+                .filter_map(|(id, dist)| id_to_str.get(&id).map(|s| (s.clone(), dist)))
+                .collect(),
         };
 
         Ok(results)

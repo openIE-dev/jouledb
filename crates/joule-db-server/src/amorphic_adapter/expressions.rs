@@ -1,7 +1,7 @@
 //! Expression evaluation: predicate evaluation, arithmetic, functions, UPDATE/DELETE with expressions.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 /// Namespace for expression evaluation methods that are logically associated with AmorphicTableStorage
 /// but don't take `&self` — they operate on RowData directly.
@@ -32,7 +32,11 @@ impl AmorphicExprEval {
                 let is_null = matches!(Self::eval_expr(row, expr), AstValue::Null);
                 if *negated { !is_null } else { is_null }
             }
-            Expression::In { expr, list, negated } => {
+            Expression::In {
+                expr,
+                list,
+                negated,
+            } => {
                 let val = Self::eval_expr(row, expr);
                 let found = list.iter().any(|item| {
                     let item_val = Self::eval_expr(row, item);
@@ -40,7 +44,12 @@ impl AmorphicExprEval {
                 });
                 if *negated { !found } else { found }
             }
-            Expression::Between { expr, low, high, negated } => {
+            Expression::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
                 let val = Self::eval_expr(row, expr);
                 let low_val = Self::eval_expr(row, low);
                 let high_val = Self::eval_expr(row, high);
@@ -48,15 +57,28 @@ impl AmorphicExprEval {
                     && compare_values(&val, &high_val, &Operator::Le);
                 if *negated { !in_range } else { in_range }
             }
-            Expression::Like { expr, pattern, negated, case_insensitive } => {
+            Expression::Like {
+                expr,
+                pattern,
+                negated,
+                case_insensitive,
+            } => {
                 let val = Self::eval_expr(row, expr);
                 let val_str = match &val {
                     AstValue::String(s) => s.clone(),
                     AstValue::Null => return if *negated { true } else { false },
                     other => format!("{:?}", other),
                 };
-                let text = if *case_insensitive { val_str.to_lowercase() } else { val_str };
-                let pat = if *case_insensitive { pattern.to_lowercase() } else { pattern.clone() };
+                let text = if *case_insensitive {
+                    val_str.to_lowercase()
+                } else {
+                    val_str
+                };
+                let pat = if *case_insensitive {
+                    pattern.to_lowercase()
+                } else {
+                    pattern.clone()
+                };
                 let matched = like_match(&text, &pat);
                 if *negated { !matched } else { matched }
             }
@@ -99,10 +121,12 @@ impl AmorphicExprEval {
                     _ => AstValue::Null,
                 }
             }
-            Expression::Function { name, args } => {
-                Self::eval_function(row, name, args)
-            }
-            Expression::Case { operand, when_clauses, else_clause } => {
+            Expression::Function { name, args } => Self::eval_function(row, name, args),
+            Expression::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
                 if let Some(op_expr) = operand {
                     // Simple CASE: CASE expr WHEN val THEN result ...
                     let op_val = Self::eval_expr(row, op_expr);
@@ -130,19 +154,37 @@ impl AmorphicExprEval {
                 let is_null = matches!(Self::eval_expr(row, expr), AstValue::Null);
                 AstValue::Bool(if *negated { !is_null } else { is_null })
             }
-            Expression::Like { expr, pattern, negated, case_insensitive } => {
+            Expression::Like {
+                expr,
+                pattern,
+                negated,
+                case_insensitive,
+            } => {
                 let val = Self::eval_expr(row, expr);
                 let val_str = match &val {
                     AstValue::String(s) => s.clone(),
                     AstValue::Null => return AstValue::Bool(*negated),
                     other => format!("{:?}", other),
                 };
-                let text = if *case_insensitive { val_str.to_lowercase() } else { val_str };
-                let pat = if *case_insensitive { pattern.to_lowercase() } else { pattern.clone() };
+                let text = if *case_insensitive {
+                    val_str.to_lowercase()
+                } else {
+                    val_str
+                };
+                let pat = if *case_insensitive {
+                    pattern.to_lowercase()
+                } else {
+                    pattern.clone()
+                };
                 let matched = like_match(&text, &pat);
                 AstValue::Bool(if *negated { !matched } else { matched })
             }
-            Expression::Between { expr, low, high, negated } => {
+            Expression::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
                 let val = Self::eval_expr(row, expr);
                 let low_val = Self::eval_expr(row, low);
                 let high_val = Self::eval_expr(row, high);
@@ -150,7 +192,11 @@ impl AmorphicExprEval {
                     && compare_values(&val, &high_val, &Operator::Le);
                 AstValue::Bool(if *negated { !in_range } else { in_range })
             }
-            Expression::In { expr, list, negated } => {
+            Expression::In {
+                expr,
+                list,
+                negated,
+            } => {
                 let val = Self::eval_expr(row, expr);
                 let found = list.iter().any(|item| {
                     let item_val = Self::eval_expr(row, item);
@@ -172,8 +218,20 @@ impl AmorphicExprEval {
                         Operator::Add => AstValue::Int(l.wrapping_add(r)),
                         Operator::Sub => AstValue::Int(l.wrapping_sub(r)),
                         Operator::Mul => AstValue::Int(l.wrapping_mul(r)),
-                        Operator::Div => if r != 0 { AstValue::Int(l / r) } else { AstValue::Null },
-                        Operator::Mod => if r != 0 { AstValue::Int(l % r) } else { AstValue::Null },
+                        Operator::Div => {
+                            if r != 0 {
+                                AstValue::Int(l / r)
+                            } else {
+                                AstValue::Null
+                            }
+                        }
+                        Operator::Mod => {
+                            if r != 0 {
+                                AstValue::Int(l % r)
+                            } else {
+                                AstValue::Null
+                            }
+                        }
                         _ => AstValue::Null,
                     }
                 } else if let (Some(l), Some(r)) = (Self::as_f64(left), Self::as_f64(right)) {
@@ -181,8 +239,20 @@ impl AmorphicExprEval {
                         Operator::Add => AstValue::Float(l + r),
                         Operator::Sub => AstValue::Float(l - r),
                         Operator::Mul => AstValue::Float(l * r),
-                        Operator::Div => if r != 0.0 { AstValue::Float(l / r) } else { AstValue::Null },
-                        Operator::Mod => if r != 0.0 { AstValue::Float(l % r) } else { AstValue::Null },
+                        Operator::Div => {
+                            if r != 0.0 {
+                                AstValue::Float(l / r)
+                            } else {
+                                AstValue::Null
+                            }
+                        }
+                        Operator::Mod => {
+                            if r != 0.0 {
+                                AstValue::Float(l % r)
+                            } else {
+                                AstValue::Null
+                            }
+                        }
                         _ => AstValue::Null,
                     }
                 } else {
@@ -191,9 +261,12 @@ impl AmorphicExprEval {
                 }
             }
             // Comparison operators return Bool
-            Operator::Eq | Operator::Ne | Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => {
-                AstValue::Bool(compare_values(left, right, op))
-            }
+            Operator::Eq
+            | Operator::Ne
+            | Operator::Lt
+            | Operator::Le
+            | Operator::Gt
+            | Operator::Ge => AstValue::Bool(compare_values(left, right, op)),
             // String concat
             Operator::Concat => {
                 let l_str = Self::val_to_string(left);
@@ -248,7 +321,9 @@ impl AmorphicExprEval {
                         AstValue::String(s) => AstValue::String(s.to_uppercase()),
                         other => other,
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             "LOWER" => {
                 if let Some(arg) = args.first() {
@@ -256,7 +331,9 @@ impl AmorphicExprEval {
                         AstValue::String(s) => AstValue::String(s.to_lowercase()),
                         other => other,
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             "LENGTH" | "LEN" | "CHAR_LENGTH" => {
                 if let Some(arg) = args.first() {
@@ -265,7 +342,9 @@ impl AmorphicExprEval {
                         AstValue::Null => AstValue::Null,
                         _ => AstValue::Null,
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             "TRIM" => {
                 if let Some(arg) = args.first() {
@@ -273,7 +352,9 @@ impl AmorphicExprEval {
                         AstValue::String(s) => AstValue::String(s.trim().to_string()),
                         other => other,
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             "ABS" => {
                 if let Some(arg) = args.first() {
@@ -282,14 +363,23 @@ impl AmorphicExprEval {
                         AstValue::Float(n) => AstValue::Float(n.abs()),
                         other => other,
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             "ROUND" => {
                 if let Some(arg) = args.first() {
                     match Self::eval_expr(row, arg) {
                         AstValue::Float(n) => {
-                            let places = args.get(1)
-                                .and_then(|a| if let AstValue::Int(p) = Self::eval_expr(row, a) { Some(p) } else { None })
+                            let places = args
+                                .get(1)
+                                .and_then(|a| {
+                                    if let AstValue::Int(p) = Self::eval_expr(row, a) {
+                                        Some(p)
+                                    } else {
+                                        None
+                                    }
+                                })
                                 .unwrap_or(0);
                             let factor = 10f64.powi(places as i32);
                             AstValue::Float((n * factor).round() / factor)
@@ -297,7 +387,9 @@ impl AmorphicExprEval {
                         AstValue::Int(n) => AstValue::Int(n),
                         other => other,
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             "SUBSTR" | "SUBSTRING" => {
                 if args.len() >= 2 {
@@ -319,7 +411,9 @@ impl AmorphicExprEval {
                     } else {
                         AstValue::String(chars.iter().skip(start).collect())
                     }
-                } else { AstValue::Null }
+                } else {
+                    AstValue::Null
+                }
             }
             _ => AstValue::Null, // Unknown function
         }
@@ -579,7 +673,8 @@ impl AmorphicTableStorage {
                 let mut updated_json = json_row;
                 for (col, val) in &updates {
                     if let Some(idx) = columns.iter().position(|c| c == col) {
-                        updated_json[idx] = crate::json_ops::ast_value_to_json(&amorphic_to_ast(val));
+                        updated_json[idx] =
+                            crate::json_ops::ast_value_to_json(&amorphic_to_ast(val));
                     }
                 }
 

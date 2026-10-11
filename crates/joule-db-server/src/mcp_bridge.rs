@@ -21,10 +21,10 @@ use inv_mcp_core::{
     Layer, McpError, McpToolHandler, ParameterSchema, ToolCallRequest, ToolCallResponse,
     ToolDefinition,
 };
-use joule_db_branch::manager::BranchManager;
 use joule_db_branch::CreateBranchRequest;
-use std::sync::atomic::{AtomicU64, Ordering};
+use joule_db_branch::manager::BranchManager;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// MCP tool handler for the database layer.
 ///
@@ -657,7 +657,6 @@ impl DatabaseToolHandler {
     }
 }
 
-
 impl DatabaseToolHandler {
     fn missing(id: &str, message: &str) -> ToolCallResponse {
         ToolCallResponse::error(
@@ -771,9 +770,16 @@ impl DatabaseToolHandler {
             return Self::missing(&request.id, "missing required parameter: content");
         };
         let mut metadata = std::collections::HashMap::new();
-        if let Some(obj) = request.arguments.get("metadata").and_then(|v| v.as_object()) {
+        if let Some(obj) = request
+            .arguments
+            .get("metadata")
+            .and_then(|v| v.as_object())
+        {
             for (k, v) in obj {
-                let text = v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string());
+                let text = v
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| v.to_string());
                 metadata.insert(k.clone(), text);
             }
         }
@@ -794,10 +800,9 @@ impl DatabaseToolHandler {
             decay_rate: None,
         };
         match self.memory.store(&req, "default") {
-            Ok(id) => ToolCallResponse::success(
-                request.id.clone(),
-                serde_json::json!({ "id": id }),
-            ),
+            Ok(id) => {
+                ToolCallResponse::success(request.id.clone(), serde_json::json!({ "id": id }))
+            }
             Err(err) => Self::type_error(&request.id, err),
         }
     }
@@ -867,10 +872,7 @@ impl DatabaseToolHandler {
                         "reported_energy_budget_uj".into(),
                         serde_json::json!(reported),
                     );
-                    obj.insert(
-                        "energy_enforced".into(),
-                        serde_json::Value::Bool(false),
-                    );
+                    obj.insert("energy_enforced".into(), serde_json::Value::Bool(false));
                 }
                 ToolCallResponse::success(request.id.clone(), value)
             }
@@ -927,20 +929,13 @@ impl DatabaseToolHandler {
     }
 
     fn handle_energy_budget(&self, request: &ToolCallRequest) -> ToolCallResponse {
-        if let Some(uj) = request
-            .arguments
-            .get("budget_uj")
-            .and_then(|v| v.as_u64())
-        {
+        if let Some(uj) = request.arguments.get("budget_uj").and_then(|v| v.as_u64()) {
             self.reported_budget_uj.store(uj, Ordering::Relaxed);
         }
         let budget_uj = self.reported_budget_uj.load(Ordering::Relaxed);
         // One real CPU reduction so the receipt has measured joules. Not a gate.
-        let receipt = crate::fabric::dispatch_sum(
-            &[1.0],
-            joule_db_energy::AlgorithmType::BTree,
-            true,
-        );
+        let receipt =
+            crate::fabric::dispatch_sum(&[1.0], joule_db_energy::AlgorithmType::BTree, true);
         ToolCallResponse::success(
             request.id.clone(),
             serde_json::json!({
@@ -1027,10 +1022,7 @@ impl DatabaseToolHandler {
                 (Some(start), Some(end))
                     if start.parse::<i64>().is_ok() && end.parse::<i64>().is_ok() =>
                 {
-                    return self.query_sql(
-                        "resource",
-                        format!("TSQUERY {metric} {start} {end}"),
-                    );
+                    return self.query_sql("resource", format!("TSQUERY {metric} {start} {end}"));
                 }
                 _ => {
                     return ToolCallResponse::error(
@@ -1266,7 +1258,11 @@ impl DatabaseToolHandler {
             };
             let literal = values
                 .iter()
-                .map(|v| v.as_f64().map(|n| n.to_string()).unwrap_or_else(|| "0".into()))
+                .map(|v| {
+                    v.as_f64()
+                        .map(|n| n.to_string())
+                        .unwrap_or_else(|| "0".into())
+                })
                 .collect::<Vec<_>>()
                 .join(",");
             let resp = self.query_sql(
@@ -1279,10 +1275,8 @@ impl DatabaseToolHandler {
             last_energy = resp.energy_joules.or(last_energy);
             stored += 1;
         }
-        let mut response = ToolCallResponse::success(
-            request.id.clone(),
-            serde_json::json!({ "stored": stored }),
-        );
+        let mut response =
+            ToolCallResponse::success(request.id.clone(), serde_json::json!({ "stored": stored }));
         if let Some(joules) = last_energy {
             response = response.with_energy(joules);
         }
@@ -1293,7 +1287,13 @@ impl DatabaseToolHandler {
 fn sql_literal(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Null => "NULL".into(),
-        serde_json::Value::Bool(b) => if *b { "TRUE".into() } else { "FALSE".into() },
+        serde_json::Value::Bool(b) => {
+            if *b {
+                "TRUE".into()
+            } else {
+                "FALSE".into()
+            }
+        }
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
         other => format!("'{}'", other.to_string().replace('\'', "''")),
@@ -1406,7 +1406,11 @@ mod tests {
         });
         assert!(created.error.is_none(), "{:?}", created.error);
         assert_eq!(
-            created.result.as_ref().and_then(|v| v.get("name")).and_then(|v| v.as_str()),
+            created
+                .result
+                .as_ref()
+                .and_then(|v| v.get("name"))
+                .and_then(|v| v.as_str()),
             Some("dev")
         );
 
@@ -1417,7 +1421,13 @@ mod tests {
         });
         assert!(listed.error.is_none(), "{:?}", listed.error);
         let names = listed.result.unwrap();
-        assert!(names.as_array().unwrap().iter().any(|b| b.get("name").and_then(|n| n.as_str()) == Some("dev")));
+        assert!(
+            names
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|b| b.get("name").and_then(|n| n.as_str()) == Some("dev"))
+        );
 
         let mut targs = std::collections::HashMap::new();
         targs.insert("name".into(), serde_json::json!("acme"));
@@ -1465,7 +1475,15 @@ mod tests {
             arguments: wargs,
         });
         assert!(wf.error.is_none(), "{:?}", wf.error);
-        let wf_id = wf.result.as_ref().unwrap().get("id").unwrap().as_str().unwrap().to_string();
+        let wf_id = wf
+            .result
+            .as_ref()
+            .unwrap()
+            .get("id")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
         let mut run_args = std::collections::HashMap::new();
         run_args.insert("workflow_id".into(), serde_json::json!(wf_id));
         let ran = handler.call_tool(ToolCallRequest {
@@ -1484,7 +1502,15 @@ mod tests {
             arguments: qargs,
         });
         assert!(queued.error.is_none(), "{:?}", queued.error);
-        assert_eq!(queued.result.as_ref().unwrap().get("topic").and_then(|v| v.as_str()), Some("jobs"));
+        assert_eq!(
+            queued
+                .result
+                .as_ref()
+                .unwrap()
+                .get("topic")
+                .and_then(|v| v.as_str()),
+            Some("jobs")
+        );
 
         let pops = handler.call_tool(ToolCallRequest {
             id: "9".into(),

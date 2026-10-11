@@ -39,7 +39,10 @@ pub struct GpuSnapshot {
 }
 
 pub fn snapshot(gpu: &dyn GpuEnergy) -> GpuSnapshot {
-    GpuSnapshot { energy_mj: gpu.energy_mj(), power_mw: gpu.power_mw() }
+    GpuSnapshot {
+        energy_mj: gpu.energy_mj(),
+        power_mw: gpu.power_mw(),
+    }
 }
 
 /// GPU energy over a window.
@@ -54,7 +57,10 @@ pub struct GpuJoules {
 
 /// Largest believable draw: twice the enforced limit (or 1 kW unknown).
 fn ceiling_w(limit_mw: Option<u32>) -> f64 {
-    limit_mw.map(|l| 2.0 * f64::from(l) / 1000.0).filter(|w| *w > 0.0).unwrap_or(1000.0)
+    limit_mw
+        .map(|l| 2.0 * f64::from(l) / 1000.0)
+        .filter(|w| *w > 0.0)
+        .unwrap_or(1000.0)
 }
 
 /// Sane power sample in watts, or the reason it was rejected.
@@ -62,7 +68,10 @@ pub fn sane_power_w(mw: Option<u32>, limit_mw: Option<u32>) -> Result<f64, Strin
     let w = f64::from(mw.ok_or("power usage unsupported")?) / 1000.0;
     let max = ceiling_w(limit_mw);
     if w > max {
-        return Err(format!("rejected NVML power {w:.1} W > 2x enforced limit ({:.0} W)", max / 2.0));
+        return Err(format!(
+            "rejected NVML power {w:.1} W > 2x enforced limit ({:.0} W)",
+            max / 2.0
+        ));
     }
     Ok(w)
 }
@@ -70,21 +79,35 @@ pub fn sane_power_w(mw: Option<u32>, limit_mw: Option<u32>) -> Result<f64, Strin
 /// Energy of the GPU between two snapshots `seconds` apart. Prefers the
 /// energy counter; falls back to the mean of the sane power samples.
 /// `None` only when nothing usable was read.
-pub fn between(a: GpuSnapshot, b: GpuSnapshot, seconds: f64, limit_mw: Option<u32>) -> Option<GpuJoules> {
+pub fn between(
+    a: GpuSnapshot,
+    b: GpuSnapshot,
+    seconds: f64,
+    limit_mw: Option<u32>,
+) -> Option<GpuJoules> {
     let max = ceiling_w(limit_mw);
     let mut note = None;
     if let (Some(x), Some(y)) = (a.energy_mj, b.energy_mj) {
         if y < x {
-            note = Some(format!("rejected NVML energy counter: went backwards ({x} -> {y} mJ)"));
+            note = Some(format!(
+                "rejected NVML energy counter: went backwards ({x} -> {y} mJ)"
+            ));
         } else {
             let j = (y - x) as f64 / 1000.0;
             // Counter updates are coarse: a short job may see one update
             // that covers more than its own window; allow 50 ms of slack.
             if j > 0.0 && j <= max * (seconds + 0.05) {
-                return Some(GpuJoules { joules: j, source: "nvml-energy", note: None });
+                return Some(GpuJoules {
+                    joules: j,
+                    source: "nvml-energy",
+                    note: None,
+                });
             }
             note = Some(if j == 0.0 {
-                format!("NVML energy counter did not advance in {:.1} ms (coarse updates)", seconds * 1e3)
+                format!(
+                    "NVML energy counter did not advance in {:.1} ms (coarse updates)",
+                    seconds * 1e3
+                )
             } else {
                 format!(
                     "rejected NVML energy step {j:.3} J over {:.1} ms (> {:.0} W ceiling; coarse counter update)",
@@ -96,7 +119,10 @@ pub fn between(a: GpuSnapshot, b: GpuSnapshot, seconds: f64, limit_mw: Option<u3
     }
     let pa = sane_power_w(a.power_mw, limit_mw);
     let pb = sane_power_w(b.power_mw, limit_mw);
-    let samples: Vec<f64> = [&pa, &pb].iter().filter_map(|r| r.as_ref().ok().copied()).collect();
+    let samples: Vec<f64> = [&pa, &pb]
+        .iter()
+        .filter_map(|r| r.as_ref().ok().copied())
+        .collect();
     let rejected: Vec<String> = [pa, pb].into_iter().filter_map(|r| r.err()).collect();
     let note: Option<String> = match (note, rejected.first()) {
         (Some(n), Some(r)) => Some(format!("{n}; {r}")),
@@ -108,13 +134,21 @@ pub fn between(a: GpuSnapshot, b: GpuSnapshot, seconds: f64, limit_mw: Option<u3
         // A counter that did not advance is still a (zero) reading.
         if let (Some(x), Some(y)) = (a.energy_mj, b.energy_mj) {
             if x == y {
-                return Some(GpuJoules { joules: 0.0, source: "nvml-energy", note });
+                return Some(GpuJoules {
+                    joules: 0.0,
+                    source: "nvml-energy",
+                    note,
+                });
             }
         }
         return None;
     }
     let w = samples.iter().sum::<f64>() / samples.len() as f64;
-    Some(GpuJoules { joules: w * seconds, source: "nvml-power", note })
+    Some(GpuJoules {
+        joules: w * seconds,
+        source: "nvml-power",
+        note,
+    })
 }
 
 // ── Real NVML ─────────────────────────────────────────────────────────
@@ -194,7 +228,12 @@ pub fn candidate_paths() -> Vec<PathBuf> {
         for root in globs {
             if let Ok(entries) = std::fs::read_dir(root) {
                 for e in entries.flatten() {
-                    for sub in ["lib64", "lib", "targets/x86_64-linux/lib", "current/usr/lib/x86_64-linux-gnu"] {
+                    for sub in [
+                        "lib64",
+                        "lib",
+                        "targets/x86_64-linux/lib",
+                        "current/usr/lib/x86_64-linux-gnu",
+                    ] {
                         out.push(e.path().join(sub).join("libnvidia-ml.so.1"));
                         out.push(e.path().join(sub).join("libnvidia-ml.so"));
                     }
@@ -216,7 +255,11 @@ pub fn candidate_paths() -> Vec<PathBuf> {
 }
 
 fn cstr(buf: &[c_char]) -> String {
-    let bytes: Vec<u8> = buf.iter().take_while(|c| **c != 0).map(|c| *c as u8).collect();
+    let bytes: Vec<u8> = buf
+        .iter()
+        .take_while(|c| **c != 0)
+        .map(|c| *c as u8)
+        .collect();
     String::from_utf8_lossy(&bytes).into_owned()
 }
 
@@ -236,18 +279,25 @@ impl Nvml {
                 Err(e) => tried.push(format!("{}: {e}", path.display())),
             }
         }
-        Err(if tried.is_empty() { "no libnvidia-ml found".into() } else { tried.join("; ") })
+        Err(if tried.is_empty() {
+            "no libnvidia-ml found".into()
+        } else {
+            tried.join("; ")
+        })
     }
 
-    fn open_path(path: &std::path::Path, adapter: Option<&(String, u32, u32)>) -> Result<Nvml, String> {
+    fn open_path(
+        path: &std::path::Path,
+        adapter: Option<&(String, u32, u32)>,
+    ) -> Result<Nvml, String> {
         // SAFETY: loading NVML runs its (trusted, driver-provided) initialisers.
         let lib = unsafe { libloading::Library::new(path) }.map_err(|e| e.to_string())?;
         // SAFETY: symbol types match the NVML C API.
         unsafe {
             let sym = |name: &[u8]| -> Result<*mut c_void, String> {
-                lib.get::<*mut c_void>(name)
-                    .map(|s| *s)
-                    .map_err(|e| format!("{}: {e}", String::from_utf8_lossy(&name[..name.len() - 1])))
+                lib.get::<*mut c_void>(name).map(|s| *s).map_err(|e| {
+                    format!("{}: {e}", String::from_utf8_lossy(&name[..name.len() - 1]))
+                })
             };
             let init: FnInit = std::mem::transmute(sym(b"nvmlInit_v2\0")?);
             let rc = init();
@@ -257,7 +307,9 @@ impl Nvml {
             let count: FnCount = std::mem::transmute(sym(b"nvmlDeviceGetCount_v2\0")?);
             let handle: FnHandle = std::mem::transmute(sym(b"nvmlDeviceGetHandleByIndex_v2\0")?);
             let name_fn: FnName = std::mem::transmute(sym(b"nvmlDeviceGetName\0")?);
-            let pci_fn: Option<FnPci> = sym(b"nvmlDeviceGetPciInfo_v3\0").ok().map(|p| std::mem::transmute(p));
+            let pci_fn: Option<FnPci> = sym(b"nvmlDeviceGetPciInfo_v3\0")
+                .ok()
+                .map(|p| std::mem::transmute(p));
             let mut n = 0u32;
             if count(&mut n) != 0 || n == 0 {
                 return Err("no NVML devices".into());
@@ -269,11 +321,19 @@ impl Nvml {
                     continue;
                 }
                 let mut buf = [0 as c_char; 96];
-                let name = if name_fn(dev, buf.as_mut_ptr(), buf.len() as u32) == 0 { cstr(&buf) } else { String::new() };
+                let name = if name_fn(dev, buf.as_mut_ptr(), buf.len() as u32) == 0 {
+                    cstr(&buf)
+                } else {
+                    String::new()
+                };
                 let (bus, pci_dev) = match pci_fn {
                     Some(f) => {
                         let mut info: PciInfo = std::mem::zeroed();
-                        if f(dev, &mut info) == 0 { (cstr(&info.bus_id), info.pci_device_id) } else { (String::new(), 0) }
+                        if f(dev, &mut info) == 0 {
+                            (cstr(&info.bus_id), info.pci_device_id)
+                        } else {
+                            (String::new(), 0)
+                        }
                     }
                     None => (String::new(), 0),
                 };
@@ -282,17 +342,43 @@ impl Nvml {
             let pick = match adapter {
                 Some((aname, vendor, device)) => devices
                     .iter()
-                    .position(|d| *vendor == 0x10de && d.3 >> 16 == *device && d.3 & 0xffff == 0x10de)
-                    .or_else(|| devices.iter().position(|d| !d.1.is_empty() && aname.contains(d.1.as_str())))
+                    .position(|d| {
+                        *vendor == 0x10de && d.3 >> 16 == *device && d.3 & 0xffff == 0x10de
+                    })
+                    .or_else(|| {
+                        devices
+                            .iter()
+                            .position(|d| !d.1.is_empty() && aname.contains(d.1.as_str()))
+                    })
                     .or_else(|| (devices.len() == 1).then_some(0)),
                 None => (devices.len() == 1).then_some(0),
             }
-            .ok_or_else(|| format!("no NVML device matches the wgpu adapter ({} devices)", devices.len()))?;
+            .ok_or_else(|| {
+                format!(
+                    "no NVML device matches the wgpu adapter ({} devices)",
+                    devices.len()
+                )
+            })?;
             let (dev, name, bus_id, _) = devices.swap_remove(pick);
-            let energy = sym(b"nvmlDeviceGetTotalEnergyConsumption\0").ok().map(|p| std::mem::transmute::<_, FnU64>(p));
-            let power = sym(b"nvmlDeviceGetPowerUsage\0").ok().map(|p| std::mem::transmute::<_, FnU32>(p));
-            let limit = sym(b"nvmlDeviceGetEnforcedPowerLimit\0").ok().map(|p| std::mem::transmute::<_, FnU32>(p));
-            Ok(Nvml { dev, name, bus_id, path: path.display().to_string(), energy, power, limit, _lib: lib })
+            let energy = sym(b"nvmlDeviceGetTotalEnergyConsumption\0")
+                .ok()
+                .map(|p| std::mem::transmute::<_, FnU64>(p));
+            let power = sym(b"nvmlDeviceGetPowerUsage\0")
+                .ok()
+                .map(|p| std::mem::transmute::<_, FnU32>(p));
+            let limit = sym(b"nvmlDeviceGetEnforcedPowerLimit\0")
+                .ok()
+                .map(|p| std::mem::transmute::<_, FnU32>(p));
+            Ok(Nvml {
+                dev,
+                name,
+                bus_id,
+                path: path.display().to_string(),
+                energy,
+                power,
+                limit,
+                _lib: lib,
+            })
         }
     }
 }
@@ -348,7 +434,8 @@ impl GpuEnergy for FakeNvml {
         "fake".into()
     }
     fn energy_mj(&self) -> Option<u64> {
-        self.counter.then(|| (self.start.elapsed().as_secs_f64() * self.watts * 1000.0) as u64)
+        self.counter
+            .then(|| (self.start.elapsed().as_secs_f64() * self.watts * 1000.0) as u64)
     }
     fn power_mw(&self) -> Option<u32> {
         self.power_mw
@@ -365,38 +452,81 @@ mod tests {
     #[test]
     fn counter_is_preferred_and_absurd_power_is_rejected_with_reason() {
         let limit = Some(35_000);
-        let a = GpuSnapshot { energy_mj: Some(1_000), power_mw: Some(590_010) };
-        let b = GpuSnapshot { energy_mj: Some(1_120), power_mw: Some(590_010) };
+        let a = GpuSnapshot {
+            energy_mj: Some(1_000),
+            power_mw: Some(590_010),
+        };
+        let b = GpuSnapshot {
+            energy_mj: Some(1_120),
+            power_mw: Some(590_010),
+        };
         let g = between(a, b, 0.010, limit).expect("reading");
         assert_eq!((g.source, g.joules), ("nvml-energy", 0.12));
         // Counter not advanced in a short job: the sane power sample is used.
-        let c = GpuSnapshot { energy_mj: Some(1_000), power_mw: Some(10_000) };
+        let c = GpuSnapshot {
+            energy_mj: Some(1_000),
+            power_mw: Some(10_000),
+        };
         let g = between(c, c, 0.010, limit).expect("reading");
         assert_eq!(g.source, "nvml-power");
-        assert!((g.joules - 0.1).abs() < 1e-9 && g.note.unwrap_or_default().contains("did not advance"));
+        assert!(
+            (g.joules - 0.1).abs() < 1e-9 && g.note.unwrap_or_default().contains("did not advance")
+        );
         // No counter: both power samples are absurd -> nothing usable.
-        let a = GpuSnapshot { energy_mj: None, power_mw: Some(590_010) };
+        let a = GpuSnapshot {
+            energy_mj: None,
+            power_mw: Some(590_010),
+        };
         assert!(between(a, a, 0.010, limit).is_none());
-        assert!(sane_power_w(Some(590_010), limit).unwrap_err().contains("590.0 W"));
+        assert!(
+            sane_power_w(Some(590_010), limit)
+                .unwrap_err()
+                .contains("590.0 W")
+        );
         // One sane sample is used, the other rejected and reported.
-        let b = GpuSnapshot { energy_mj: None, power_mw: Some(12_000) };
+        let b = GpuSnapshot {
+            energy_mj: None,
+            power_mw: Some(12_000),
+        };
         let g = between(a, b, 0.5, limit).expect("reading");
         assert_eq!(g.source, "nvml-power");
         assert!((g.joules - 6.0).abs() < 1e-9);
-        assert!(g.note.as_deref().unwrap_or("").contains("rejected NVML power"));
+        assert!(
+            g.note
+                .as_deref()
+                .unwrap_or("")
+                .contains("rejected NVML power")
+        );
     }
 
     #[test]
     fn counter_sanity_and_backwards() {
         let limit = Some(35_000);
         // 10 J in 10 ms is 1 kW: rejected, falls back to sane power.
-        let a = GpuSnapshot { energy_mj: Some(0), power_mw: Some(8_000) };
-        let b = GpuSnapshot { energy_mj: Some(10_000), power_mw: Some(8_000) };
+        let a = GpuSnapshot {
+            energy_mj: Some(0),
+            power_mw: Some(8_000),
+        };
+        let b = GpuSnapshot {
+            energy_mj: Some(10_000),
+            power_mw: Some(8_000),
+        };
         let g = between(a, b, 0.010, limit).expect("reading");
         assert_eq!(g.source, "nvml-power");
-        assert!(g.note.as_deref().unwrap_or("").contains("rejected NVML energy"));
-        let b = GpuSnapshot { energy_mj: Some(0), power_mw: Some(8_000) };
-        let a2 = GpuSnapshot { energy_mj: Some(5), power_mw: Some(8_000) };
+        assert!(
+            g.note
+                .as_deref()
+                .unwrap_or("")
+                .contains("rejected NVML energy")
+        );
+        let b = GpuSnapshot {
+            energy_mj: Some(0),
+            power_mw: Some(8_000),
+        };
+        let a2 = GpuSnapshot {
+            energy_mj: Some(5),
+            power_mw: Some(8_000),
+        };
         let g = between(a2, b, 0.010, limit).expect("reading");
         assert!(g.note.as_deref().unwrap_or("").contains("backwards"));
     }
@@ -404,7 +534,11 @@ mod tests {
     #[test]
     fn search_skips_stubs_and_honours_env() {
         let paths = candidate_paths();
-        assert!(paths.iter().all(|p| !p.to_string_lossy().contains("/stubs/")));
+        assert!(
+            paths
+                .iter()
+                .all(|p| !p.to_string_lossy().contains("/stubs/"))
+        );
         #[cfg(not(target_os = "windows"))]
         assert!(paths.iter().any(|p| p.ends_with("libnvidia-ml.so.1")));
     }

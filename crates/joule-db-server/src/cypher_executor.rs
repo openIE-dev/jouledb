@@ -495,9 +495,7 @@ impl<'a> CypherContext<'a> {
                 if let CypherPatternElement::Node(node) = element {
                     // If the variable is already bound, reuse the existing node
                     let already_bound = node.variable.as_ref().is_some_and(|var| {
-                        self.bindings
-                            .first()
-                            .is_some_and(|b| b.contains_key(var))
+                        self.bindings.first().is_some_and(|b| b.contains_key(var))
                     });
 
                     if already_bound {
@@ -528,10 +526,7 @@ impl<'a> CypherContext<'a> {
                                 serde_json::to_value(&node.labels).unwrap_or_default(),
                             );
                             nv.insert("properties".into(), props.clone());
-                            nv.insert(
-                                "__type__".into(),
-                                serde_json::Value::String("node".into()),
-                            );
+                            nv.insert("__type__".into(), serde_json::Value::String("node".into()));
                             if let serde_json::Value::Object(pm) = &props {
                                 for (k, v) in pm {
                                     nv.insert(k.clone(), v.clone());
@@ -711,14 +706,12 @@ impl<'a> CypherContext<'a> {
                                 EDGES_TABLE
                             };
 
-                            let acc = prop_acc
-                                .entry((entity_id, table))
-                                .or_insert_with(|| {
-                                    val.get("properties")
-                                        .and_then(|p| p.as_object())
-                                        .cloned()
-                                        .unwrap_or_default()
-                                });
+                            let acc = prop_acc.entry((entity_id, table)).or_insert_with(|| {
+                                val.get("properties")
+                                    .and_then(|p| p.as_object())
+                                    .cloned()
+                                    .unwrap_or_default()
+                            });
                             acc.insert(prop.clone(), expression_to_json(value_expr, binding));
                         }
                     }
@@ -946,7 +939,10 @@ impl<'a> CypherContext<'a> {
 
         // Detect aggregate functions (COUNT, SUM, AVG, MIN, MAX, COLLECT).
         // When any RETURN item uses an aggregate, collapse all bindings into one row.
-        let has_aggregate = ret.items.iter().any(|item| expr_has_aggregate(&item.expression));
+        let has_aggregate = ret
+            .items
+            .iter()
+            .any(|item| expr_has_aggregate(&item.expression));
 
         if has_aggregate {
             // Identify group-key columns (non-aggregate items in RETURN).
@@ -988,9 +984,10 @@ impl<'a> CypherContext<'a> {
                         .map(|&i| expression_to_json(&ret.items[i].expression, binding))
                         .collect();
                     let key_str = serde_json::to_string(&key).unwrap_or_default();
-                    if let Some(grp) = groups.iter_mut().find(|(k, _)| {
-                        serde_json::to_string(k).unwrap_or_default() == key_str
-                    }) {
+                    if let Some(grp) = groups
+                        .iter_mut()
+                        .find(|(k, _)| serde_json::to_string(k).unwrap_or_default() == key_str)
+                    {
                         grp.1.push(binding);
                     } else {
                         groups.push((key, vec![binding]));
@@ -998,7 +995,8 @@ impl<'a> CypherContext<'a> {
                 }
                 let mut rows = Vec::new();
                 for (key_vals, group_bindings) in &groups {
-                    let owned: Vec<BindingRow> = group_bindings.iter().map(|b| (*b).clone()).collect();
+                    let owned: Vec<BindingRow> =
+                        group_bindings.iter().map(|b| (*b).clone()).collect();
                     let mut key_idx = 0usize;
                     let row: Vec<serde_json::Value> = ret
                         .items
@@ -1036,9 +1034,7 @@ impl<'a> CypherContext<'a> {
             // e.g. RETURN DISTINCT d.name deduplicates by projected values.
             if ret.distinct {
                 let mut seen = std::collections::HashSet::new();
-                rows.retain(|row| {
-                    seen.insert(serde_json::to_string(row).unwrap_or_default())
-                });
+                rows.retain(|row| seen.insert(serde_json::to_string(row).unwrap_or_default()));
             }
 
             self.result_columns = columns;
@@ -1055,7 +1051,10 @@ impl<'a> CypherContext<'a> {
         };
 
         // Check if any WITH item uses an aggregate function.
-        let has_aggregate = with.items.iter().any(|item| expr_has_aggregate(&item.expression));
+        let has_aggregate = with
+            .items
+            .iter()
+            .any(|item| expr_has_aggregate(&item.expression));
 
         let mut new_bindings = Vec::new();
 
@@ -1094,16 +1093,18 @@ impl<'a> CypherContext<'a> {
                         .map(|&i| expression_to_json(&with.items[i].expression, binding))
                         .collect();
                     let key_str = serde_json::to_string(&key).unwrap_or_default();
-                    if let Some(grp) = groups.iter_mut().find(|(k, _)| {
-                        serde_json::to_string(k).unwrap_or_default() == key_str
-                    }) {
+                    if let Some(grp) = groups
+                        .iter_mut()
+                        .find(|(k, _)| serde_json::to_string(k).unwrap_or_default() == key_str)
+                    {
                         grp.1.push(binding);
                     } else {
                         groups.push((key, vec![binding]));
                     }
                 }
                 for (key_vals, group_bindings) in &groups {
-                    let owned: Vec<BindingRow> = group_bindings.iter().map(|b| (*b).clone()).collect();
+                    let owned: Vec<BindingRow> =
+                        group_bindings.iter().map(|b| (*b).clone()).collect();
                     let mut new_b = HashMap::new();
                     let mut key_idx = 0usize;
                     for (i, item) in with.items.iter().enumerate() {
@@ -1161,9 +1162,7 @@ impl<'a> CypherContext<'a> {
                         let bare = expr.rsplit('.').next().unwrap_or(expr);
                         self.result_columns
                             .iter()
-                            .position(|c| {
-                                c == bare || c.rsplit('.').next().unwrap_or(c) == bare
-                            })
+                            .position(|c| c == bare || c.rsplit('.').next().unwrap_or(c) == bare)
                             .unwrap_or(0)
                     });
                 (idx, *desc)
@@ -1185,11 +1184,7 @@ impl<'a> CypherContext<'a> {
         });
     }
 
-    fn execute_unwind(
-        &mut self,
-        expr: &Expression,
-        alias: &str,
-    ) -> Result<(), QueryErrorResponse> {
+    fn execute_unwind(&mut self, expr: &Expression, alias: &str) -> Result<(), QueryErrorResponse> {
         // If expression is a literal array, unwind it directly (no bindings needed)
         if let Expression::Literal(AstValue::Array(items)) = expr {
             let json_items: Vec<serde_json::Value> = items
@@ -1349,9 +1344,9 @@ impl<'a> CypherContext<'a> {
                 self.execute_gds_call(p)?;
             }
             _ => {
-                return Err(QueryErrorResponse::execution_error(
-                    &format!("Unknown procedure: CALL {procedure}()"),
-                ));
+                return Err(QueryErrorResponse::execution_error(&format!(
+                    "Unknown procedure: CALL {procedure}()"
+                )));
             }
         }
         Ok(())
@@ -1389,12 +1384,16 @@ impl<'a> CypherContext<'a> {
                     .collect();
 
                 // Build outgoing adjacency.
-                let mut outgoing: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+                let mut outgoing: std::collections::HashMap<String, Vec<String>> =
+                    std::collections::HashMap::new();
                 for r in &edge_rows {
                     let from = r.get("start_node").and_then(|v| v.as_str()).unwrap_or("");
                     let to = r.get("end_node").and_then(|v| v.as_str()).unwrap_or("");
                     if !from.is_empty() && !to.is_empty() {
-                        outgoing.entry(from.to_string()).or_default().push(to.to_string());
+                        outgoing
+                            .entry(from.to_string())
+                            .or_default()
+                            .push(to.to_string());
                     }
                 }
 
@@ -1423,7 +1422,8 @@ impl<'a> CypherContext<'a> {
                     .map(|(id, score)| vec![serde_json::json!(id), serde_json::json!(score)])
                     .collect();
                 rows.sort_by(|a, b| {
-                    b[1].as_f64().unwrap_or(0.0)
+                    b[1].as_f64()
+                        .unwrap_or(0.0)
                         .partial_cmp(&a[1].as_f64().unwrap_or(0.0))
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
@@ -1432,10 +1432,19 @@ impl<'a> CypherContext<'a> {
 
             "gds.triangleCount" => {
                 // Count triangles using adjacency sets.
-                let mut adj: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+                let mut adj: std::collections::HashMap<String, std::collections::HashSet<String>> =
+                    std::collections::HashMap::new();
                 for r in &edge_rows {
-                    let from = r.get("start_node").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                    let to = r.get("end_node").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let from = r
+                        .get("start_node")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let to = r
+                        .get("end_node")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     if !from.is_empty() && !to.is_empty() {
                         adj.entry(from.clone()).or_default().insert(to.clone());
                         adj.entry(to).or_default().insert(from);
@@ -1447,7 +1456,11 @@ impl<'a> CypherContext<'a> {
                     let neigh_vec: Vec<&String> = neighbors.iter().collect();
                     for i in 0..neigh_vec.len() {
                         for j in (i + 1)..neigh_vec.len() {
-                            if adj.get(neigh_vec[i]).map(|s| s.contains(neigh_vec[j])).unwrap_or(false) {
+                            if adj
+                                .get(neigh_vec[i])
+                                .map(|s| s.contains(neigh_vec[j]))
+                                .unwrap_or(false)
+                            {
                                 count += 1;
                             }
                         }
@@ -1463,23 +1476,30 @@ impl<'a> CypherContext<'a> {
                 // BFS shortest path — args would specify source/target, but for now
                 // return the algorithm as available.
                 self.result_columns = vec!["status".into()];
-                self.result_rows = vec![vec![serde_json::json!("gds.dijkstra available — pass source/target as arguments")]];
+                self.result_rows = vec![vec![serde_json::json!(
+                    "gds.dijkstra available — pass source/target as arguments"
+                )]];
             }
 
             "gds.louvain" | "gds.communityDetection" => {
                 self.result_columns = vec!["status".into()];
-                self.result_rows = vec![vec![serde_json::json!("gds.louvain available — community detection on graph")]];
+                self.result_rows = vec![vec![serde_json::json!(
+                    "gds.louvain available — community detection on graph"
+                )]];
             }
 
             "gds.scc" | "gds.stronglyConnectedComponents" => {
                 self.result_columns = vec!["status".into()];
-                self.result_rows = vec![vec![serde_json::json!("gds.scc available — Tarjan's algorithm")]];
+                self.result_rows = vec![vec![serde_json::json!(
+                    "gds.scc available — Tarjan's algorithm"
+                )]];
             }
 
             _ => {
-                return Err(QueryErrorResponse::execution_error(
-                    &format!("Unknown GDS procedure: CALL {}()", procedure),
-                ));
+                return Err(QueryErrorResponse::execution_error(&format!(
+                    "Unknown GDS procedure: CALL {}()",
+                    procedure
+                )));
             }
         }
 
@@ -1589,7 +1609,12 @@ fn evaluate_predicate(expr: &Expression, binding: &BindingRow) -> bool {
             }
         }
         Expression::Literal(AstValue::Bool(b)) => *b,
-        Expression::Like { expr: inner, pattern, negated, case_insensitive } => {
+        Expression::Like {
+            expr: inner,
+            pattern,
+            negated,
+            case_insensitive,
+        } => {
             let val = expression_to_json(inner, binding);
             let s = match &val {
                 serde_json::Value::String(s) => s.clone(),
@@ -1598,25 +1623,40 @@ fn evaluate_predicate(expr: &Expression, binding: &BindingRow) -> bool {
                 serde_json::Value::Null => return *negated,
                 _ => format!("{}", val),
             };
-            let hay = if *case_insensitive { s.to_lowercase() } else { s.clone() };
-            let pat = if *case_insensitive { pattern.to_lowercase() } else { pattern.clone() };
+            let hay = if *case_insensitive {
+                s.to_lowercase()
+            } else {
+                s.clone()
+            };
+            let pat = if *case_insensitive {
+                pattern.to_lowercase()
+            } else {
+                pattern.clone()
+            };
             let matched = if pat.starts_with('%') && pat.ends_with('%') && pat.len() > 1 {
-                hay.contains(&pat[1..pat.len()-1])
+                hay.contains(&pat[1..pat.len() - 1])
             } else if pat.starts_with('%') {
                 hay.ends_with(&pat[1..])
             } else if pat.ends_with('%') {
-                hay.starts_with(&pat[..pat.len()-1])
+                hay.starts_with(&pat[..pat.len() - 1])
             } else {
                 hay == pat
             };
             if *negated { !matched } else { matched }
         }
-        Expression::IsNull { expr: inner, negated } => {
+        Expression::IsNull {
+            expr: inner,
+            negated,
+        } => {
             let val = expression_to_json(inner, binding);
             let is_null = val == serde_json::Value::Null;
             if *negated { !is_null } else { is_null }
         }
-        Expression::In { expr: inner, list, negated } => {
+        Expression::In {
+            expr: inner,
+            list,
+            negated,
+        } => {
             let val = expression_to_json(inner, binding);
             let found = list.iter().any(|item| {
                 let item_val = expression_to_json(item, binding);
@@ -1624,7 +1664,11 @@ fn evaluate_predicate(expr: &Expression, binding: &BindingRow) -> bool {
             });
             if *negated { !found } else { found }
         }
-        Expression::RegexMatch { expr: inner, pattern, negated } => {
+        Expression::RegexMatch {
+            expr: inner,
+            pattern,
+            negated,
+        } => {
             let val = expression_to_json(inner, binding);
             let s = match &val {
                 serde_json::Value::String(s) => s.as_str(),
@@ -1667,8 +1711,7 @@ fn evaluate_aggregate(expr: &Expression, bindings: &[BindingRow]) -> serde_json:
                     .unwrap_or(serde_json::Value::Null)
             })
             .collect();
-        let non_null: Vec<&serde_json::Value> =
-            values.iter().filter(|v| !v.is_null()).collect();
+        let non_null: Vec<&serde_json::Value> = values.iter().filter(|v| !v.is_null()).collect();
 
         match name.to_uppercase().as_str() {
             "COUNT" => serde_json::json!(non_null.len() as i64),
@@ -1909,7 +1952,11 @@ fn deduplicate_bindings(bindings: &[BindingRow]) -> Vec<BindingRow> {
 /// Detect whether a query string looks like Cypher.
 pub fn is_cypher_query(sql: &str) -> bool {
     let t = sql.trim().to_uppercase();
-    let t = if t.starts_with("CYPHER ") { t[7..].trim_start().to_string() } else { t };
+    let t = if t.starts_with("CYPHER ") {
+        t[7..].trim_start().to_string()
+    } else {
+        t
+    };
     t.starts_with("MATCH ")
         || t.starts_with("MATCH(")
         || t.starts_with("OPTIONAL MATCH")
@@ -2286,12 +2333,20 @@ mod tests {
 
         // CALL db.labels() — parser handles dotted procedure names
         let parse_result = parser.parse("CALL db.labels()");
-        assert!(parse_result.is_ok(), "CALL db.labels() should parse: {:?}", parse_result.err());
+        assert!(
+            parse_result.is_ok(),
+            "CALL db.labels() should parse: {:?}",
+            parse_result.err()
+        );
 
         let q = parse_result.unwrap();
         let amorphic = test_amorphic();
         let exec_result = execute_cypher(&q, &amorphic, Instant::now());
-        assert!(exec_result.is_ok(), "CALL db.labels() should execute: {:?}", exec_result.err());
+        assert!(
+            exec_result.is_ok(),
+            "CALL db.labels() should execute: {:?}",
+            exec_result.err()
+        );
     }
 
     #[test]

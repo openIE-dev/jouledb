@@ -6,8 +6,8 @@
 use joule_db_crdt::{Crdt, GCounter, LWWMap, LWWRegister, MVRegister, ORSet, PNCounter};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -399,17 +399,9 @@ impl EdgePopManager {
         // Snapshot of this pop as an LWW document
         let mut incoming = LWWMap::new();
         incoming.set("endpoint", pop.endpoint.as_bytes().to_vec(), &pop.id);
-        incoming.set(
-            "region",
-            format!("{:?}", pop.region).into_bytes(),
-            &pop.id,
-        );
+        incoming.set("region", format!("{:?}", pop.region).into_bytes(), &pop.id);
         incoming.set("wal_lsn", pop.wal_lsn.to_le_bytes().to_vec(), &pop.id);
-        incoming.set(
-            "status",
-            format!("{:?}", pop.status).into_bytes(),
-            &pop.id,
-        );
+        incoming.set("status", format!("{:?}", pop.status).into_bytes(), &pop.id);
         // PNCounter used as a lag/balance signal (positive = behind, negative = ahead)
         let mut lag_counter = PNCounter::new();
         if pop.sync_lag_ms > 0 {
@@ -491,10 +483,7 @@ impl EdgePopManager {
         };
 
         // Touch an LWWRegister heartbeat so the type is exercised on the path
-        let _heartbeat = LWWRegister::new(
-            now_millis().to_le_bytes().to_vec(),
-            &pop.id,
-        );
+        let _heartbeat = LWWRegister::new(now_millis().to_le_bytes().to_vec(), &pop.id);
 
         self.persist(&format!("crdt:{}", pop.id), local);
 

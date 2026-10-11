@@ -1,7 +1,7 @@
 //! Trigger management and catalog operations (references, buckets, API endpoints).
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     /// Create a new trigger stored in __triggers__ metadata.

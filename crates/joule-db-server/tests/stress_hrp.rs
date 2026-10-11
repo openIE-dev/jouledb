@@ -323,7 +323,8 @@ fn hrp_delta_insert_rows_roundtrip() {
         ],
     };
     let bytes = bincode::serde::encode_to_vec(&delta, bincode::config::standard()).unwrap();
-    let (decoded, _): (MutationDelta, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (decoded, _): (MutationDelta, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
     assert_eq!(format!("{:?}", delta), format!("{:?}", decoded));
 }
 
@@ -348,7 +349,8 @@ fn hrp_delta_all_value_types() {
     ];
     for v in &values {
         let bytes = bincode::serde::encode_to_vec(v, bincode::config::standard()).unwrap();
-        let (decoded, _): (DeltaValue, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+        let (decoded, _): (DeltaValue, _) =
+            bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
         let _ = format!("{:?}", decoded);
     }
 }
@@ -361,7 +363,8 @@ fn hrp_delta_nested_array() {
         val = DeltaValue::Array(vec![val]);
     }
     let bytes = bincode::serde::encode_to_vec(&val, bincode::config::standard()).unwrap();
-    let (decoded, _): (DeltaValue, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (decoded, _): (DeltaValue, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
     let _ = format!("{:?}", decoded);
 }
 
@@ -373,7 +376,8 @@ fn hrp_delta_empty_insert() {
         rows: vec![],
     };
     let bytes = bincode::serde::encode_to_vec(&delta, bincode::config::standard()).unwrap();
-    let (_, _): (MutationDelta, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (_, _): (MutationDelta, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
 }
 
 #[test]
@@ -387,7 +391,8 @@ fn hrp_delta_large_insert() {
         rows,
     };
     let bytes = bincode::serde::encode_to_vec(&delta, bincode::config::standard()).unwrap();
-    let (_, _): (MutationDelta, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (_, _): (MutationDelta, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
 }
 
 #[test]
@@ -396,7 +401,8 @@ fn hrp_delta_raw_sql_empty() {
         sql: "".to_string(),
     };
     let bytes = bincode::serde::encode_to_vec(&delta, bincode::config::standard()).unwrap();
-    let (_, _): (MutationDelta, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (_, _): (MutationDelta, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
 }
 
 #[test]
@@ -425,7 +431,8 @@ fn hrp_delta_create_table() {
         if_not_exists: false,
     };
     let bytes = bincode::serde::encode_to_vec(&delta, bincode::config::standard()).unwrap();
-    let (_, _): (MutationDelta, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (_, _): (MutationDelta, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
 }
 
 #[test]
@@ -435,7 +442,8 @@ fn hrp_delta_drop_table() {
         if_exists: false,
     };
     let bytes = bincode::serde::encode_to_vec(&delta, bincode::config::standard()).unwrap();
-    let (_, _): (MutationDelta, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+    let (_, _): (MutationDelta, _) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
 }
 
 #[test]
@@ -444,7 +452,8 @@ fn hrp_delta_float_nan() {
     let val = DeltaValue::Float(f64::NAN);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let bytes = bincode::serde::encode_to_vec(&val, bincode::config::standard()).unwrap();
-        let (_, _): (DeltaValue, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+        let (_, _): (DeltaValue, _) =
+            bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
     }));
     assert!(result.is_ok(), "NaN in DeltaValue should not panic");
 }

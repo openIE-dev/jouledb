@@ -42,6 +42,7 @@
 //! is `estimate` (watts snapshot x wall time). This path never refuses or
 //! aborts work because of an energy figure or budget.
 
+use joule_ane_rt::PlannedDevice;
 use joule_db_core::persistence::compute::{
     AggregationType, BufferUsage, ComputeBackend, ComputeOp, CpuComputeBackend,
 };
@@ -49,7 +50,6 @@ use joule_db_energy::{
     AdaptiveParams, AlgorithmType, ComputeRouter, DeviceTarget, EnergyConfig, EnergySnapshot,
     ExecutionHint, HardwareAdvisor,
 };
-use joule_ane_rt::PlannedDevice;
 use joule_runtime::{AcceleratorKind, detect_devices};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -137,7 +137,10 @@ pub struct EnergyReceipt {
 impl EnergyReceipt {
     /// One-line, key=value rendering for logs and test output.
     pub fn line(&self) -> String {
-        let w = |v: Option<f64>| v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "none".into());
+        let w = |v: Option<f64>| {
+            v.map(|x| format!("{x:.3}"))
+                .unwrap_or_else(|| "none".into())
+        };
         format!(
             "requested_device={} device={} backend={} fallback={} route_reason={} algorithm={} value={} joules={:.6e} incremental_joules={:.6e} seconds={:.6} watts={:.4} energy_source={} energy_confidence={} cpu_w={} gpu_w={} ane_w={} baseline_w={} verified={} verify_policy={} verify_joules={} verify_s={} placement={} setup_ms={} setup_joules={}{}",
             self.requested_device,
@@ -159,8 +162,12 @@ impl EnergyReceipt {
             w(self.baseline_watts),
             self.verified,
             self.verify_policy,
-            self.verify_joules.map(|j| format!("{j:.6e}")).unwrap_or_else(|| "none".into()),
-            self.verify_seconds.map(|s| format!("{s:.6}")).unwrap_or_else(|| "none".into()),
+            self.verify_joules
+                .map(|j| format!("{j:.6e}"))
+                .unwrap_or_else(|| "none".into()),
+            self.verify_seconds
+                .map(|s| format!("{s:.6}"))
+                .unwrap_or_else(|| "none".into()),
             self.placement.as_deref().unwrap_or("none"),
             self.setup_ms
                 .map(|v| format!("{v:.3}"))
@@ -168,7 +175,10 @@ impl EnergyReceipt {
             self.setup_joules
                 .map(|v| format!("{v:.6e}(estimate)"))
                 .unwrap_or_else(|| "none".into()),
-            self.energy_notes.as_ref().map(|n| format!(" notes=\"{n}\"")).unwrap_or_default()
+            self.energy_notes
+                .as_ref()
+                .map(|n| format!(" notes=\"{n}\""))
+                .unwrap_or_default()
         )
     }
 }
@@ -463,7 +473,11 @@ fn cpu_sum(values: &[f64]) -> Result<f64, String> {
         }
     }
     let input = backend
-        .create_buffer(bytes.len() as u64, BufferUsage::STORAGE_READ, Some("fabric-in"))
+        .create_buffer(
+            bytes.len() as u64,
+            BufferUsage::STORAGE_READ,
+            Some("fabric-in"),
+        )
         .map_err(|e| e.to_string())?;
     backend
         .write_buffer(input, 0, &bytes)
@@ -544,7 +558,13 @@ fn wgpu_sum(values: &[f64]) -> Result<f64, String> {
 /// that lane and the CPU from measured joules (then time) for this
 /// algorithm and size bucket; `route_reason` says which rule fired.
 pub fn dispatch_sum(values: &[f64], algorithm: AlgorithmType, force_cpu: bool) -> EnergyReceipt {
-    dispatch_sum_costed(values, algorithm, force_cpu, &live_profile(), crate::cost_model::global())
+    dispatch_sum_costed(
+        values,
+        algorithm,
+        force_cpu,
+        &live_profile(),
+        crate::cost_model::global(),
+    )
 }
 
 /// [`dispatch_sum_on`] with measured-cost routing between the GPU lane and
@@ -590,7 +610,9 @@ fn dispatch_sum_costed(
     if ran.device == route.chosen.device {
         receipt.fallback = route.fallback.device.clone();
     } else {
-        receipt.route_reason.push_str(&format!("+{}_error", route.chosen.device));
+        receipt
+            .route_reason
+            .push_str(&format!("+{}_error", route.chosen.device));
     }
     receipt
 }
@@ -609,8 +631,15 @@ fn dispatch_sum_on(
     let meter = meter_for(host);
     let mut span = meter.begin();
     let mut verified = None;
-    let (value, backend, reported, executed, preferred_ran) =
-        execute(values, preferred, force_cpu, host, meter, &mut span, &mut verified);
+    let (value, backend, reported, executed, preferred_ran) = execute(
+        values,
+        preferred,
+        force_cpu,
+        host,
+        meter,
+        &mut span,
+        &mut verified,
+    );
     let fallback = fallback_processor(preferred_ran, executed, host);
     let device = if backend == "cpu" { "cpu" } else { "gpu" };
     let e = meter.finish(span, std::time::Duration::ZERO, device, snap.power_watts);
@@ -632,7 +661,11 @@ fn dispatch_sum_on(
         verify_seconds: e.verify_seconds,
         energy_notes: e.notes.clone(),
         verified: verified == Some(true),
-        verify_policy: if backend == "cpu" { "none".into() } else { crate::verify_policy::Verifier::global().label().into() },
+        verify_policy: if backend == "cpu" {
+            "none".into()
+        } else {
+            crate::verify_policy::Verifier::global().label().into()
+        },
         fallback: fallback.to_string(),
         value,
         algorithm: algorithm.to_string(),
@@ -650,8 +683,8 @@ fn dispatch_sum_on(
 
 fn gpu_matches_cpu(values: &[f64], gpu_value: f64) -> (bool, f64) {
     let cpu_value = cpu_sum(values).unwrap_or(gpu_value);
-    let ok = gpu_value.is_finite()
-        && (gpu_value - cpu_value).abs() <= 1e-2 * (1.0 + cpu_value.abs());
+    let ok =
+        gpu_value.is_finite() && (gpu_value - cpu_value).abs() <= 1e-2 * (1.0 + cpu_value.abs());
     (ok, cpu_value)
 }
 
@@ -726,7 +759,13 @@ fn execute(
                         preferred_ran,
                     );
                 }
-                return (cpu_value, "cpu", DeviceTarget::Cpu, DeviceTarget::Cpu, false);
+                return (
+                    cpu_value,
+                    "cpu",
+                    DeviceTarget::Cpu,
+                    DeviceTarget::Cpu,
+                    false,
+                );
             }
             Err(_) => {
                 let cpu_value = cpu_sum(values).unwrap_or(0.0);
@@ -739,13 +778,23 @@ fn execute(
                         false,
                     );
                 }
-                return (cpu_value, "cpu", DeviceTarget::Cpu, DeviceTarget::Cpu, false);
+                return (
+                    cpu_value,
+                    "cpu",
+                    DeviceTarget::Cpu,
+                    DeviceTarget::Cpu,
+                    false,
+                );
             }
         }
     }
 
     let cpu_value = cpu_sum(values).unwrap_or(0.0);
-    if !force_cpu && matches!(preferred, DeviceTarget::Npu | DeviceTarget::Tpu | DeviceTarget::Lpu)
+    if !force_cpu
+        && matches!(
+            preferred,
+            DeviceTarget::Npu | DeviceTarget::Tpu | DeviceTarget::Lpu
+        )
     {
         // No GPU lane. Name the routed accelerator, run on CPU, and record
         // CPU as the fallback processor that did the work.
@@ -801,7 +850,9 @@ const ANE_ACTIVE_W: f64 = 0.05;
 /// (powermetrics does not report it on some chips, e.g. M3 Ultra).
 fn ane_rail_idle(planned: PlannedDevice, power: Option<&joule_ane_rt::PowerMeasurement>) -> bool {
     planned == PlannedDevice::NeuralEngine
-        && power.is_some_and(|p| p.predictions > 0 && p.confidence != "estimate" && p.mean_ane_watts < ANE_ACTIVE_W)
+        && power.is_some_and(|p| {
+            p.predictions > 0 && p.confidence != "estimate" && p.mean_ane_watts < ANE_ACTIVE_W
+        })
 }
 
 fn run_ane_lane(
@@ -817,7 +868,10 @@ fn run_ane_lane(
             setup_s: 0.0,
             planned,
             summary: format!("descriptor:matmul@{}", planned.as_str()),
-            plan: vec![format!("matmul->scores preferred={} (descriptor)", planned.as_str())],
+            plan: vec![format!(
+                "matmul->scores preferred={} (descriptor)",
+                planned.as_str()
+            )],
             attempts: vec![format!("descriptor@{}", planned.as_str())],
             power: None,
         }),
@@ -831,7 +885,11 @@ fn run_ane_lane(
             .map_err(|e| e.to_string())?;
             Ok(AneOutcome {
                 predict_s: run.predict_s,
-                setup_s: if run.setup_performed { run.setup_s } else { 0.0 },
+                setup_s: if run.setup_performed {
+                    run.setup_s
+                } else {
+                    0.0
+                },
                 planned: run.placement.similarity_device(),
                 summary: run.placement.summary(),
                 plan: run.placement.lines(),
@@ -935,7 +993,10 @@ fn route_hdc(
     force_cpu: bool,
     host: &HostProfile,
 ) -> HdcRoute {
-    let skip = |reason| HdcRoute { try_ane: false, reason };
+    let skip = |reason| HdcRoute {
+        try_ane: false,
+        reason,
+    };
     if force_cpu {
         return skip("force_cpu");
     }
@@ -1052,7 +1113,13 @@ fn dispatch_hdc_on(
                                 (DeviceTarget::Cpu, "coreml", false)
                             }
                         };
-                        chosen = Some((outcome.scores.clone(), backend, device, ran, outcome.predict_s));
+                        chosen = Some((
+                            outcome.scores.clone(),
+                            backend,
+                            device,
+                            ran,
+                            outcome.predict_s,
+                        ));
                     } else {
                         route_reason.push_str("+ane_mismatch");
                     }
@@ -1067,15 +1134,17 @@ fn dispatch_hdc_on(
         }
     }
 
-    if chosen.is_none()
-        && !force_cpu
-        && matches!(preferred, DeviceTarget::Npu | DeviceTarget::Gpu)
+    if chosen.is_none() && !force_cpu && matches!(preferred, DeviceTarget::Npu | DeviceTarget::Gpu)
     {
         let mut gpu_span = meter.begin();
         if let Ok((scores, kernel_s, gpu_setup_s)) = run_gpu_hdc(queries, memory, d, host) {
             let gpu_end = Instant::now();
             meter.close(&mut gpu_span, gpu_end);
-            gpu_window = Some((gpu_span, gpu_end, std::time::Duration::from_secs_f64(gpu_setup_s.max(0.0))));
+            gpu_window = Some((
+                gpu_span,
+                gpu_end,
+                std::time::Duration::from_secs_f64(gpu_setup_s.max(0.0)),
+            ));
             setup_s += gpu_setup_s;
             let key = crate::verify_policy::key("fabric:hdc", &shape_key, "gpu/metal");
             let check = verifier.should_verify(&key);
@@ -1149,7 +1218,9 @@ fn dispatch_hdc_on(
                     confidence: p.confidence.into(),
                     seconds: per,
                     joules: rails.total() * per,
-                    incremental_joules: p.incremental_joules_per_prediction.unwrap_or(rails.total() * per),
+                    incremental_joules: p
+                        .incremental_joules_per_prediction
+                        .unwrap_or(rails.total() * per),
                     watts: rails.total(),
                     cpu_watts: Some(rails.cpu_w),
                     gpu_watts: Some(rails.gpu_w),
@@ -1202,22 +1273,46 @@ fn dispatch_hdc_on(
         // Core ML placed the op on the CPU or GPU: no ANE power loop ran,
         // so meter the Core ML call itself.
         (None, "coreml") => match ane_window {
-            Some((span, end, skip)) => {
-                meter.finish_at(span, end, skip, executed_device_label(executed), watts_estimate)
-            }
-            None => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),
+            Some((span, end, skip)) => meter.finish_at(
+                span,
+                end,
+                skip,
+                executed_device_label(executed),
+                watts_estimate,
+            ),
+            None => crate::power_meter::JobEnergy::estimate(
+                executed_device_label(executed),
+                watts_estimate,
+                job_s,
+            ),
         },
         (None, "cpu") => match cpu_span.take() {
-            Some(span) => meter.finish_at(span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate),
+            Some(span) => meter.finish_at(
+                span,
+                cpu_end,
+                std::time::Duration::ZERO,
+                "cpu",
+                watts_estimate,
+            ),
             None => crate::power_meter::JobEnergy::estimate("cpu", watts_estimate, cpu_s),
         },
-        (None, _) => crate::power_meter::JobEnergy::estimate(executed_device_label(executed), watts_estimate, job_s),
+        (None, _) => crate::power_meter::JobEnergy::estimate(
+            executed_device_label(executed),
+            watts_estimate,
+            job_s,
+        ),
     };
     // An accelerator ran: the CPU reference was its check, billed as a
     // separate `verify` job (never to the accelerator, never dropped).
-    let verify = cpu_span
-        .take()
-        .map(|span| meter.finish_at(span, cpu_end, std::time::Duration::ZERO, "cpu", watts_estimate));
+    let verify = cpu_span.take().map(|span| {
+        meter.finish_at(
+            span,
+            cpu_end,
+            std::time::Duration::ZERO,
+            "cpu",
+            watts_estimate,
+        )
+    });
     let (joules, watts, energy_source) = (energy.joules, energy.watts, energy.source.clone());
     let (setup_ms, setup_joules) = if setup_s > 0.0 {
         (Some(setup_s * 1000.0), Some(watts_estimate * setup_s))
@@ -1251,7 +1346,11 @@ fn dispatch_hdc_on(
             baseline_watts: energy.baseline_watts,
             energy_notes: energy.notes.clone(),
             verified,
-            verify_policy: if backend == "cpu" { "none".into() } else { verifier.label().into() },
+            verify_policy: if backend == "cpu" {
+                "none".into()
+            } else {
+                verifier.label().into()
+            },
             verify_joules: verify.as_ref().map(|v| v.joules),
             verify_seconds: verify.as_ref().map(|v| v.seconds),
             fallback: fallback.to_string(),
@@ -1277,7 +1376,11 @@ fn dispatch_hdc_on(
 /// labelled estimate for an injected descriptor host (nothing real ran).
 fn meter_for(host: &HostProfile) -> &'static crate::power_meter::Meter {
     static ESTIMATE: crate::power_meter::Meter = crate::power_meter::Meter::Estimate;
-    if host.live_gpu { crate::power_meter::Meter::global() } else { &ESTIMATE }
+    if host.live_gpu {
+        crate::power_meter::Meter::global()
+    } else {
+        &ESTIMATE
+    }
 }
 
 fn executed_device_label(d: DeviceTarget) -> &'static str {
@@ -1325,8 +1428,9 @@ fn host_meter_blocks() -> bool {
 /// model, and the response already has its receipt).
 fn submit_measured_receipt(values: Vec<f64>, algorithm: AlgorithmType) {
     use std::sync::mpsc::{SyncSender, sync_channel};
-    static TX: std::sync::OnceLock<Option<std::sync::Mutex<SyncSender<(Vec<f64>, AlgorithmType)>>>> =
-        std::sync::OnceLock::new();
+    static TX: std::sync::OnceLock<
+        Option<std::sync::Mutex<SyncSender<(Vec<f64>, AlgorithmType)>>>,
+    > = std::sync::OnceLock::new();
     let tx = TX.get_or_init(|| {
         let (tx, rx) = sync_channel::<(Vec<f64>, AlgorithmType)>(64);
         std::thread::Builder::new()
@@ -1365,7 +1469,6 @@ fn sample_values(response: &crate::query::QueryResponse) -> Vec<f64> {
     }
     values
 }
-
 
 /// Run a real reduction for this response and record the device plus joules.
 ///
@@ -1410,7 +1513,6 @@ mod tests {
         matches!(name, "cpu" | "gpu" | "npu" | "tpu" | "lpu")
     }
 
-
     fn assert_processor(name: &str) {
         assert!(
             is_processor(name),
@@ -1424,12 +1526,9 @@ mod tests {
     }
 
     fn m5_max_host() -> HostProfile {
-        let ane = joule_runtime::apple_neural_engine_device_for_host(
-            "macos",
-            "aarch64",
-            "Apple M5 Max",
-        )
-        .expect("injected macos-aarch64 host must yield Apple Neural Engine");
+        let ane =
+            joule_runtime::apple_neural_engine_device_for_host("macos", "aarch64", "Apple M5 Max")
+                .expect("injected macos-aarch64 host must yield Apple Neural Engine");
         assert_eq!(ane.kind, AcceleratorKind::NPU);
         assert_eq!(ane.name, "Apple Neural Engine");
         HostProfile {
@@ -1469,7 +1568,11 @@ mod tests {
         let receipt = dispatch_sum(&[1.0, 2.0, 3.0], AlgorithmType::Columnar, true);
         assert_eq!(receipt.device, "cpu");
         assert_eq!(receipt.backend, "cpu");
-        assert!((receipt.value - 6.0).abs() < 1e-9, "value={}", receipt.value);
+        assert!(
+            (receipt.value - 6.0).abs() < 1e-9,
+            "value={}",
+            receipt.value
+        );
         assert!(receipt.joules >= 0.0);
         assert_processor(&receipt.requested_device);
         assert_processor(&receipt.fallback);
@@ -1486,7 +1589,10 @@ mod tests {
         let values: Vec<f64> = (0..4096).map(|i| (i % 7) as f64).collect();
         let snap = snapshot_for(&host);
         let hints = HardwareAdvisor::new(&EnergyConfig::default()).advise(&snap);
-        assert_eq!(smart_preferred(AlgorithmType::Scan, &hints, &snap, &host), DeviceTarget::Gpu);
+        assert_eq!(
+            smart_preferred(AlgorithmType::Scan, &hints, &snap, &host),
+            DeviceTarget::Gpu
+        );
         let op = format!("fabric:sum:{}", AlgorithmType::Scan);
         let gpu = Candidate::new("gpu", "metal");
 
@@ -1516,8 +1622,14 @@ mod tests {
         let model = CostModel::new();
         let first = dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model);
         let second = dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model);
-        assert_eq!((first.device.as_str(), first.route_reason.as_str()), ("gpu", "no_history"));
-        assert_eq!((second.device.as_str(), second.route_reason.as_str()), ("cpu", "explore"));
+        assert_eq!(
+            (first.device.as_str(), first.route_reason.as_str()),
+            ("gpu", "no_history")
+        );
+        assert_eq!(
+            (second.device.as_str(), second.route_reason.as_str()),
+            ("cpu", "explore")
+        );
         for r in [&first, &second] {
             assert_processor(&r.fallback);
             assert_processor(&r.requested_device);
@@ -1530,7 +1642,11 @@ mod tests {
     #[test]
     fn fabric_live_host_always_routes_and_falls_back() {
         let receipt = dispatch_sum(&[1.0, 2.0, 3.0], AlgorithmType::Hdc, false);
-        assert!((receipt.value - 6.0).abs() < 1e-2, "value={}", receipt.value);
+        assert!(
+            (receipt.value - 6.0).abs() < 1e-2,
+            "value={}",
+            receipt.value
+        );
         assert!(receipt.joules >= 0.0);
         assert_processor(&receipt.requested_device);
         assert_processor(&receipt.device);
@@ -1547,14 +1663,15 @@ mod tests {
 
     #[test]
     fn m5_max_hdc_routes_npu_and_runs_on_metal_gpu() {
-        assert!(joule_db_energy::apple_neural_engine_present("macos", "aarch64"));
-        let receipt = dispatch_sum_on(
-            &[1.0, 2.0, 3.0],
-            AlgorithmType::Hdc,
-            false,
-            &m5_max_host(),
+        assert!(joule_db_energy::apple_neural_engine_present(
+            "macos", "aarch64"
+        ));
+        let receipt = dispatch_sum_on(&[1.0, 2.0, 3.0], AlgorithmType::Hdc, false, &m5_max_host());
+        assert!(
+            (receipt.value - 6.0).abs() < 1e-6,
+            "value={}",
+            receipt.value
         );
-        assert!((receipt.value - 6.0).abs() < 1e-6, "value={}", receipt.value);
         assert_eq!(receipt.requested_device, "npu");
         assert_eq!(receipt.device, "gpu");
         assert_eq!(receipt.backend, "metal");
@@ -1567,13 +1684,12 @@ mod tests {
 
     #[test]
     fn m5_max_scan_gpu_backend_is_metal_and_fallback_is_cpu() {
-        let receipt = dispatch_sum_on(
-            &[1.0, 2.0, 3.0],
-            AlgorithmType::Scan,
-            false,
-            &m5_max_host(),
+        let receipt = dispatch_sum_on(&[1.0, 2.0, 3.0], AlgorithmType::Scan, false, &m5_max_host());
+        assert!(
+            (receipt.value - 6.0).abs() < 1e-6,
+            "value={}",
+            receipt.value
         );
-        assert!((receipt.value - 6.0).abs() < 1e-6, "value={}", receipt.value);
         assert_eq!(receipt.requested_device, "gpu");
         assert_eq!(receipt.device, "gpu");
         assert_eq!(receipt.backend, "metal");
@@ -1600,7 +1716,11 @@ mod tests {
             false,
             &m5_max_npu_only(),
         );
-        assert!((receipt.value - 6.0).abs() < 1e-9, "value={}", receipt.value);
+        assert!(
+            (receipt.value - 6.0).abs() < 1e-9,
+            "value={}",
+            receipt.value
+        );
         assert_eq!(receipt.requested_device, "npu");
         assert_eq!(receipt.device, "npu");
         assert_eq!(receipt.backend, "cpu");
@@ -1610,12 +1730,7 @@ mod tests {
 
     #[test]
     fn force_cpu_on_m5_still_smart_routes() {
-        let receipt = dispatch_sum_on(
-            &[1.0, 2.0, 3.0],
-            AlgorithmType::Hdc,
-            true,
-            &m5_max_host(),
-        );
+        let receipt = dispatch_sum_on(&[1.0, 2.0, 3.0], AlgorithmType::Hdc, true, &m5_max_host());
         assert_eq!(receipt.requested_device, "npu");
         assert_eq!(receipt.device, "cpu");
         assert_eq!(receipt.backend, "cpu");
@@ -1631,7 +1746,11 @@ mod tests {
             false,
             &cpu_only_host(),
         );
-        assert!((receipt.value - 6.0).abs() < 1e-9, "value={}", receipt.value);
+        assert!(
+            (receipt.value - 6.0).abs() < 1e-9,
+            "value={}",
+            receipt.value
+        );
         assert_eq!(receipt.requested_device, "cpu");
         assert_eq!(receipt.device, "cpu");
         assert_eq!(receipt.backend, "cpu");
@@ -1750,7 +1869,10 @@ mod tests {
             assert_eq!(out.receipt.device, "npu");
         }
         if out.receipt.device == "npu" {
-            assert_eq!(out.receipt.backend, "coreml-ane", "npu is claimed only for a plan on the Neural Engine");
+            assert_eq!(
+                out.receipt.backend, "coreml-ane",
+                "npu is claimed only for a plan on the Neural Engine"
+            );
         }
     }
 
@@ -1765,7 +1887,13 @@ mod tests {
         assert_eq!(out.receipt.backend, "coreml-ane");
         assert_eq!(out.receipt.fallback, "gpu");
         assert_eq!(out.receipt.energy_source, "estimate");
-        assert!(out.receipt.placement.as_deref().unwrap_or("").ends_with("@neural_engine"));
+        assert!(
+            out.receipt
+                .placement
+                .as_deref()
+                .unwrap_or("")
+                .ends_with("@neural_engine")
+        );
     }
 
     #[test]
@@ -1870,10 +1998,12 @@ mod tests {
     fn hdc_hamming_matches_binary_hypervector() {
         use joule_db_hdc::BinaryHyperVector;
         let d = 1024;
-        let queries: Vec<BinaryHyperVector> =
-            (0..3).map(|i| BinaryHyperVector::random(d, 100 + i)).collect();
-        let memory: Vec<BinaryHyperVector> =
-            (0..9).map(|i| BinaryHyperVector::random(d, 200 + i)).collect();
+        let queries: Vec<BinaryHyperVector> = (0..3)
+            .map(|i| BinaryHyperVector::random(d, 100 + i))
+            .collect();
+        let memory: Vec<BinaryHyperVector> = (0..9)
+            .map(|i| BinaryHyperVector::random(d, 200 + i))
+            .collect();
         let out = dispatch_hdc_hamming(&queries, &memory, false).expect("dispatch");
         for (i, qv) in queries.iter().enumerate() {
             for (j, mv) in memory.iter().enumerate() {
@@ -1907,16 +2037,23 @@ mod tests {
                 "{}=1 but the live profile has no Metal lane",
                 joule_metal_rt::REQUIRE_HW_ENV
             );
-            println!("live scan: no Metal lane on this host; checking the fallback receipt instead");
+            println!(
+                "live scan: no Metal lane on this host; checking the fallback receipt instead"
+            );
         }
         for n in [1usize, 255, 256, 257, 4096, 100_003] {
-            let values: Vec<f64> = (0..n).map(|i| ((i * 2_654_435_761usize) % 5 + 1) as f64).collect();
+            let values: Vec<f64> = (0..n)
+                .map(|i| ((i * 2_654_435_761usize) % 5 + 1) as f64)
+                .collect();
             // The smart route without the cost model, so the Metal lane is
             // what runs (cost routing has its own tests).
             let receipt = dispatch_sum_on(&values, AlgorithmType::Scan, false, &live_profile());
             let cpu = cpu_sum(&values).expect("cpu sum");
             println!("live scan n={n}: cpu={cpu} {}", receipt.line());
-            assert_eq!(receipt.value, cpu, "integer-valued sums are exact in f32 below 2^24");
+            assert_eq!(
+                receipt.value, cpu,
+                "integer-valued sums are exact in f32 below 2^24"
+            );
             assert_processor(&receipt.requested_device);
             assert_processor(&receipt.device);
             assert_processor(&receipt.fallback);
@@ -1925,7 +2062,10 @@ mod tests {
                 assert_eq!(receipt.device, "gpu");
                 assert_eq!(receipt.backend, "metal");
             } else {
-                assert_ne!(receipt.backend, "metal", "no Metal lane, so Metal cannot be claimed");
+                assert_ne!(
+                    receipt.backend, "metal",
+                    "no Metal lane, so Metal cannot be claimed"
+                );
                 match receipt.backend.as_str() {
                     "wgpu" => assert_eq!(receipt.device, "gpu"),
                     "cpu" => assert_eq!(receipt.device, "cpu"),
@@ -1944,10 +2084,17 @@ mod tests {
                 "SKIP live_mac_profile_has_the_coreml_lane: no Neural Engine detected on this host; set {}=1 to fail instead",
                 joule_metal_rt::REQUIRE_HW_ENV
             );
-            assert_eq!(host.ane, None, "no NPU detected, so no Core ML lane may be claimed");
+            assert_eq!(
+                host.ane, None,
+                "no NPU detected, so no Core ML lane may be claimed"
+            );
             return;
         }
-        assert_eq!(host.ane, Some(AneLane::Live), "macOS aarch64 with an ANE gets the Core ML lane");
+        assert_eq!(
+            host.ane,
+            Some(AneLane::Live),
+            "macOS aarch64 with an ANE gets the Core ML lane"
+        );
         assert_eq!(host.ane_min_work, ANE_MIN_WORK);
     }
 
@@ -1957,15 +2104,35 @@ mod tests {
     fn ane_threshold_matches_measured_m5_max_placement() {
         assert_eq!(ANE_MIN_WORK, 64 * 1024 * 2048);
         let host = host_with_ane(PlannedDevice::NeuralEngine, Some(GpuLane::Metal));
-        let host = HostProfile { ane_min_work: ANE_MIN_WORK, ..host };
+        let host = HostProfile {
+            ane_min_work: ANE_MIN_WORK,
+            ..host
+        };
         let route = |n, k, d| route_hdc(n, k, d, DeviceTarget::Npu, false, &host);
         // Measured CPU placements stay off Core ML.
         for (n, k, d) in [(1, 64, 2048), (8, 64, 2048), (64, 256, 2048), (8, 64, 1024)] {
-            assert_eq!(route(n, k, d), HdcRoute { try_ane: false, reason: "below_ane_threshold" });
+            assert_eq!(
+                route(n, k, d),
+                HdcRoute {
+                    try_ane: false,
+                    reason: "below_ane_threshold"
+                }
+            );
         }
         // Measured Neural Engine placements probe Core ML.
-        for (n, k, d) in [(64, 1024, 2048), (256, 1024, 2048), (512, 4096, 2048), (1024, 1024, 2048)] {
-            assert_eq!(route(n, k, d), HdcRoute { try_ane: true, reason: "ane_probe" });
+        for (n, k, d) in [
+            (64, 1024, 2048),
+            (256, 1024, 2048),
+            (512, 4096, 2048),
+            (1024, 1024, 2048),
+        ] {
+            assert_eq!(
+                route(n, k, d),
+                HdcRoute {
+                    try_ane: true,
+                    reason: "ane_probe"
+                }
+            );
         }
     }
 
@@ -1986,10 +2153,16 @@ mod tests {
             assert_eq!(out.receipt.device, device);
             assert_eq!(out.receipt.backend, backend);
             assert_eq!(out.receipt.fallback, fallback);
-            assert!(out.receipt.placement.is_none(), "Core ML must not be invoked");
+            assert!(
+                out.receipt.placement.is_none(),
+                "Core ML must not be invoked"
+            );
             assert!(out.plan.is_empty());
             assert!(
-                host.placement_cache.lock().map(|c| c.is_empty()).unwrap_or(false),
+                host.placement_cache
+                    .lock()
+                    .map(|c| c.is_empty())
+                    .unwrap_or(false),
                 "below-threshold jobs do not probe placement"
             );
         }
@@ -2018,7 +2191,11 @@ mod tests {
     #[test]
     fn cached_off_ane_placement_skips_coreml_next_time() {
         let (q, m, d) = hdc_case();
-        for planned in [PlannedDevice::Cpu, PlannedDevice::Gpu, PlannedDevice::Unknown] {
+        for planned in [
+            PlannedDevice::Cpu,
+            PlannedDevice::Gpu,
+            PlannedDevice::Unknown,
+        ] {
             let host = host_with_ane(planned, Some(GpuLane::Metal));
             let first = dispatch_hdc_on(&q, &m, d, false, &host).expect("dispatch");
             assert_eq!(first.receipt.route_reason, "ane_probe");
@@ -2031,7 +2208,10 @@ mod tests {
             assert_eq!(second.receipt.device, "gpu");
             assert_eq!(second.receipt.backend, "metal");
             assert_eq!(second.receipt.fallback, "gpu");
-            assert!(second.receipt.placement.is_none(), "Core ML must not be invoked again");
+            assert!(
+                second.receipt.placement.is_none(),
+                "Core ML must not be invoked again"
+            );
         }
     }
 
@@ -2040,12 +2220,22 @@ mod tests {
         let (q, m, d) = hdc_case();
         let mut host = host_with_ane(PlannedDevice::NeuralEngine, Some(GpuLane::Metal));
         host.ane_min_work = ANE_MIN_WORK;
-        remember_placement(&host.placement_cache, ShapeBucket::of(4, 16, d), PlannedDevice::NeuralEngine);
+        remember_placement(
+            &host.placement_cache,
+            ShapeBucket::of(4, 16, d),
+            PlannedDevice::NeuralEngine,
+        );
         let out = dispatch_hdc_on(&q, &m, d, false, &host).expect("dispatch");
         assert_eq!(out.receipt.route_reason, "ane_placement_cached");
         assert_eq!(out.receipt.backend, "coreml-ane");
-        assert_ne!(ShapeBucket::of(64, 256, 2048), ShapeBucket::of(64, 1024, 2048));
-        assert_eq!(ShapeBucket::of(60, 1000, 2048), ShapeBucket::of(64, 1024, 2048));
+        assert_ne!(
+            ShapeBucket::of(64, 256, 2048),
+            ShapeBucket::of(64, 1024, 2048)
+        );
+        assert_eq!(
+            ShapeBucket::of(60, 1000, 2048),
+            ShapeBucket::of(64, 1024, 2048)
+        );
         assert_eq!(ShapeBucket::of(4, 32, 3000).tiles, 2);
     }
 
@@ -2080,7 +2270,9 @@ mod tests {
     fn live_mac_hdc_small_large_and_repeat_receipts() {
         use joule_db_hdc::BinaryHyperVector;
         let vectors = |count: usize, d: usize, seed: u64| -> Vec<BinaryHyperVector> {
-            (0..count).map(|i| BinaryHyperVector::random(d, seed + i as u64)).collect()
+            (0..count)
+                .map(|i| BinaryHyperVector::random(d, seed + i as u64))
+                .collect()
         };
         // Real Macs have both lanes. A virtualized runner may lack either;
         // then the receipts must say what actually ran instead.
@@ -2088,26 +2280,35 @@ mod tests {
         let npu_detected = kind_on(&host, AcceleratorKind::NPU);
         let metal_lane = host.gpu == Some(GpuLane::Metal);
         let ane_lane = host.ane.is_some();
-        let check = |label: &str, q: &[BinaryHyperVector], m: &[BinaryHyperVector]| -> HdcDispatch {
-            let out = dispatch_hdc_hamming(q, m, false).expect("dispatch");
-            let k = m.len();
-            let exact = q.iter().enumerate().all(|(i, qv)| {
-                m.iter().enumerate().all(|(j, mv)| out.hamming[i * k + j] == qv.hamming_distance(mv))
-            });
-            println!("{label} n={} k={} d={} hamming_match={}", q.len(), k, out.d, if exact { "yes" } else { "NO" });
-            for line in &out.plan {
-                println!("  plan op: {line}");
-            }
-            println!("  receipt: {}", out.receipt.line());
-            assert!(exact);
-            assert_processor(&out.receipt.requested_device);
-            assert_processor(&out.receipt.device);
-            assert_processor(&out.receipt.fallback);
-            if npu_detected {
-                assert_eq!(out.receipt.requested_device, "npu");
-            }
-            out
-        };
+        let check =
+            |label: &str, q: &[BinaryHyperVector], m: &[BinaryHyperVector]| -> HdcDispatch {
+                let out = dispatch_hdc_hamming(q, m, false).expect("dispatch");
+                let k = m.len();
+                let exact = q.iter().enumerate().all(|(i, qv)| {
+                    m.iter()
+                        .enumerate()
+                        .all(|(j, mv)| out.hamming[i * k + j] == qv.hamming_distance(mv))
+                });
+                println!(
+                    "{label} n={} k={} d={} hamming_match={}",
+                    q.len(),
+                    k,
+                    out.d,
+                    if exact { "yes" } else { "NO" }
+                );
+                for line in &out.plan {
+                    println!("  plan op: {line}");
+                }
+                println!("  receipt: {}", out.receipt.line());
+                assert!(exact);
+                assert_processor(&out.receipt.requested_device);
+                assert_processor(&out.receipt.device);
+                assert_processor(&out.receipt.fallback);
+                if npu_detected {
+                    assert_eq!(out.receipt.requested_device, "npu");
+                }
+                out
+            };
 
         if !(metal_lane && ane_lane) {
             assert!(
@@ -2115,11 +2316,20 @@ mod tests {
                 "{}=1 but the live profile lacks a lane: metal={metal_lane} coreml={ane_lane}",
                 joule_metal_rt::REQUIRE_HW_ENV
             );
-            println!("live hdc: metal_lane={metal_lane} coreml_lane={ane_lane}; checking fallback receipts");
+            println!(
+                "live hdc: metal_lane={metal_lane} coreml_lane={ane_lane}; checking fallback receipts"
+            );
         }
 
-        let small = check("small", &vectors(8, 1024, 11_000), &vectors(64, 1024, 12_000));
-        assert!(small.receipt.placement.is_none(), "small jobs never invoke Core ML");
+        let small = check(
+            "small",
+            &vectors(8, 1024, 11_000),
+            &vectors(64, 1024, 12_000),
+        );
+        assert!(
+            small.receipt.placement.is_none(),
+            "small jobs never invoke Core ML"
+        );
         if ane_lane {
             assert_eq!(small.receipt.route_reason, "below_ane_threshold");
         }
@@ -2140,13 +2350,22 @@ mod tests {
                 "no Core ML lane, so no ANE route: {}",
                 first.receipt.route_reason
             );
-            assert!(first.receipt.placement.is_none(), "no Core ML lane, so no placement");
+            assert!(
+                first.receipt.placement.is_none(),
+                "no Core ML lane, so no placement"
+            );
             assert_ne!(first.receipt.backend, "coreml-ane");
             return;
         }
         assert!(first.receipt.placement.is_some());
-        assert!(first.receipt.setup_ms.is_some(), "first large call loads the model");
-        assert!(second.receipt.setup_ms.is_none(), "second call reuses the loaded model");
+        assert!(
+            first.receipt.setup_ms.is_some(),
+            "first large call loads the model"
+        );
+        assert!(
+            second.receipt.setup_ms.is_none(),
+            "second call reuses the loaded model"
+        );
         if first.receipt.backend == "coreml-ane" {
             assert_eq!(second.receipt.route_reason, "ane_placement_cached");
         } else {
@@ -2163,7 +2382,11 @@ mod tests {
         let mean = |f: &dyn Fn(&EnergyReceipt) -> f64| rs.iter().map(|r| f(r)).sum::<f64>() / n;
         let opt = |f: &dyn Fn(&EnergyReceipt) -> Option<f64>| {
             let v: Vec<f64> = rs.iter().filter_map(|r| f(r)).collect();
-            if v.is_empty() { "none".to_string() } else { format!("{:.3}", v.iter().sum::<f64>() / v.len() as f64) }
+            if v.is_empty() {
+                "none".to_string()
+            } else {
+                format!("{:.3}", v.iter().sum::<f64>() / v.len() as f64)
+            }
         };
         let conf: Vec<&str> = rs.iter().map(|r| r.energy_confidence.as_str()).collect();
         eprintln!(
@@ -2200,18 +2423,28 @@ mod tests {
             let values: Vec<f64> = (0..n).map(|i| (i % 1000) as f64 * 0.5).collect();
             let mut model = CostModel::new();
             model.explore_every = 2;
-            let rs: Vec<EnergyReceipt> =
-                (0..12).map(|_| dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model)).collect();
+            let rs: Vec<EnergyReceipt> = (0..12)
+                .map(|_| dispatch_sum_costed(&values, AlgorithmType::Scan, false, &host, &model))
+                .collect();
             for r in &rs {
                 eprintln!("POWER sum n={n} {}", r.line());
                 assert_processor(&r.device);
                 assert_processor(&r.fallback);
             }
             for dev in ["gpu", "cpu"] {
-                power_row("sum", n, &rs.iter().skip(1).filter(|r| r.device == dev).collect::<Vec<_>>());
+                power_row(
+                    "sum",
+                    n,
+                    &rs.iter()
+                        .skip(1)
+                        .filter(|r| r.device == dev)
+                        .collect::<Vec<_>>(),
+                );
             }
             let op = format!("fabric:sum:{}", AlgorithmType::Scan);
-            if let Some((e, t, by)) = model.rankings(&op, n, &[Candidate::new("gpu", "metal"), Candidate::cpu()]) {
+            if let Some((e, t, by)) =
+                model.rankings(&op, n, &[Candidate::new("gpu", "metal"), Candidate::cpu()])
+            {
                 eprintln!(
                     "POWER-ROUTE job=sum size={n} ranked_by={} energy_choice={} time_choice={} flipped={}",
                     by.label(),
@@ -2250,11 +2483,20 @@ mod tests {
             confidence,
         };
         // M3 Ultra / M4 Max, 256x1024x4096: plan says neural_engine, ANE rail 0 W.
-        assert!(ane_rail_idle(PlannedDevice::NeuralEngine, Some(&m(0.0, "measured"))));
-        assert!(!ane_rail_idle(PlannedDevice::NeuralEngine, Some(&m(1.2, "measured"))));
+        assert!(ane_rail_idle(
+            PlannedDevice::NeuralEngine,
+            Some(&m(0.0, "measured"))
+        ));
+        assert!(!ane_rail_idle(
+            PlannedDevice::NeuralEngine,
+            Some(&m(1.2, "measured"))
+        ));
         // No measurement: the plan stands (never refuse, never guess).
         assert!(!ane_rail_idle(PlannedDevice::NeuralEngine, None));
-        assert!(!ane_rail_idle(PlannedDevice::Cpu, Some(&m(0.0, "measured"))));
+        assert!(!ane_rail_idle(
+            PlannedDevice::Cpu,
+            Some(&m(0.0, "measured"))
+        ));
     }
 
     #[test]
@@ -2262,15 +2504,25 @@ mod tests {
         // Own size bucket (2^21) so other tests do not share the schedule.
         let values: Vec<f64> = (0..(1usize << 21) + 3).map(|i| (i % 7) as f64).collect();
         let host = m5_max_host();
-        let rs: Vec<EnergyReceipt> =
-            (0..40).map(|_| dispatch_sum_on(&values, AlgorithmType::Scan, false, &host)).collect();
+        let rs: Vec<EnergyReceipt> = (0..40)
+            .map(|_| dispatch_sum_on(&values, AlgorithmType::Scan, false, &host))
+            .collect();
         let gpu: Vec<&EnergyReceipt> = rs.iter().filter(|r| r.backend != "cpu").collect();
         assert_eq!(gpu.len(), 40, "descriptor GPU lane runs every time");
         assert!(gpu.iter().all(|r| r.verify_policy == "sampled"));
-        assert!(gpu[..8].iter().all(|r| r.verified && r.verify_joules.is_some()), "first 8 verified");
+        assert!(
+            gpu[..8]
+                .iter()
+                .all(|r| r.verified && r.verify_joules.is_some()),
+            "first 8 verified"
+        );
         let later = gpu[8..].iter().filter(|r| r.verified).count();
         assert!((1..=4).contains(&later), "about 1 in 16 after: {later}");
-        assert!(gpu.iter().filter(|r| !r.verified).all(|r| r.verify_joules.is_none()));
+        assert!(
+            gpu.iter()
+                .filter(|r| !r.verified)
+                .all(|r| r.verify_joules.is_none())
+        );
         assert!(rs[0].line().contains("verified=true verify_policy=sampled"));
         let cpu = dispatch_sum_on(&values, AlgorithmType::Scan, true, &host);
         assert_eq!((cpu.verified, cpu.verify_policy.as_str()), (false, "none"));
@@ -2297,17 +2549,27 @@ mod tests {
                 rs[rs.len() - 1].backend,
                 j / n * 1e3,
                 v / n * 1e3,
-                if checked > 0 { v / checked as f64 * 1e3 } else { 0.0 }
+                if checked > 0 {
+                    v / checked as f64 * 1e3
+                } else {
+                    0.0
+                }
             );
         };
         let values: Vec<f64> = (0..1usize << 24).map(|i| (i % 7) as f64).collect();
-        let rs: Vec<EnergyReceipt> =
-            (0..48).map(|_| dispatch_sum_on(&values, AlgorithmType::Scan, false, &host)).collect();
+        let rs: Vec<EnergyReceipt> = (0..48)
+            .map(|_| dispatch_sum_on(&values, AlgorithmType::Scan, false, &host))
+            .collect();
         report("sum_16M_gpu", &rs);
         let d = 4096;
         let (q, m) = (bipolar(256 * d, 7), bipolar(4096 * d, 9));
-        let rs: Vec<EnergyReceipt> =
-            (0..48).map(|_| dispatch_hdc_on(&q, &m, d, false, &host).expect("hdc").receipt).collect();
+        let rs: Vec<EnergyReceipt> = (0..48)
+            .map(|_| {
+                dispatch_hdc_on(&q, &m, d, false, &host)
+                    .expect("hdc")
+                    .receipt
+            })
+            .collect();
         eprintln!("VERIFY-LINE {}", rs[1].line());
         report("hdc_256x4096x4096_ane", &rs);
     }
@@ -2337,26 +2599,38 @@ mod tests {
         for (n, k, d) in shapes {
             let shape = format!("{n}x{k}x{d}");
             let (q, m) = (bipolar(n * d, 7), bipolar(k * d, 9));
-            for layout in [joule_ane_rt::Layout::MatMul, joule_ane_rt::Layout::ChannelsFirstConv] {
+            for layout in [
+                joule_ane_rt::Layout::MatMul,
+                joule_ane_rt::Layout::ChannelsFirstConv,
+            ] {
                 match joule_ane_rt::hdc_similarity(
                     &q,
                     &m,
                     d,
-                    joule_ane_rt::HdcOptions { layout, power: joule_ane_rt::PowerSampling::OnNeuralEngine },
+                    joule_ane_rt::HdcOptions {
+                        layout,
+                        power: joule_ane_rt::PowerSampling::OnNeuralEngine,
+                    },
                 ) {
                     Ok(run) => eprintln!(
                         "ANE-PLAN shape={shape} layout={} placement={} predict_ms={:.3} ane_w={} j_per_pred={} lines={:?}",
                         layout.as_str(),
                         run.placement.summary(),
                         run.predict_s * 1e3,
-                        run.power.as_ref().map(|p| format!("{:.3}", p.mean_ane_watts)).unwrap_or_else(|| "none".into()),
+                        run.power
+                            .as_ref()
+                            .map(|p| format!("{:.3}", p.mean_ane_watts))
+                            .unwrap_or_else(|| "none".into()),
                         run.power
                             .as_ref()
                             .map(|p| format!("{:.4e}", p.joules_per_prediction))
                             .unwrap_or_else(|| "none".into()),
                         run.placement.lines()
                     ),
-                    Err(e) => eprintln!("ANE-PLAN shape={shape} layout={} error={e}", layout.as_str()),
+                    Err(e) => eprintln!(
+                        "ANE-PLAN shape={shape} layout={} error={e}",
+                        layout.as_str()
+                    ),
                 }
             }
             for rep in 0..3 {
@@ -2376,4 +2650,3 @@ mod tests {
         }
     }
 }
-

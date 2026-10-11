@@ -25,22 +25,25 @@ pub fn execute_datalog(
     for rule in &program.rules {
         for lit in &rule.body {
             if let DatalogLiteral::Positive(atom) = lit {
-                if table_names.contains(&atom.predicate) && !has_facts_for(&enriched, &atom.predicate) {
+                if table_names.contains(&atom.predicate)
+                    && !has_facts_for(&enriched, &atom.predicate)
+                {
                     if let Ok(rows) = amorphic.scan(&atom.predicate) {
                         for row in &rows {
                             let terms: Vec<DatalogTerm> = row
                                 .columns
                                 .iter()
                                 .enumerate()
-                                .map(|(i, _col)| {
-                                    match row.values.get(i) {
-                                        Some(AstValue::String(s)) => DatalogTerm::String(s.clone()),
-                                        Some(AstValue::Int(n)) => DatalogTerm::Integer(*n),
-                                        Some(AstValue::Float(f)) => DatalogTerm::Float(*f),
-                                        _ => DatalogTerm::String(
-                                            row.values.get(i).map(|v| format!("{:?}", v)).unwrap_or_default(),
-                                        ),
-                                    }
+                                .map(|(i, _col)| match row.values.get(i) {
+                                    Some(AstValue::String(s)) => DatalogTerm::String(s.clone()),
+                                    Some(AstValue::Int(n)) => DatalogTerm::Integer(*n),
+                                    Some(AstValue::Float(f)) => DatalogTerm::Float(*f),
+                                    _ => DatalogTerm::String(
+                                        row.values
+                                            .get(i)
+                                            .map(|v| format!("{:?}", v))
+                                            .unwrap_or_default(),
+                                    ),
                                 })
                                 .collect();
                             enriched.facts.push(DatalogAtom {
@@ -54,9 +57,8 @@ pub fn execute_datalog(
         }
     }
 
-    let result = evaluate(&enriched).map_err(|e| {
-        QueryErrorResponse::syntax_error(&e.to_string(), 1, 1)
-    })?;
+    let result =
+        evaluate(&enriched).map_err(|e| QueryErrorResponse::syntax_error(&e.to_string(), 1, 1))?;
 
     let rows: Vec<Vec<serde_json::Value>> = result
         .rows
@@ -99,6 +101,5 @@ fn has_facts_for(program: &DatalogProgram, predicate: &str) -> bool {
 /// Detect whether a query string looks like Datalog.
 pub fn is_datalog_query(sql: &str) -> bool {
     let t = sql.trim();
-    t.starts_with("?-")
-        || (t.contains(":-") && !t.to_uppercase().contains("SELECT"))
+    t.starts_with("?-") || (t.contains(":-") && !t.to_uppercase().contains("SELECT"))
 }

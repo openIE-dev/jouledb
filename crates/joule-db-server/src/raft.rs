@@ -551,9 +551,8 @@ impl RaftWal {
     pub fn append_entry(&mut self, entry: &LogEntry) -> Result<(), String> {
         use std::io::Write;
 
-        let bincode_data =
-            bincode::serde::encode_to_vec(entry, bincode::config::standard())
-                .map_err(|e| format!("WAL bincode serialize: {}", e))?;
+        let bincode_data = bincode::serde::encode_to_vec(entry, bincode::config::standard())
+            .map_err(|e| format!("WAL bincode serialize: {}", e))?;
 
         let len = bincode_data.len() as u32;
         let mut record = Vec::with_capacity(1 + 4 + bincode_data.len() + 4);
@@ -712,8 +711,11 @@ impl RaftWal {
                         break;
                     }
 
-                    let (entry, _): (LogEntry, _) = bincode::serde::decode_from_slice(&data[cursor..cursor + len], bincode::config::standard())
-                        .map_err(|e| format!("WAL entry deserialize: {}", e))?;
+                    let (entry, _): (LogEntry, _) = bincode::serde::decode_from_slice(
+                        &data[cursor..cursor + len],
+                        bincode::config::standard(),
+                    )
+                    .map_err(|e| format!("WAL entry deserialize: {}", e))?;
 
                     // Only apply if this entry is beyond what's in the snapshot
                     if entry.index > state.last_log_index() {
@@ -2478,18 +2480,22 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         request: InstallSnapshotRequest,
     ) -> InstallSnapshotResponse {
         // Deserialize the shard (skip magic prefix)
-        let shard: crate::hrp_erasure::ErasureShard =
-            match bincode::serde::decode_from_slice(&request.data[ERASURE_SHARD_MAGIC.len()..], bincode::config::standard()).map(|(v, _)| v) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::error!("Failed to deserialize erasure shard: {}", e);
-                    return InstallSnapshotResponse {
-                        term: self.current_term().await,
-                        success: false,
-                        next_offset: 0,
-                    };
-                }
-            };
+        let shard: crate::hrp_erasure::ErasureShard = match bincode::serde::decode_from_slice(
+            &request.data[ERASURE_SHARD_MAGIC.len()..],
+            bincode::config::standard(),
+        )
+        .map(|(v, _)| v)
+        {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("Failed to deserialize erasure shard: {}", e);
+                return InstallSnapshotResponse {
+                    term: self.current_term().await,
+                    success: false,
+                    next_offset: 0,
+                };
+            }
+        };
 
         let total = shard.total_shards;
         let data_shards = shard.data_shards;
@@ -2770,8 +2776,8 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         for (i, shard) in shards.iter().enumerate() {
             // Serialize the shard with magic prefix so receiver can detect it
             let mut shard_data = ERASURE_SHARD_MAGIC.to_vec();
-            let encoded =
-                bincode::serde::encode_to_vec(shard, bincode::config::standard()).map_err(|e| RaftError::SnapshotError(e.to_string()))?;
+            let encoded = bincode::serde::encode_to_vec(shard, bincode::config::standard())
+                .map_err(|e| RaftError::SnapshotError(e.to_string()))?;
             shard_data.extend_from_slice(&encoded);
 
             let done = i as u64 + 1 == total_shards;

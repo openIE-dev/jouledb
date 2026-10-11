@@ -1,5 +1,5 @@
-use super::*;
 use super::conversions::{coerce_row_types, infer_column_type};
+use super::*;
 use tempfile::TempDir;
 
 fn setup() -> (TempDir, AmorphicTableStorage) {

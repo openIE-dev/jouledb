@@ -441,8 +441,9 @@ async fn read_hrp_v2_payload<S: AsyncRead + Unpin>(
         )));
     }
 
-    let (envelope, _): (RaftEnvelope, _) = bincode::serde::decode_from_slice(&payload, bincode::config::standard())
-        .map_err(|e| RaftError::Internal(format!("hrp v2 bincode deserialize: {}", e)))?;
+    let (envelope, _): (RaftEnvelope, _) =
+        bincode::serde::decode_from_slice(&payload, bincode::config::standard())
+            .map_err(|e| RaftError::Internal(format!("hrp v2 bincode deserialize: {}", e)))?;
 
     Ok(ReadEnvelopeResult {
         envelope,
@@ -701,8 +702,9 @@ impl TcpRaftTransport {
 
             if let Some(ref key_mgr) = security {
                 // HRP v2: write with write token + HMAC
-                let bincode_data = bincode::serde::encode_to_vec(&envelope, bincode::config::standard())
-                    .map_err(|e| RaftError::Internal(format!("serialize for token: {}", e)))?;
+                let bincode_data =
+                    bincode::serde::encode_to_vec(&envelope, bincode::config::standard())
+                        .map_err(|e| RaftError::Internal(format!("serialize for token: {}", e)))?;
                 let token = key_mgr.generate_token(term, &bincode_data);
                 let hmac_key = key_mgr.current_key();
                 write_hrp_v2_envelope(&mut *stream, &envelope, Some(&token), Some(&hmac_key))
@@ -1044,7 +1046,8 @@ mod tests {
         let envelope_clone = envelope.clone();
 
         // Generate write token
-        let bincode_data = bincode::serde::encode_to_vec(&envelope_clone, bincode::config::standard()).unwrap();
+        let bincode_data =
+            bincode::serde::encode_to_vec(&envelope_clone, bincode::config::standard()).unwrap();
         let token = key_mgr.generate_token(77, &bincode_data);
         let hmac_key = key_mgr.current_key();
 

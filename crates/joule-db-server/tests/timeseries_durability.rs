@@ -81,15 +81,28 @@ fn timeseries_survive_server_restart() {
     {
         let server = open_server(&dir);
         let exec = server.query_executor();
-        assert_eq!(metrics(&exec), vec!["cpu", "mem"], "deleted series stays deleted");
+        assert_eq!(
+            metrics(&exec),
+            vec!["cpu", "mem"],
+            "deleted series stays deleted"
+        );
 
         let after = run(&exec, "TSQUERY cpu 0 10000").rows;
-        assert_eq!(after, before, "points, values and tags unchanged across restart");
-        assert_eq!(after[0], vec![json!(1000), json!(0.5), json!({"host": "a"})]);
+        assert_eq!(
+            after, before,
+            "points, values and tags unchanged across restart"
+        );
+        assert_eq!(
+            after[0],
+            vec![json!(1000), json!(0.5), json!({"host": "a"})]
+        );
         assert_eq!(after[2], vec![json!(3000), json!(-3.25), json!({})]);
 
         let mem = run(&exec, "TSQUERY mem 0 10000").rows;
-        assert_eq!(mem, vec![vec![json!(1500), json!(42.0), json!({"host": "a"})]]);
+        assert_eq!(
+            mem,
+            vec![vec![json!(1500), json!(42.0), json!({"host": "a"})]]
+        );
 
         // Aggregates run on the in-memory store, which is rebuilt from disk.
         let sum = run(&exec, "TSAGGREGATE cpu 0 10000 10000 SUM").rows;
@@ -107,7 +120,10 @@ fn timeseries_survive_server_restart() {
         let series = handler.read_resource("jouledb://timeseries/cpu?start=0&end=10000");
         assert!(series.error.is_none(), "{:?}", series.error);
         let series = series.result.unwrap().to_string();
-        assert!(series.contains("0.75") && series.contains("-3.25"), "{series}");
+        assert!(
+            series.contains("0.75") && series.contains("-3.25"),
+            "{series}"
+        );
 
         // Writes after a reopen append to the same durable series.
         run(&exec, "TSWRITE cpu 1.5 4000 host=c");
@@ -155,24 +171,46 @@ fn series(exec: &Arc<dyn QueryExecutor>, metric: &str) -> Vec<Vec<serde_json::Va
     run(exec, &format!("TSQUERY {metric} -100000 100000")).rows
 }
 
-fn aggregate(exec: &Arc<dyn QueryExecutor>, metric: &str, agg: &str) -> Vec<Vec<serde_json::Value>> {
-    run(exec, &format!("TSAGGREGATE {metric} -100000 100000 1000000 {agg}")).rows
+fn aggregate(
+    exec: &Arc<dyn QueryExecutor>,
+    metric: &str,
+    agg: &str,
+) -> Vec<Vec<serde_json::Value>> {
+    run(
+        exec,
+        &format!("TSAGGREGATE {metric} -100000 100000 1000000 {agg}"),
+    )
+    .rows
 }
 
 #[test]
 fn meta_series_and_duplicate_timestamps_survive_restart() {
     // Reference: the in-memory store, which keeps every point at a repeated
     // timestamp in write order.
-    let memory: Arc<dyn QueryExecutor> = Arc::new(joule_db_server::query::SimpleQueryExecutor::new());
+    let memory: Arc<dyn QueryExecutor> =
+        Arc::new(joule_db_server::query::SimpleQueryExecutor::new());
     for sql in EDGE_WRITES {
         run(&memory, sql);
     }
     let names = ["cpu", "disk", "disk::io", "meta"];
     let expected: Vec<_> = names.iter().map(|m| series(&memory, m)).collect();
-    assert_eq!(expected[0].len(), 4, "memory keeps all cpu points: {:?}", expected[0]);
-    assert_eq!(expected[3].len(), 3, "memory keeps all meta points: {:?}", expected[3]);
     assert_eq!(
-        expected[0][1..].iter().map(|r| r[1].clone()).collect::<Vec<_>>(),
+        expected[0].len(),
+        4,
+        "memory keeps all cpu points: {:?}",
+        expected[0]
+    );
+    assert_eq!(
+        expected[3].len(),
+        3,
+        "memory keeps all meta points: {:?}",
+        expected[3]
+    );
+    assert_eq!(
+        expected[0][1..]
+            .iter()
+            .map(|r| r[1].clone())
+            .collect::<Vec<_>>(),
         vec![json!(0.5), json!(0.6), json!(0.7)],
         "same-timestamp points in write order"
     );
@@ -196,10 +234,18 @@ fn meta_series_and_duplicate_timestamps_survive_restart() {
         let names = metrics(&memory);
         assert_eq!(metrics(&exec), names, "restart {round}");
         for m in &names {
-            assert_eq!(series(&exec, m), series(&memory, m), "{m} after restart {round}");
+            assert_eq!(
+                series(&exec, m),
+                series(&memory, m),
+                "{m} after restart {round}"
+            );
             // The rebuilt in-memory store (aggregates) matches the reference.
             for agg in ["COUNT", "FIRST", "LAST", "SUM"] {
-                assert_eq!(aggregate(&exec, m, agg), aggregate(&memory, m, agg), "{m} {agg}");
+                assert_eq!(
+                    aggregate(&exec, m, agg),
+                    aggregate(&memory, m, agg),
+                    "{m} {agg}"
+                );
             }
         }
         if round == 0 {
@@ -226,9 +272,15 @@ fn first_format_timeseries_file_still_loads() {
     // a series literally named `meta` and one named `disk::io`.
     use std::io::Read;
     let dir = tempfile::tempdir().unwrap();
-    let gz = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/timeseries_v1.wdb.gz")).unwrap();
+    let gz = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/timeseries_v1.wdb.gz"
+    ))
+    .unwrap();
     let mut raw = Vec::new();
-    flate2::read::GzDecoder::new(&gz[..]).read_to_end(&mut raw).unwrap();
+    flate2::read::GzDecoder::new(&gz[..])
+        .read_to_end(&mut raw)
+        .unwrap();
     std::fs::write(dir.path().join(TIMESERIES_FILE), raw).unwrap();
 
     let check = |exec: &Arc<dyn QueryExecutor>| {
@@ -241,9 +293,18 @@ fn first_format_timeseries_file_still_loads() {
                 vec![json!(2000), json!(11.5), json!({})],
             ]
         );
-        assert_eq!(series(exec, "mem"), vec![vec![json!(1000), json!(512.0), json!({"unit": "mb"})]]);
-        assert_eq!(series(exec, "disk::io"), vec![vec![json!(3000), json!(7.0), json!({})]]);
-        assert_eq!(series(exec, "meta"), vec![vec![json!(4000), json!(99.0), json!({})]]);
+        assert_eq!(
+            series(exec, "mem"),
+            vec![vec![json!(1000), json!(512.0), json!({"unit": "mb"})]]
+        );
+        assert_eq!(
+            series(exec, "disk::io"),
+            vec![vec![json!(3000), json!(7.0), json!({})]]
+        );
+        assert_eq!(
+            series(exec, "meta"),
+            vec![vec![json!(4000), json!(99.0), json!({})]]
+        );
         assert_eq!(aggregate(exec, "cpu", "COUNT")[0][1], json!(3.0));
     };
     {
@@ -256,5 +317,8 @@ fn first_format_timeseries_file_still_loads() {
     let server = open_server(&dir);
     let exec = server.query_executor();
     assert_eq!(series(&exec, "cpu").len(), 4);
-    assert_eq!(series(&exec, "cpu")[3], vec![json!(2000), json!(12.5), json!({})]);
+    assert_eq!(
+        series(&exec, "cpu")[3],
+        vec![json!(2000), json!(12.5), json!({})]
+    );
 }

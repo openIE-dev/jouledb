@@ -14,7 +14,9 @@ pub mod audit;
 pub mod auth;
 pub mod backup;
 pub mod binary_protocol;
+pub mod columnar_exec;
 pub mod config;
+pub mod cost_model;
 pub mod cql_executor;
 pub mod cxl_memory;
 pub mod cypher_executor;
@@ -27,11 +29,6 @@ pub mod energy;
 pub mod energy_executor;
 pub mod enterprise;
 pub mod error;
-pub mod columnar_exec;
-pub mod cost_model;
-pub mod nvml;
-pub mod verify_policy;
-pub mod power_meter;
 pub mod fabric;
 pub mod features_bridge;
 pub mod fts_analyzer;
@@ -39,15 +36,13 @@ pub mod graphql_executor;
 pub mod gremlin_executor;
 pub mod health;
 pub mod holographic_adapter;
-pub mod json_ops;
-#[cfg(test)]
-mod proptest_verify;
-#[cfg(kani)]
-mod kani_proofs;
 pub mod hrp_erasure;
 pub mod hrp_security;
+pub mod json_ops;
 #[cfg(feature = "jwp")]
 pub mod jwp_server;
+#[cfg(kani)]
+mod kani_proofs;
 pub mod langgraph_handlers;
 pub mod ledger_bridge;
 pub mod lock_util;
@@ -56,10 +51,14 @@ pub mod mcp_bridge;
 pub mod metrics;
 pub mod multiplex;
 pub mod mutation_delta;
+pub mod nvml;
 pub mod observability;
 pub mod operations;
 pub mod pgwire;
 pub mod pool;
+pub mod power_meter;
+#[cfg(test)]
+mod proptest_verify;
 pub mod protocol;
 pub mod query;
 pub mod raft;
@@ -82,6 +81,7 @@ pub mod subscriptions;
 pub mod tcp_server;
 pub mod tenant;
 pub mod two_phase_commit;
+pub mod verify_policy;
 #[cfg(feature = "websocket")]
 pub mod websocket;
 #[cfg(feature = "webtransport")]
@@ -732,7 +732,9 @@ impl Server {
         // Measured device costs (SigQL / fabric routing) persist next to the
         // data unless JOULE_COST_MODEL_PATH chose a file.
         if std::env::var_os("JOULE_COST_MODEL_PATH").is_none() {
-            cost_model::init_persistent(std::path::Path::new(&config.db_path).join(cost_model::FILE));
+            cost_model::init_persistent(
+                std::path::Path::new(&config.db_path).join(cost_model::FILE),
+            );
         }
         base_executor
             .attach_timeseries_store(&ts_path)

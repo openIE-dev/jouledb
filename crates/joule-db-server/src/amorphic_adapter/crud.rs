@@ -1,7 +1,7 @@
 //! CRUD operations: ingest, get, delete, query, batch operations, scan methods, RBAC persistence.
 
-use super::*;
 use super::conversions::*;
+use super::*;
 
 impl AmorphicTableStorage {
     // ==================== Direct amorphic API (for REST endpoints) ====================
@@ -450,7 +450,10 @@ impl AmorphicTableStorage {
             .par_iter()
             .map(|row| {
                 let mut f = HashMap::with_capacity(row.columns.len() + 1);
-                f.insert(TABLE_FIELD.to_string(), AmorphicValue::String(table.to_string()));
+                f.insert(
+                    TABLE_FIELD.to_string(),
+                    AmorphicValue::String(table.to_string()),
+                );
                 for (c, v) in row.columns.iter().zip(row.values.iter()) {
                     f.insert(c.clone(), AmorphicValue::from_json(&ast_to_json(v)));
                 }
@@ -460,7 +463,13 @@ impl AmorphicTableStorage {
         let t0 = std::time::Instant::now();
         let ids = store.ingest_fields_batch(batch).map_err(amorphic_error)?;
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("insert_rows n={} lock={:?} prep={:?} store={:?}", ids.len(), lock_wait, t0 - t_lock - lock_wait, t0.elapsed());
+            eprintln!(
+                "insert_rows n={} lock={:?} prep={:?} store={:?}",
+                ids.len(),
+                lock_wait,
+                t0 - t_lock - lock_wait,
+                t0.elapsed()
+            );
         }
         if store.pending_holograms() > 0 {
             self.store.mark_pending();

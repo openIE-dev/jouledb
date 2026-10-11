@@ -70,7 +70,10 @@ impl FeatureStores {
             store
                 .sync()
                 .map_err(|e| format!("sync migrated time series: {e}"))?;
-            tracing::info!(points = migrated, "migrated time series to the v2 key format");
+            tracing::info!(
+                points = migrated,
+                "migrated time series to the v2 key format"
+            );
         }
         let metrics = persist
             .list_metrics()
@@ -112,9 +115,7 @@ fn persist_ts_point(stores: &FeatureStores, metric: &str, point: &DataPoint) -> 
         return Ok(());
     };
     let persist = TimeSeriesPersistence::new(Arc::clone(store));
-    persist
-        .register_metric(metric)
-        .map_err(|e| e.to_string())?;
+    persist.register_metric(metric).map_err(|e| e.to_string())?;
     persist
         .write(
             metric,
@@ -300,9 +301,7 @@ fn exec_ts_write(
     // timestamp keep that order across a restart).
     let ts = write_lock(&stores.timeseries);
     persist_ts_point(stores, metric, &point).map_err(|e| {
-        QueryErrorResponse::execution_error(&format!(
-            "TSWRITE {metric}: durable write failed: {e}"
-        ))
+        QueryErrorResponse::execution_error(&format!("TSWRITE {metric}: durable write failed: {e}"))
     })?;
     ts.write(metric, point);
     drop(ts);

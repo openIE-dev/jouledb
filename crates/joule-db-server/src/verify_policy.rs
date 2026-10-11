@@ -35,14 +35,23 @@ pub struct Policy {
 
 impl Default for Policy {
     fn default() -> Self {
-        Policy { mode: Mode::Sampled, first: 8, every: 16 }
+        Policy {
+            mode: Mode::Sampled,
+            first: 8,
+            every: 16,
+        }
     }
 }
 
 impl Policy {
     pub fn from_env() -> Self {
         let d = Policy::default();
-        let num = |k: &str, v: u64| std::env::var(k).ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or(v);
+        let num = |k: &str, v: u64| {
+            std::env::var(k)
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(v)
+        };
         Policy {
             mode: match std::env::var("JOULE_VERIFY").as_deref() {
                 Ok("always") | Ok("1") | Ok("all") => Mode::Always,
@@ -83,7 +92,9 @@ fn mix(mut x: u64) -> u64 {
 }
 
 fn hash(s: &str) -> u64 {
-    s.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3))
+    s.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
+    })
 }
 
 /// This machine's name, part of every key.
@@ -112,7 +123,11 @@ pub fn key(op: &str, bucket: &str, device_backend: &str) -> String {
 
 impl Verifier {
     pub fn new(policy: Policy) -> Self {
-        Verifier { policy, buckets: Mutex::new(HashMap::new()), mismatches: Mutex::new(Vec::new()) }
+        Verifier {
+            policy,
+            buckets: Mutex::new(HashMap::new()),
+            mismatches: Mutex::new(Vec::new()),
+        }
     }
 
     pub fn global() -> &'static Verifier {
@@ -162,11 +177,17 @@ impl Verifier {
         self.mismatches
             .lock()
             .unwrap_or_else(|p| p.into_inner())
-            .push(Mismatch { key: key.to_string(), run });
+            .push(Mismatch {
+                key: key.to_string(),
+                run,
+            });
     }
 
     pub fn mismatches(&self) -> Vec<Mismatch> {
-        self.mismatches.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        self.mismatches
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
     }
 
     pub fn label(&self) -> &'static str {
@@ -184,12 +205,22 @@ mod tests {
 
     #[test]
     fn first_runs_then_deterministic_jittered_sample() {
-        let p = Policy { mode: Mode::Sampled, first: 8, every: 16 };
+        let p = Policy {
+            mode: Mode::Sampled,
+            first: 8,
+            every: 16,
+        };
         let a = schedule(&Verifier::new(p), "sum|b20|m|gpu/metal", 400);
         let b = schedule(&Verifier::new(p), "sum|b20|m|gpu/metal", 400);
         assert_eq!(a, b, "deterministic");
         assert!(a[..8].iter().all(|v| *v));
-        let later: Vec<usize> = a.iter().enumerate().skip(8).filter(|(_, v)| **v).map(|(i, _)| i).collect();
+        let later: Vec<usize> = a
+            .iter()
+            .enumerate()
+            .skip(8)
+            .filter(|(_, v)| **v)
+            .map(|(i, _)| i)
+            .collect();
         // About 1 in 16 with gaps in [8, 24].
         assert!((18..=32).contains(&later.len()), "{}", later.len());
         let mut prev = 7;
@@ -198,26 +229,44 @@ mod tests {
             prev = *i;
         }
         // Gaps are jittered, not a fixed stride; other keys get another schedule.
-        let gaps: std::collections::HashSet<usize> = later.windows(2).map(|w| w[1] - w[0]).collect();
+        let gaps: std::collections::HashSet<usize> =
+            later.windows(2).map(|w| w[1] - w[0]).collect();
         assert!(gaps.len() > 2);
-        assert_ne!(a, schedule(&Verifier::new(p), "hdc|b|m|npu/coreml-ane", 400));
+        assert_ne!(
+            a,
+            schedule(&Verifier::new(p), "hdc|b|m|npu/coreml-ane", 400)
+        );
     }
 
     #[test]
     fn mismatch_resets_to_verify_every_run_and_is_recorded() {
-        let v = Verifier::new(Policy { mode: Mode::Sampled, first: 4, every: 16 });
+        let v = Verifier::new(Policy {
+            mode: Mode::Sampled,
+            first: 4,
+            every: 16,
+        });
         let k = "k";
         let _ = schedule(&v, k, 40);
         v.record_mismatch(k);
         assert!(schedule(&v, k, 4).iter().all(|x| *x));
-        assert_eq!(v.mismatches(), vec![Mismatch { key: "k".into(), run: 39 }]);
+        assert_eq!(
+            v.mismatches(),
+            vec![Mismatch {
+                key: "k".into(),
+                run: 39
+            }]
+        );
         // Other keys are untouched.
         assert!(v.should_verify("other"));
     }
 
     #[test]
     fn always_mode_verifies_everything() {
-        let v = Verifier::new(Policy { mode: Mode::Always, first: 0, every: 16 });
+        let v = Verifier::new(Policy {
+            mode: Mode::Always,
+            first: 0,
+            every: 16,
+        });
         assert!(schedule(&v, "k", 50).iter().all(|x| *x));
         assert_eq!(v.label(), "always");
     }

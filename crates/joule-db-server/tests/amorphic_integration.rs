@@ -388,8 +388,14 @@ fn test_query_response_has_energy_fields() {
     assert!(joules.is_finite() && joules >= 0.0, "joules={joules}");
     let watts = resp.power_watts.expect("power_watts on every response");
     assert!(watts.is_finite() && watts >= 0.0, "watts={watts}");
-    let device = resp.device_target.as_deref().expect("device_target on every response");
-    assert!(matches!(device, "cpu" | "gpu" | "npu" | "tpu" | "lpu"), "device={device}");
+    let device = resp
+        .device_target
+        .as_deref()
+        .expect("device_target on every response");
+    assert!(
+        matches!(device, "cpu" | "gpu" | "npu" | "tpu" | "lpu"),
+        "device={device}"
+    );
 
     // The receipt fields serialize alongside the rows.
     let json = serde_json::to_value(&resp).unwrap();
