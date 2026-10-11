@@ -581,11 +581,54 @@ impl Default for IndexStrategy {
 /// (GLOBAL_HOLOGRAM_SATURATION_LIMIT), so records go into the newest segment
 /// until it is full and a fresh segment opens. Each record's segment is
 /// remembered, so updates and deletes subtract exactly.
-#[derive(Debug, Clone)]
+///
+/// Adds are off the write path: ingest records the (segment, vector) pair,
+/// and pending vectors are folded in with [`BundleAccumulator::add_batch`]
+/// every `FLUSH_AT` records, or before any read of the hologram. Readers
+/// always see every committed record, and the primary record store never
+/// waits on this.
 pub struct SegmentedHologram {
+    inner: std::sync::Mutex<HoloInner>,
+}
+
+#[derive(Clone)]
+struct HoloInner {
     segments: Vec<BundleAccumulator>,
     counts: Vec<usize>,
     of: HashMap<RecordId, usize>,
+    pending: Vec<(usize, BinaryHV)>,
+}
+
+const FLUSH_AT: usize = 1024;
+
+impl HoloInner {
+    fn flush(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let mut pending = std::mem::take(&mut self.pending);
+        pending.sort_by_key(|(s, _)| *s);
+        for group in pending.chunk_by(|a, b| a.0 == b.0) {
+            let hvs: Vec<&BinaryHV> = group.iter().map(|(_, h)| h).collect();
+            self.segments[group[0].0].add_batch(&hvs);
+        }
+    }
+}
+
+impl std::fmt::Debug for SegmentedHologram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let g = self.lock();
+        f.debug_struct("SegmentedHologram")
+            .field("segments", &g.segments.len())
+            .field("pending", &g.pending.len())
+            .finish()
+    }
+}
+
+impl Clone for SegmentedHologram {
+    fn clone(&self) -> Self {
+        Self { inner: std::sync::Mutex::new(self.lock().clone()) }
+    }
 }
 
 impl Default for SegmentedHologram {
@@ -596,66 +639,99 @@ impl Default for SegmentedHologram {
 
 impl SegmentedHologram {
     pub fn new() -> Self {
-        Self { segments: vec![BundleAccumulator::new(DIMENSION)], counts: vec![0], of: HashMap::new() }
+        Self {
+            inner: std::sync::Mutex::new(HoloInner {
+                segments: vec![BundleAccumulator::new(DIMENSION)],
+                counts: vec![0],
+                of: HashMap::new(),
+                pending: Vec::new(),
+            }),
+        }
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, HoloInner> {
+        // a poisoned lock still holds consistent counters (no partial adds)
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn inner_mut(&mut self) -> &mut HoloInner {
+        self.inner.get_mut().unwrap_or_else(|e| e.into_inner())
     }
 
     pub fn add(&mut self, id: RecordId, hv: &BinaryHV) {
-        if let Some(&s) = self.of.get(&id) {
+        let g = self.inner_mut();
+        let s = match g.of.get(&id) {
             // re-ingest of an existing id lands in the same segment
-            self.segments[s].add(hv);
-            return;
+            Some(&s) => s,
+            None => {
+                if *g.counts.last().unwrap_or(&usize::MAX) >= GLOBAL_HOLOGRAM_SATURATION_LIMIT {
+                    g.segments.push(BundleAccumulator::new(DIMENSION));
+                    g.counts.push(0);
+                }
+                let s = g.segments.len() - 1;
+                g.counts[s] += 1;
+                g.of.insert(id, s);
+                s
+            }
+        };
+        g.pending.push((s, hv.clone()));
+        if g.pending.len() >= FLUSH_AT {
+            g.flush();
         }
-        if *self.counts.last().unwrap_or(&usize::MAX) >= GLOBAL_HOLOGRAM_SATURATION_LIMIT {
-            self.segments.push(BundleAccumulator::new(DIMENSION));
-            self.counts.push(0);
-        }
-        let s = self.segments.len() - 1;
-        self.segments[s].add(hv);
-        self.counts[s] += 1;
-        self.of.insert(id, s);
     }
 
     pub fn remove(&mut self, id: RecordId, hv: &BinaryHV) {
-        if let Some(s) = self.of.remove(&id) {
-            self.segments[s].subtract(hv);
-            self.counts[s] = self.counts[s].saturating_sub(1);
+        let g = self.inner_mut();
+        g.flush();
+        if let Some(s) = g.of.remove(&id) {
+            g.segments[s].subtract(hv);
+            g.counts[s] = g.counts[s].saturating_sub(1);
         }
     }
 
     pub fn replace(&mut self, id: RecordId, old: &BinaryHV, new: &BinaryHV) {
-        match self.of.get(&id) {
+        let g = self.inner_mut();
+        g.flush();
+        match g.of.get(&id) {
             Some(&s) => {
-                self.segments[s].subtract(old);
-                self.segments[s].add(new);
+                g.segments[s].subtract(old);
+                g.segments[s].add(new);
             }
             None => self.add(id, new),
         }
     }
 
-    pub fn active(&self) -> &BundleAccumulator {
-        self.segments.last().expect("at least one segment")
+    /// The active (newest) segment, caught up.
+    pub fn active(&self) -> BundleAccumulator {
+        let mut g = self.lock();
+        g.flush();
+        g.segments.last().cloned().unwrap_or_else(|| BundleAccumulator::new(DIMENSION))
     }
 
     pub fn segment_count(&self) -> usize {
-        self.segments.len()
+        self.lock().segments.len()
     }
 
     pub fn active_segment_len(&self) -> usize {
-        self.counts.last().copied().unwrap_or(0)
+        self.lock().counts.last().copied().unwrap_or(0)
     }
 
     pub fn segment_holograms(&self) -> Vec<BinaryHV> {
-        self.segments.iter().map(|s| s.threshold()).collect()
+        let mut g = self.lock();
+        g.flush();
+        g.segments.iter().map(|s| s.threshold()).collect()
     }
 
     /// One summary vector: the segment itself when there is one, else the
     /// bundle of segment summaries (a hierarchical superposition).
     pub fn threshold(&self) -> BinaryHV {
-        if self.segments.len() == 1 {
-            return self.segments[0].threshold();
+        let mut g = self.lock();
+        g.flush();
+        if g.segments.len() == 1 {
+            return g.segments[0].threshold();
         }
         let mut acc = BundleAccumulator::new(DIMENSION);
-        for s in &self.segments {
+        for s in &g.segments {
             acc.add(&s.threshold());
         }
         acc.threshold()
@@ -956,13 +1032,16 @@ impl AmorphicStore {
     /// Encode a complete record
     fn encode_record(&mut self, fields: &HashMap<String, Value>) -> BinaryHV {
         let mut acc = BundleAccumulator::new(DIMENSION);
-
-        for (field, value) in fields {
-            let field_vec = self.get_field_vector(field);
-            let value_vec = self.encode_value(value);
-            acc.add(&field_vec.bind(&value_vec));
-        }
-
+        let bound: Vec<BinaryHV> = fields
+            .iter()
+            .map(|(field, value)| {
+                let field_vec = self.get_field_vector(field);
+                let value_vec = self.encode_value(value);
+                field_vec.bind(&value_vec)
+            })
+            .collect();
+        // same counts as one add() per field, via bit-sliced counting
+        acc.add_batch(&bound.iter().collect::<Vec<_>>());
         acc.threshold()
     }
 
@@ -2238,7 +2317,7 @@ impl AmorphicStore {
     ///
     /// Used by the partition module to measure hologram health metrics.
     /// The active (newest) hologram segment; see [`SegmentedHologram`].
-    pub fn global_hologram(&self) -> &BundleAccumulator {
+    pub fn global_hologram(&self) -> BundleAccumulator {
         self.hologram.active()
     }
 

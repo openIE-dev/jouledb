@@ -717,6 +717,46 @@ impl BundleAccumulator {
         self.num_vectors += 1;
     }
 
+    /// Add many vectors at once. Equivalent to calling [`add`](Self::add) for
+    /// each, but counts ones per bit position with bit-sliced vertical
+    /// counters (a ripple carry across 8 bit-planes per 64-bit word): about
+    /// two word operations per vector-word instead of 64 counter updates.
+    /// Bulk ingest uses this.
+    pub fn add_batch(&mut self, hvs: &[&BinaryHV]) {
+        for chunk in hvs.chunks(255) {
+            let k = chunk.len() as i32;
+            let num_words = self.dimension.div_ceil(64);
+            for w in 0..num_words {
+                let mut planes = [0u64; 8];
+                for hv in chunk {
+                    debug_assert_eq!(self.dimension, hv.dimension);
+                    let mut carry = hv.words[w];
+                    for p in planes.iter_mut() {
+                        if carry == 0 {
+                            break;
+                        }
+                        let t = *p & carry;
+                        *p ^= carry;
+                        carry = t;
+                    }
+                }
+                let base = w * 64;
+                let bits = (self.dimension - base).min(64);
+                // only the planes that can be non-zero for k vectors
+                let np = (32 - (k as u32).leading_zeros()) as usize;
+                let counts = &mut self.counts[base..base + bits];
+                for (b, c) in counts.iter_mut().enumerate() {
+                    let mut ones = 0i32;
+                    for (pi, p) in planes[..np].iter().enumerate() {
+                        ones |= (((p >> b) & 1) as i32) << pi;
+                    }
+                    *c += 2 * ones - k;
+                }
+            }
+            self.num_vectors += chunk.len();
+        }
+    }
+
     /// Subtract a binary vector from the bundle (optimized word-level processing)
     pub fn subtract(&mut self, hv: &BinaryHV) {
         debug_assert_eq!(self.dimension, hv.dimension);
@@ -3776,6 +3816,26 @@ mod tests {
         {
             println!("Architecture: Other (scalar fallback)");
             println!("Expected performance: ~22ns Hamming distance");
+        }
+    }
+}
+
+#[cfg(test)]
+mod add_batch_tests {
+    use super::*;
+
+    #[test]
+    fn add_batch_matches_add() {
+        for n in [0usize, 1, 7, 255, 256, 600] {
+            let hvs: Vec<BinaryHV> = (0..n).map(|i| BinaryHV::random(10000, i as u64 + 1)).collect();
+            let mut a = BundleAccumulator::new(10000);
+            for h in &hvs {
+                a.add(h);
+            }
+            let mut b = BundleAccumulator::new(10000);
+            b.add_batch(&hvs.iter().collect::<Vec<_>>());
+            assert_eq!(a.counts, b.counts, "n={n}");
+            assert_eq!(a.num_vectors, b.num_vectors);
         }
     }
 }

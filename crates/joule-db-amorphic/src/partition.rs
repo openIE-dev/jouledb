@@ -280,7 +280,7 @@ impl Partition {
 
     /// Update health metrics (call after writes)
     fn update_health(&mut self) {
-        self.health = HologramHealth::measure(self.store.global_hologram(), self.store.active_hologram_len());
+        self.health = HologramHealth::measure(&self.store.global_hologram(), self.store.active_hologram_len());
     }
 
     /// Check if this partition should trigger a split
