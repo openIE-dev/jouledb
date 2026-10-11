@@ -1,152 +1,125 @@
 name: Release
 
+# One install story: every channel ships the same `jouledb` server binary
+# (crate joule-db-server, built from this repository).
+#   - workflow_dispatch / pull_request / push to main: build + smoke-test every
+#     target and keep the archives as workflow artifacts (nothing is published).
+#   - push of a v* tag: the same, then publish a GitHub Release with the
+#     archives and sha256 files. Tags are cut by a maintainer.
+# Archive layout matches stubs/jouledb's [package.metadata.binstall]:
+#   jouledb-<version>-<target>.tar.gz -> jouledb-<version>-<target>/jouledb
+
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
+    branches: [main]
+    paths: ['.github/workflows/release.yml', 'Dockerfile', 'packaging/**']
+  pull_request:
+    paths: ['.github/workflows/release.yml', 'Dockerfile', 'packaging/**']
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to build (e.g. v0.1.0)'
-        required: true
-        type: string
 
-# REPLACE these per-project:
 env:
-  # Path to the CLI crate inside joulesperbit
-  CLI_CRATE_PATH: crates/bin/jouledb-cli
-  # Name of the CLI binary that ends up in target/release/
-  BIN_NAME: jouledb
-  # Public name (what the tarball is named)
-  RELEASE_NAME: jouledb
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_TOOLCHAIN: 1.94.1
 
 jobs:
   build:
-    name: Build ${{ matrix.target }}
+    name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental || false }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-apple-darwin
-            os: macos-14
-            archive: tar.gz
-          - target: aarch64-apple-darwin
-            os: macos-14
-            archive: tar.gz
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            archive: tar.gz
-            use-cross: true
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            archive: tar.gz
-            use-cross: true
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            archive: zip
-
+          - { target: aarch64-apple-darwin,      os: macos-14 }
+          - { target: x86_64-apple-darwin,       os: macos-13 }
+          - { target: x86_64-unknown-linux-gnu,  os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+          - { target: x86_64-pc-windows-msvc,    os: windows-latest, experimental: true }
     steps:
-      - name: Resolve tag
-        id: tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Checkout public release surface
-        uses: actions/checkout@v4
-
-      - name: Checkout private source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          repository: openIE-dev/joulesperbit
-          token: ${{ secrets.JOULESPERBIT_READ_TOKEN }}
-          path: joulesperbit
-          ref: ${{ steps.tag.outputs.tag }}
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           targets: ${{ matrix.target }}
-
-      - name: Install cross (Linux only)
-        if: matrix.use-cross
-        run: cargo install cross --locked
-
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
       - name: Build
         shell: bash
-        working-directory: joulesperbit
+        run: cargo build --release --locked --target ${{ matrix.target }} -p joule-db-server --bin jouledb
+      - name: Smoke test (version, start, /health, pgwire port)
+        shell: bash
         run: |
-          if [ "${{ matrix.use-cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }} -p "${CLI_CRATE_PATH##*/}"
-          else
-            cargo build --release --target ${{ matrix.target }} -p "${CLI_CRATE_PATH##*/}"
-          fi
-
+          BIN=target/${{ matrix.target }}/release/jouledb
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          "$BIN" --version
+          "$BIN" -p 18080 -d "$RUNNER_TEMP/jdb" > "$RUNNER_TEMP/srv.log" 2>&1 &
+          for i in $(seq 60); do curl -fsS http://127.0.0.1:18080/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:18080/health
+          curl -fsS -X POST http://127.0.0.1:18080/api/v1/query -H 'content-type: application/json' -d '{"sql":"SELECT 1 + 1"}' || true
+          (echo > /dev/tcp/127.0.0.1/18082) && echo "pgwire listening"
       - name: Package
         shell: bash
         run: |
-          STAGE=$(mktemp -d)
-          TAG="${{ steps.tag.outputs.tag }}"
-          BASE="${RELEASE_NAME}-${TAG#v}-${{ matrix.target }}"
-          mkdir -p "$STAGE/$BASE"
-
-          if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
-            cp "joulesperbit/target/${{ matrix.target }}/release/${BIN_NAME}.exe" "$STAGE/$BASE/"
+          VERSION=$(cargo pkgid -p joule-db-server | sed 's/.*[#@]//')
+          case "$GITHUB_REF" in refs/tags/v*) VERSION="${GITHUB_REF#refs/tags/v}";; esac
+          BASE="jouledb-${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/$BASE"
+          cp target/${{ matrix.target }}/release/jouledb* "dist/$BASE/" 2>/dev/null || true
+          rm -f "dist/$BASE"/*.d "dist/$BASE"/*.pdb
+          cp LICENSE README.md "dist/$BASE/"
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a -tzip "$BASE.zip" "$BASE" >/dev/null && sha256sum "$BASE.zip" > "$BASE.zip.sha256"
           else
-            cp "joulesperbit/target/${{ matrix.target }}/release/${BIN_NAME}" "$STAGE/$BASE/"
+            tar czf "$BASE.tar.gz" "$BASE" && shasum -a 256 "$BASE.tar.gz" > "$BASE.tar.gz.sha256"
           fi
-
-          cp LICENSE README.md "$STAGE/$BASE/" 2>/dev/null || true
-
-          cd "$STAGE"
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            (cd "$BASE" && 7z a -tzip "../${BASE}.zip" .)
-            mv "${BASE}.zip" "${{ github.workspace }}/"
-            (cd "${{ github.workspace }}" && shasum -a 256 "${BASE}.zip" > "${BASE}.zip.sha256")
-          else
-            tar czf "${BASE}.tar.gz" "$BASE"
-            mv "${BASE}.tar.gz" "${{ github.workspace }}/"
-            (cd "${{ github.workspace }}" && shasum -a 256 "${BASE}.tar.gz" > "${BASE}.tar.gz.sha256")
-          fi
-
-          ls -la "${{ github.workspace }}"/*${BASE}*
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+          rm -rf "$BASE"; ls -la
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.RELEASE_NAME }}-${{ matrix.target }}
-          path: |
-            ${{ env.RELEASE_NAME }}-*-${{ matrix.target }}.tar.gz*
-            ${{ env.RELEASE_NAME }}-*-${{ matrix.target }}.zip*
+          name: jouledb-${{ matrix.target }}
+          path: dist/*
+
+  docker:
+    name: Docker image (build + smoke, not pushed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t jouledb:ci .
+      - name: Smoke
+        run: |
+          docker run -d --name jdb -e JOULEDB_JWT_SECRET=ci-secret -p 18080:8080 -p 18082:8082 jouledb:ci
+          for i in $(seq 60); do curl -fsS http://127.0.0.1:18080/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:18080/health
+          sudo apt-get install -y -q postgresql-client >/dev/null
+          PGPASSWORD=ci-secret psql "host=127.0.0.1 port=18082 user=postgres dbname=postgres sslmode=disable" -Atc "SELECT version()"
+          docker logs jdb | tail -20
+      - name: Save image as artifact
+        run: docker save jouledb:ci | gzip > jouledb-image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jouledb-docker-image
+          path: jouledb-image.tar.gz
 
   release:
-    name: Publish Release
+    name: Publish GitHub Release (tags only)
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Collect
-        run: |
-          mkdir -p dist
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec mv {} dist/ \;
-          ls -la dist/
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+          pattern: jouledb-*-*
+      - run: mkdir dist && find artifacts -type f -exec mv {} dist/ \; && ls -la dist
+      - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
-          fail_on_unmatched_files: true
