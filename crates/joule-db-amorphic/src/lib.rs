@@ -576,10 +576,97 @@ impl Default for IndexStrategy {
     }
 }
 
+/// The global hologram as a list of bundles. A single superposition of N
+/// random hypervectors stops being decodable past ~sqrt(D) items
+/// (GLOBAL_HOLOGRAM_SATURATION_LIMIT), so records go into the newest segment
+/// until it is full and a fresh segment opens. Each record's segment is
+/// remembered, so updates and deletes subtract exactly.
+#[derive(Debug, Clone)]
+pub struct SegmentedHologram {
+    segments: Vec<BundleAccumulator>,
+    counts: Vec<usize>,
+    of: HashMap<RecordId, usize>,
+}
+
+impl Default for SegmentedHologram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SegmentedHologram {
+    pub fn new() -> Self {
+        Self { segments: vec![BundleAccumulator::new(DIMENSION)], counts: vec![0], of: HashMap::new() }
+    }
+
+    pub fn add(&mut self, id: RecordId, hv: &BinaryHV) {
+        if let Some(&s) = self.of.get(&id) {
+            // re-ingest of an existing id lands in the same segment
+            self.segments[s].add(hv);
+            return;
+        }
+        if *self.counts.last().unwrap_or(&usize::MAX) >= GLOBAL_HOLOGRAM_SATURATION_LIMIT {
+            self.segments.push(BundleAccumulator::new(DIMENSION));
+            self.counts.push(0);
+        }
+        let s = self.segments.len() - 1;
+        self.segments[s].add(hv);
+        self.counts[s] += 1;
+        self.of.insert(id, s);
+    }
+
+    pub fn remove(&mut self, id: RecordId, hv: &BinaryHV) {
+        if let Some(s) = self.of.remove(&id) {
+            self.segments[s].subtract(hv);
+            self.counts[s] = self.counts[s].saturating_sub(1);
+        }
+    }
+
+    pub fn replace(&mut self, id: RecordId, old: &BinaryHV, new: &BinaryHV) {
+        match self.of.get(&id) {
+            Some(&s) => {
+                self.segments[s].subtract(old);
+                self.segments[s].add(new);
+            }
+            None => self.add(id, new),
+        }
+    }
+
+    pub fn active(&self) -> &BundleAccumulator {
+        self.segments.last().expect("at least one segment")
+    }
+
+    pub fn segment_count(&self) -> usize {
+        self.segments.len()
+    }
+
+    pub fn active_segment_len(&self) -> usize {
+        self.counts.last().copied().unwrap_or(0)
+    }
+
+    pub fn segment_holograms(&self) -> Vec<BinaryHV> {
+        self.segments.iter().map(|s| s.threshold()).collect()
+    }
+
+    /// One summary vector: the segment itself when there is one, else the
+    /// bundle of segment summaries (a hierarchical superposition).
+    pub fn threshold(&self) -> BinaryHV {
+        if self.segments.len() == 1 {
+            return self.segments[0].threshold();
+        }
+        let mut acc = BundleAccumulator::new(DIMENSION);
+        for s in &self.segments {
+            acc.add(&s.threshold());
+        }
+        acc.threshold()
+    }
+}
+
 /// The Amorphic Store - a database without fixed structure
 pub struct AmorphicStore {
-    /// The holographic superposition of all records
-    hologram: BundleAccumulator,
+    /// The holographic superposition of all records, in segments that each
+    /// stay below the single-bundle capacity
+    hologram: SegmentedHologram,
 
     /// Individual record storage (for materialization)
     pub(crate) records: HashMap<RecordId, AmorphicRecord>,
@@ -701,7 +788,7 @@ impl AmorphicStore {
         }
 
         Self {
-            hologram: BundleAccumulator::new(DIMENSION),
+            hologram: SegmentedHologram::new(),
             records: HashMap::new(),
             field_index: HashMap::new(),
             value_index: HashMap::new(),
@@ -1040,7 +1127,7 @@ impl AmorphicStore {
         };
 
         // Add to global hologram
-        self.hologram.add(&hologram);
+        self.hologram.add(id, &hologram);
         self.records.insert(id, record);
 
         Ok(id)
@@ -1066,14 +1153,8 @@ impl AmorphicStore {
 
     /// Core ingestion of field map
     fn ingest_fields(&mut self, fields: HashMap<String, Value>) -> AmorphicResult<RecordId> {
-        // GUARDRAIL: Check global hologram saturation
-        let record_count = self.records.len();
-        if record_count >= GLOBAL_HOLOGRAM_SATURATION_LIMIT {
-            eprintln!(
-                "⚠️  WARNING: Store has {} records. Global hologram saturated. Use query_similar_to() with LSH instead of direct hologram queries.",
-                record_count
-            );
-        }
+        // The hologram is segmented (SegmentedHologram), so no bundle ever
+        // holds more than GLOBAL_HOLOGRAM_SATURATION_LIMIT records.
 
         let id = self.next_id;
         self.next_id += 1;
@@ -1124,7 +1205,7 @@ impl AmorphicStore {
         };
 
         // Add to global hologram
-        self.hologram.add(&hologram);
+        self.hologram.add(id, &hologram);
 
         // Add to LSH index for fast similarity search
         self.lsh_insert(id, &hologram);
@@ -1235,14 +1316,6 @@ impl AmorphicStore {
             );
         }
 
-        // Check global hologram saturation
-        let record_count = self.records.len();
-        if record_count >= GLOBAL_HOLOGRAM_SATURATION_LIMIT {
-            eprintln!(
-                "⚠️  WARNING: Store has {} records. Global hologram saturated.",
-                record_count
-            );
-        }
 
         let hologram = self.encode_record(&fields);
 
@@ -1283,7 +1356,7 @@ impl AmorphicStore {
         };
 
         // Add to global hologram
-        self.hologram.add(&hologram);
+        self.hologram.add(id, &hologram);
 
         // Add to LSH index
         self.lsh_insert(id, &hologram);
@@ -1366,7 +1439,7 @@ impl AmorphicStore {
         };
 
         // Add to global hologram
-        self.hologram.add(&hologram);
+        self.hologram.add(id, &hologram);
 
         // Add to LSH index
         self.lsh_insert(id, &hologram);
@@ -1677,7 +1750,7 @@ impl AmorphicStore {
             timestamp: None,
         };
 
-        self.hologram.add(&hologram);
+        self.hologram.add(id, &hologram);
         self.lsh_insert(id, &hologram);
 
         if let Some(ref mut hnsw) = self.hnsw_index {
@@ -2141,8 +2214,14 @@ impl AmorphicStore {
     /// Get reference to the global hologram accumulator
     ///
     /// Used by the partition module to measure hologram health metrics.
+    /// The active (newest) hologram segment; see [`SegmentedHologram`].
     pub fn global_hologram(&self) -> &BundleAccumulator {
-        &self.hologram
+        self.hologram.active()
+    }
+
+    /// Records in the active hologram segment.
+    pub fn active_hologram_len(&self) -> usize {
+        self.hologram.active_segment_len()
     }
 
     // ==================== ENGINEERING GUARDRAILS ====================
@@ -2155,10 +2234,10 @@ impl AmorphicStore {
         let mut degraded = Vec::new();
 
         // Check record count vs global hologram capacity
-        let record_count = self.records.len();
+        let record_count = self.hologram.active_segment_len();
         if record_count >= GLOBAL_HOLOGRAM_SATURATION_LIMIT {
             degraded.push(format!(
-                "Global hologram saturated: {} records (limit: {}). Direct hologram similarity queries will return noise. Use query_similar_to() with LSH instead.",
+                "Hologram segment saturated: {} records (limit: {})",
                 record_count, GLOBAL_HOLOGRAM_SATURATION_LIMIT
             ));
         } else if record_count >= GLOBAL_HOLOGRAM_SATURATION_WARNING {
@@ -2221,7 +2300,7 @@ impl AmorphicStore {
             lsh_table_count: self.lsh_tables.len(),
             unique_field_names: self.field_index.len(),
             graph_edges: self.graph_index.values().map(|v| v.len()).sum(),
-            hologram_saturation_pct: (self.records.len() as f64
+            hologram_saturation_pct: (self.hologram.active_segment_len() as f64
                 / GLOBAL_HOLOGRAM_SATURATION_LIMIT as f64
                 * 100.0)
                 .min(100.0),
@@ -2294,12 +2373,8 @@ impl AmorphicStore {
             self.hologram_array[(id - 1) as usize] = BinaryHV::zeros(DIMENSION);
         }
 
-        // NOTE: Cannot remove from global hologram - it's a superposition
-        // The global hologram will retain traces until rebuild
-        eprintln!(
-            "⚠️  Record {} deleted from indices. Global hologram retains traces until rebuild().",
-            id
-        );
+        // The record's segment subtracts it exactly (bundle counters are signed sums).
+        self.hologram.remove(id, &record.hologram);
 
         Ok(())
     }
@@ -2309,9 +2384,11 @@ impl AmorphicStore {
     /// Use this after many deletes to clean up the global hologram.
     /// This is expensive: O(N * D) where N = records, D = dimensions.
     pub fn rebuild_hologram(&mut self) {
-        self.hologram = BundleAccumulator::new(DIMENSION);
-        for record in self.records.values() {
-            self.hologram.add(&record.hologram);
+        self.hologram = SegmentedHologram::new();
+        let mut ids: Vec<RecordId> = self.records.keys().copied().collect();
+        ids.sort_unstable();
+        for id in ids {
+            self.hologram.add(id, &self.records[&id].hologram);
         }
         eprintln!(
             "✓ Global hologram rebuilt from {} records",
@@ -2321,7 +2398,14 @@ impl AmorphicStore {
 
     /// Check if the global hologram is usable for direct similarity queries
     pub fn is_hologram_usable(&self) -> bool {
-        self.records.len() < GLOBAL_HOLOGRAM_SATURATION_LIMIT
+        // every segment stays below capacity
+        true
+    }
+
+    /// Per-segment holograms (each a superposition of at most
+    /// GLOBAL_HOLOGRAM_SATURATION_LIMIT records), for direct similarity probes.
+    pub fn hologram_segments(&self) -> Vec<BinaryHV> {
+        self.hologram.segment_holograms()
     }
 
     // ==================== INCREMENTAL UPDATES ====================
@@ -2388,8 +2472,7 @@ impl AmorphicStore {
         }
 
         // Update global hologram: subtract old, add new
-        self.hologram.subtract(&old_hologram);
-        self.hologram.add(&new_hologram);
+        self.hologram.replace(id, &old_hologram, &new_hologram);
 
         // Update LSH tables - compute hashes first to avoid borrow conflicts
         let lsh_hashes_old: Vec<u64> = (0..self.lsh_bit_positions.len())
@@ -3335,5 +3418,24 @@ mod tests {
         // Verify
         let record = store.get(id).unwrap().unwrap();
         assert_eq!(record.get("age"), Some(&Value::Int(31)));
+    }
+}
+
+#[cfg(test)]
+mod segmented_hologram_tests {
+    use super::*;
+
+    #[test]
+    fn segments_cap_capacity_and_deletes_subtract() {
+        let mut store = AmorphicStore::new();
+        for i in 0..1000 {
+            store.ingest_json(&format!(r#"{{"name": "r{i}", "v": {i}}}"#)).unwrap();
+        }
+        let segs = store.hologram_segments();
+        assert_eq!(segs.len(), 1000usize.div_ceil(GLOBAL_HOLOGRAM_SATURATION_LIMIT));
+        assert!(store.active_hologram_len() <= GLOBAL_HOLOGRAM_SATURATION_LIMIT);
+        // a record is recognisable in its own segment (not lost in a saturated bundle)
+        let r5 = store.get_by_name("r5").unwrap().hologram.clone();
+        assert!(segs[0].similarity(&r5) > 0.52, "segment similarity {}", segs[0].similarity(&r5));
     }
 }
