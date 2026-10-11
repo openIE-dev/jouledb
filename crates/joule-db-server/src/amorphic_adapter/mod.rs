@@ -226,7 +226,7 @@ pub(crate) struct HoloLock {
 
 impl HoloLock {
     /// Records per background catch-up step (bounds how long it holds the lock).
-    const STEP: usize = 16_384;
+    const STEP: usize = 2_048;
     /// Write-idle gap before the background catch-up runs.
     const IDLE_MS: u64 = 25;
 

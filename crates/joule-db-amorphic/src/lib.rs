@@ -764,6 +764,10 @@ pub struct AmorphicStore {
     /// (deferred bulk ingest), so `generation()` still moves.
     data_generation: u64,
 
+    /// Hologram generation bumps caused by catch-up (not data changes),
+    /// excluded from `generation()` so caches keyed on it stay valid.
+    catchup_generation: u64,
+
     /// Individual record storage (for materialization)
     pub(crate) records: rustc_hash::FxHashMap<RecordId, AmorphicRecord>,
 
@@ -887,6 +891,7 @@ impl AmorphicStore {
             hologram: SegmentedHologram::new(),
             deferred: std::collections::VecDeque::new(),
             data_generation: 0,
+            catchup_generation: 0,
             records: Default::default(),
             field_index: HashMap::new(),
             value_index: Default::default(),
@@ -1268,6 +1273,7 @@ impl AmorphicStore {
                 })
                 .collect()
         };
+        let gen_before = self.hologram.generation();
         let mut built: Vec<(RecordId, BinaryHV)> = Vec::with_capacity(ids.len());
         for (id, holo) in ids.into_iter().zip(holos) {
             let hologram = match holo {
@@ -1298,6 +1304,10 @@ impl AmorphicStore {
                 }
             });
         }
+        // catch-up changes no data: keep `generation()` where it was
+        self.catchup_generation = self
+            .catchup_generation
+            .wrapping_add(self.hologram.generation().wrapping_sub(gen_before));
         built.len()
     }
 
@@ -2655,7 +2665,10 @@ impl AmorphicStore {
     /// derived from records (e.g. the server's columnar table cache) key on
     /// (generation, len).
     pub fn generation(&self) -> u64 {
-        self.hologram.generation().wrapping_add(self.data_generation)
+        self.hologram
+            .generation()
+            .wrapping_add(self.data_generation)
+            .wrapping_sub(self.catchup_generation)
     }
 
     /// Records in the active hologram segment.
@@ -3927,7 +3940,9 @@ mod bulk_ingest_tests {
         assert_eq!(q0(&a), q0(&b));
         assert_eq!(b.pending_holograms(), 700);
         assert_eq!(b.catch_up_holograms(300), 300);
+        let g = b.generation();
         assert_eq!(b.catch_up_holograms(usize::MAX), 400);
+        assert_eq!(b.generation(), g, "catch-up must not invalidate data caches");
         for id in 1..=700u64 {
             assert!(a.records[&id].hologram.similarity(&b.records[&id].hologram) == 1.0, "id {id}");
         }
