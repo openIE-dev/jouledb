@@ -12914,6 +12914,67 @@ impl SimpleQueryExecutor {
 mod tests {
     use super::*;
 
+    fn zq(executor: &SimpleQueryExecutor, sql: &str) -> Vec<Vec<serde_json::Value>> {
+        let request = QueryRequest {
+            sql: sql.to_string(),
+            params: Default::default(),
+            args: Vec::new(),
+            explain: false,
+            limit: None,
+            session_id: None,
+            query_timeout_ms: None,
+            branch_id: None,
+            tenant_id: None,
+        };
+        executor.execute(&request).unwrap().rows
+    }
+
+    /// Zone maps and the stored row count answer COUNT/MIN/MAX and prune
+    /// filters exactly like a scan, across an incremental cache append and
+    /// with NULLs.
+    #[tokio::test]
+    async fn test_zone_maps_and_row_count_match_scan() {
+        let executor = SimpleQueryExecutor::new();
+        zq(&executor, "CREATE TABLE z (v INT, w FLOAT)");
+        let mk = |a: i64, b: i64| -> Vec<Vec<Option<String>>> {
+            (a..b)
+                .map(|i| {
+                    vec![
+                        Some(i.to_string()),
+                        if i % 7 == 0 { None } else { Some(format!("{}.5", i % 1000)) },
+                    ]
+                })
+                .collect()
+        };
+        let cols = vec!["v".to_string(), "w".to_string()];
+        executor.bulk_copy("z", &cols, &mk(0, 20_000)).unwrap().unwrap();
+        // warm the column cache, then append so zones refresh incrementally
+        assert_eq!(zq(&executor, "SELECT COUNT(*) FROM z")[0][0], serde_json::json!(20_000));
+        executor.bulk_copy("z", &cols, &mk(20_000, 30_001)).unwrap().unwrap();
+        let n = 30_001i64;
+        let nn = n - (0..n).filter(|i| i % 7 == 0).count() as i64;
+        let r = zq(&executor, "SELECT COUNT(*), COUNT(w), MIN(v), MAX(v), MIN(w), MAX(w) FROM z");
+        assert_eq!(r[0][0], serde_json::json!(n));
+        assert_eq!(r[0][1], serde_json::json!(nn));
+        assert_eq!(r[0][2], serde_json::json!(0));
+        assert_eq!(r[0][3], serde_json::json!(n - 1));
+        assert_eq!(r[0][4], serde_json::json!(0.5)); // i = 1000
+        assert_eq!(r[0][5], serde_json::json!(999.5));
+        for (sql, want) in [
+            ("SELECT COUNT(*) FROM z WHERE v < 100", 100),
+            ("SELECT COUNT(*) FROM z WHERE v >= 29990", 11),
+            ("SELECT COUNT(*) FROM z WHERE v > 100000", 0),
+            ("SELECT COUNT(*) FROM z WHERE v >= 0", n),
+            ("SELECT COUNT(*) FROM z WHERE v = 12345", 1),
+            ("SELECT COUNT(*) FROM z WHERE w > 0", nn),
+            ("SELECT COUNT(*) FROM z WHERE v < 16384 AND v >= 8192", 8192),
+            ("SELECT COUNT(*) FROM z WHERE v <> 5", n - 1),
+            ("SELECT COUNT(*) FROM z WHERE w <= 1.5", (0..n).filter(|i| i % 7 != 0 && i % 1000 <= 1).count() as i64),
+        ] {
+            assert_eq!(zq(&executor, sql)[0][0], serde_json::json!(want), "{sql}");
+        }
+    }
+
     #[tokio::test]
     async fn test_create_table() {
         let executor = SimpleQueryExecutor::new();

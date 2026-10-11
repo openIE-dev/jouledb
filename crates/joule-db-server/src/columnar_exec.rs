@@ -37,6 +37,104 @@ pub struct TableColumns {
     pub cols: HashMap<String, Col>,
     /// Reverse dictionaries for text columns, built on first append
     text_index: HashMap<String, FxMap<Arc<str>, u32>>,
+    /// Zone maps for numeric columns: min/max/NULL count per ZONE rows.
+    /// Kept current by build() and append(); used to answer MIN/MAX/COUNT
+    /// without a scan and to skip or short-circuit morsels on filters.
+    zones: HashMap<String, Vec<Zone>>,
+}
+
+/// Rows per zone-map entry (divides MORSEL, so morsels align to zones).
+pub const ZONE: usize = 8_192;
+
+#[derive(Debug, Clone, Copy)]
+struct Zone {
+    /// None when every row in the zone is NULL
+    lo: Option<Num>,
+    hi: Option<Num>,
+    nulls: u32,
+}
+
+fn zone_of(c: &Col, s: usize, e: usize) -> Option<Zone> {
+    let mut z = Zone { lo: None, hi: None, nulls: 0 };
+    match c {
+        Col::Int(v, n) => {
+            let (mut lo, mut hi, mut any) = (i64::MAX, i64::MIN, false);
+            for i in s..e {
+                if nl(n, i) {
+                    z.nulls += 1;
+                } else {
+                    let x = v[i];
+                    lo = lo.min(x);
+                    hi = hi.max(x);
+                    any = true;
+                }
+            }
+            if any {
+                z.lo = Some(Num::I(lo));
+                z.hi = Some(Num::I(hi));
+            }
+        }
+        Col::Float(v, n) => {
+            let (mut lo, mut hi, mut any) = (f64::INFINITY, f64::NEG_INFINITY, false);
+            for i in s..e {
+                if nl(n, i) {
+                    z.nulls += 1;
+                } else {
+                    let x = v[i];
+                    if x.is_nan() {
+                        return None; // NaN ordering: no zone, scan instead
+                    }
+                    lo = lo.min(x);
+                    hi = hi.max(x);
+                    any = true;
+                }
+            }
+            if any {
+                z.lo = Some(Num::F(lo));
+                z.hi = Some(Num::F(hi));
+            }
+        }
+        _ => return None,
+    }
+    Some(z)
+}
+
+impl TableColumns {
+    /// Recompute zone maps from the zone containing row `from` onward.
+    fn refresh_zones(&mut self, from: usize) {
+        use rayon::prelude::*;
+        let n = self.len;
+        let first = from / ZONE;
+        let cols = &self.cols;
+        let mut zones = std::mem::take(&mut self.zones);
+        let updated: Vec<(String, Option<Vec<Zone>>)> = cols
+            .par_iter()
+            .filter(|(_, c)| matches!(c, Col::Int(..) | Col::Float(..)))
+            .map(|(name, c)| {
+                let mut z: Vec<Zone> = zones.get(name).cloned().unwrap_or_default();
+                if z.len() < first {
+                    // missing history: rebuild this column from the start
+                    z.clear();
+                }
+                let start = z.len().min(first);
+                z.truncate(start);
+                for zi in start..n.div_ceil(ZONE) {
+                    match zone_of(c, zi * ZONE, ((zi + 1) * ZONE).min(n)) {
+                        Some(x) => z.push(x),
+                        None => return (name.clone(), None),
+                    }
+                }
+                (name.clone(), Some(z))
+            })
+            .collect();
+        zones.clear();
+        for (name, z) in updated {
+            if let Some(z) = z {
+                zones.insert(name, z);
+            }
+        }
+        self.zones = zones;
+    }
 }
 
 impl TableColumns {
@@ -102,11 +200,14 @@ impl TableColumns {
             };
             cols.insert(c.clone(), col);
         }
-        Self {
+        let mut t = Self {
             len: n,
             cols,
             text_index: HashMap::new(),
-        }
+            zones: HashMap::new(),
+        };
+        t.refresh_zones(0);
+        t
     }
 }
 
@@ -149,6 +250,9 @@ impl TableColumns {
         }
         self.text_index = idxs;
         self.len = old + records.len();
+        if ok {
+            self.refresh_zones(old);
+        }
         ok
     }
 }
@@ -241,7 +345,7 @@ fn nl(n: &[bool], i: usize) -> bool {
 
 type FxMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Num {
     I(i64),
     F(f64),
@@ -725,13 +829,220 @@ impl Acc {
     }
 }
 
+fn num_cmp(a: Num, b: Num) -> Option<Ordering> {
+    match (a, b) {
+        (Num::I(x), Num::I(y)) => Some(x.cmp(&y)),
+        (Num::I(x), Num::F(y)) => (x as f64).partial_cmp(&y),
+        (Num::F(x), Num::I(y)) => x.partial_cmp(&(y as f64)),
+        (Num::F(x), Num::F(y)) => x.partial_cmp(&y),
+    }
+}
+
+/// Zone verdict for `col op lit` over rows `[s, e)`: Some(true) every row
+/// passes, Some(false) no row passes, None mixed or unknown.
+fn zone_verdict(t: &TableColumns, col: &str, op: &Operator, x: Num, s: usize, e: usize) -> Option<bool> {
+    let zs = t.zones.get(col)?;
+    if s % ZONE != 0 || (e % ZONE != 0 && e != t.len) {
+        return None; // morsel not zone-aligned
+    }
+    let (mut lo, mut hi, mut nulls): (Option<Num>, Option<Num>, usize) = (None, None, 0);
+    for zi in s / ZONE..e.div_ceil(ZONE) {
+        let z = zs.get(zi)?;
+        nulls += z.nulls as usize;
+        if let Some(l) = z.lo {
+            lo = Some(lo.map_or(l, |c| if num_lt(l, c) { l } else { c }));
+        }
+        if let Some(h) = z.hi {
+            hi = Some(hi.map_or(h, |c| if num_lt(c, h) { h } else { c }));
+        }
+    }
+    let (Some(lo), Some(hi)) = (lo, hi) else {
+        return Some(false); // all NULL: comparisons never pass
+    };
+    let (cl, ch) = (num_cmp(lo, x)?, num_cmp(hi, x)?);
+    use Ordering::*;
+    let (all, none) = match op {
+        Operator::Lt => (ch == Less, cl != Less),
+        Operator::Le => (ch != Greater, cl == Greater),
+        Operator::Gt => (cl == Greater, ch != Greater),
+        Operator::Ge => (cl != Less, ch == Less),
+        Operator::Eq => (cl == Equal && ch == Equal, cl == Greater || ch == Less),
+        Operator::Ne => (cl == Greater || ch == Less, cl == Equal && ch == Equal),
+        _ => return None,
+    };
+    if none {
+        Some(false)
+    } else if all && nulls == 0 {
+        Some(true)
+    } else {
+        None
+    }
+}
+
+/// AND one predicate into `mask` for rows `[s, s + mask.len())`.
+fn mask_pred(t: &TableColumns, p: &Pred, s: usize, mask: &mut [bool]) -> Option<()> {
+    let e = s + mask.len();
+    match p {
+        Pred::Cmp { col, op, lit } => match (t.cols.get(*col)?, lit) {
+            (Col::Int(v, nulls), Lit::N(Num::I(x))) => {
+                let x = *x;
+                let vs = &v[s..e];
+                // tight per-operator loops (vectorizable)
+                macro_rules! go {
+                    ($f:expr) => {
+                        for (m, &y) in mask.iter_mut().zip(vs) {
+                            *m &= $f(y);
+                        }
+                    };
+                }
+                match op {
+                    Operator::Eq => go!(|y: i64| y == x),
+                    Operator::Ne => go!(|y: i64| y != x),
+                    Operator::Lt => go!(|y: i64| y < x),
+                    Operator::Le => go!(|y: i64| y <= x),
+                    Operator::Gt => go!(|y: i64| y > x),
+                    Operator::Ge => go!(|y: i64| y >= x),
+                    _ => return None,
+                }
+                if !nulls.is_empty() {
+                    for (m, &n) in mask.iter_mut().zip(&nulls[s..e]) {
+                        *m &= !n;
+                    }
+                }
+            }
+            (Col::Int(v, nulls), Lit::N(Num::F(x))) => {
+                for (k, m) in mask.iter_mut().enumerate() {
+                    let i = s + k;
+                    *m &= !nl(nulls, i) && (v[i] as f64).partial_cmp(x).is_some_and(|o| cmp_ok(o, op));
+                }
+            }
+            (Col::Float(v, nulls), Lit::N(n)) => {
+                let x = match n {
+                    Num::I(i) => *i as f64,
+                    Num::F(f) => *f,
+                };
+                for (k, m) in mask.iter_mut().enumerate() {
+                    let i = s + k;
+                    *m &= !nl(nulls, i) && v[i].partial_cmp(&x).is_some_and(|o| cmp_ok(o, op));
+                }
+            }
+            (Col::Text(codes, dict), Lit::S(x)) => {
+                if dict.len() > 4096 {
+                    return None; // per-zone dictionary pass too costly; scan path
+                }
+                let ok: Vec<bool> = dict.iter().map(|d| cmp_ok((**d).cmp(x.as_str()), op)).collect();
+                for (m, &c) in mask.iter_mut().zip(&codes[s..e]) {
+                    *m &= c != NULL_CODE && ok[c as usize];
+                }
+            }
+            _ => return None,
+        },
+        Pred::Like { col, pattern, negated, ci } => match t.cols.get(*col)? {
+            Col::Text(codes, dict) => {
+                let ok = like_table(dict, pattern, *negated, *ci);
+                for (m, &c) in mask.iter_mut().zip(&codes[s..e]) {
+                    *m &= c != NULL_CODE && ok[c as usize];
+                }
+            }
+            _ => return None,
+        },
+    }
+    Some(())
+}
+
+/// COUNT(*) under a conjunction of predicates: zone-pruned, parallel over
+/// zones, with a reusable stack mask per zone (no selection vectors).
+fn count_where(t: &TableColumns, preds: &[Pred]) -> Option<u64> {
+    use rayon::prelude::*;
+    let nz = t.len.div_ceil(ZONE);
+    (0..nz)
+        .into_par_iter()
+        .map(|zi| -> Option<u64> {
+            let (s, e) = (zi * ZONE, ((zi + 1) * ZONE).min(t.len));
+            let mut live: Vec<&Pred> = Vec::with_capacity(preds.len());
+            for p in preds {
+                if let Pred::Cmp { col, op, lit: Lit::N(x) } = p {
+                    match zone_verdict(t, col, op, *x, s, e) {
+                        Some(false) => return Some(0),
+                        Some(true) => continue,
+                        None => {}
+                    }
+                }
+                live.push(p);
+            }
+            if live.is_empty() {
+                return Some((e - s) as u64);
+            }
+            let mut buf = [true; ZONE];
+            let mask = &mut buf[..e - s];
+            for p in live {
+                mask_pred(t, p, s, mask)?;
+            }
+            Some(mask.iter().map(|&b| b as u64).sum())
+        })
+        .sum::<Option<u64>>()
+}
+
+/// COUNT(*) / COUNT(col) / MIN / MAX over a whole table from the row count
+/// and zone maps, no scan. The column cache is a committed snapshot (the
+/// vectorized path never runs inside a transaction), so this is the same
+/// answer a scan of that snapshot gives.
+fn metadata_aggregate(t: &TableColumns, outs: &[OutCol]) -> Option<Vec<Acc>> {
+    let mut accs = Vec::with_capacity(outs.len());
+    for o in outs {
+        let OutCol::Agg(kind, arg) = o else { return None };
+        let mut a = Acc::default();
+        match (kind, arg) {
+            (AggKind::CountStar, _) => a.count = t.len as u64,
+            (AggKind::Count | AggKind::Min | AggKind::Max, Some(c)) => {
+                let zs = t.zones.get(*c)?;
+                let nulls: usize = zs.iter().map(|z| z.nulls as usize).sum();
+                a.count = (t.len - nulls) as u64;
+                if matches!(kind, AggKind::Min | AggKind::Max) {
+                    for z in zs {
+                        if let Some(l) = z.lo {
+                            if a.min.is_none_or(|m| num_lt(l, m)) {
+                                a.min = Some(l);
+                            }
+                        }
+                        if let Some(h) = z.hi {
+                            if a.max.is_none_or(|m| num_lt(m, h)) {
+                                a.max = Some(h);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => return None,
+        }
+        accs.push(a);
+    }
+    Some(accs)
+}
+
 /// Selected absolute row indices of `[s, e)` (None = all rows).
 fn morsel_sel(t: &TableColumns, preds: &[Pred], s: usize, e: usize) -> Option<Option<Vec<u32>>> {
     if preds.is_empty() {
         return Some(None);
     }
-    let mut sel: Vec<u32> = (s as u32..e as u32).collect();
+    // zone maps: drop predicates every row passes, skip the morsel if any
+    // predicate passes no row
+    let mut live: Vec<&Pred> = Vec::with_capacity(preds.len());
     for p in preds {
+        if let Pred::Cmp { col, op, lit: Lit::N(x) } = p {
+            match zone_verdict(t, col, op, *x, s, e) {
+                Some(false) => return Some(Some(Vec::new())),
+                Some(true) => continue,
+                None => {}
+            }
+        }
+        live.push(p);
+    }
+    if live.is_empty() {
+        return Some(None);
+    }
+    let mut sel: Vec<u32> = (s as u32..e as u32).collect();
+    for p in live {
         match p {
             Pred::Cmp { col, op, lit } => match (t.cols.get(*col)?, lit) {
                 (Col::Int(v, nulls), Lit::N(Num::I(x))) => {
@@ -1572,7 +1883,23 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
         })
         .collect();
     let ta = std::time::Instant::now();
-    let (firsts, accs) = aggregate(t, &preds, &gcols, &kinds, &agg_cols)?;
+    let meta = if preds.is_empty() && gcols.is_empty() {
+        metadata_aggregate(t, &outs)
+    } else if gcols.is_empty()
+        && outs.iter().all(|o| matches!(o, OutCol::Agg(AggKind::CountStar, _)))
+    {
+        count_where(t, &preds).map(|c| {
+            outs.iter()
+                .map(|_| Acc { count: c, ..Acc::default() })
+                .collect()
+        })
+    } else {
+        None
+    };
+    let (firsts, accs) = match meta {
+        Some(accs) => (vec![0], accs),
+        None => aggregate(t, &preds, &gcols, &kinds, &agg_cols)?,
+    };
     let ta = ta.elapsed();
     let order_of: Vec<Vec<Key>> = if gcols.is_empty() {
         vec![Vec::new()]
