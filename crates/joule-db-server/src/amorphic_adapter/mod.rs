@@ -286,10 +286,9 @@ impl TableStorage for AmorphicTableStorage {
         let store = self.store.read().map_err(conversions::lock_error)?;
         let columns = self.get_schema_columns(&store, table)?;
 
-        let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
-        let rows = result
-            .records()
-            .iter()
+        let rows = store
+            .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
+            .into_iter()
             .map(|r| Self::record_to_row(r, &columns))
             .collect();
 

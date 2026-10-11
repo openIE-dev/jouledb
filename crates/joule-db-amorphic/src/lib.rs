@@ -1489,6 +1489,24 @@ impl AmorphicStore {
         QueryResult { records }
     }
 
+    /// Records with `field == value`, borrowed in id order, without cloning.
+    /// Table scans use this: `query_equals` clones every record (fields map
+    /// plus a 10k-bit hologram), which dominated SELECT time.
+    pub fn records_equal(&self, field: &str, value: &Value) -> Vec<&AmorphicRecord> {
+        let value_hash = Self::hash_value(field, value);
+        self.value_index
+            .get(&value_hash)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| {
+                        let r = self.records.get(id)?;
+                        (r.fields.get(field) == Some(value)).then_some(r)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Query by exact field-value match
     pub fn query_equals(&self, field: &str, value: &Value) -> QueryResult {
         let value_hash = Self::hash_value(field, value);

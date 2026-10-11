@@ -4,25 +4,7 @@ use super::*;
 
 /// SQL LIKE pattern matching: % = any sequence, _ = any single char
 pub(super) fn like_match(text: &str, pattern: &str) -> bool {
-    let t: Vec<char> = text.chars().collect();
-    let p: Vec<char> = pattern.chars().collect();
-    let (tl, pl) = (t.len(), p.len());
-    // dp[i][j] = does t[..i] match p[..j]
-    let mut dp = vec![vec![false; pl + 1]; tl + 1];
-    dp[0][0] = true;
-    for j in 1..=pl {
-        if p[j - 1] == '%' { dp[0][j] = dp[0][j - 1]; }
-    }
-    for i in 1..=tl {
-        for j in 1..=pl {
-            if p[j - 1] == '%' {
-                dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
-            } else if p[j - 1] == '_' || p[j - 1] == t[i - 1] {
-                dp[i][j] = dp[i - 1][j - 1];
-            }
-        }
-    }
-    dp[tl][pl]
+    joule_db_query::like::like(text, pattern, false)
 }
 
 /// Convert amorphic Value to AST Value

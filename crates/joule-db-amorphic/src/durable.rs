@@ -580,6 +580,11 @@ impl DurableAmorphicStore {
         self.store.query_equals(field, value)
     }
 
+    /// Borrowing variant of `query_equals` (no record clones).
+    pub fn records_equal(&self, field: &str, value: &Value) -> Vec<&crate::AmorphicRecord> {
+        self.store.records_equal(field, value)
+    }
+
     /// Query by range
     pub fn query_range(&self, field: &str, min: f64, max: f64) -> crate::QueryResult {
         self.store.query_range(field, min, max)

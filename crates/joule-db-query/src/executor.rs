@@ -1530,15 +1530,7 @@ impl<S: TableStorage> StorageExecutor<S> {
             } => {
                 let val = self.eval_expression(expr, row, context)?;
                 if let Value::String(s) = val {
-                    let (s, pat) = if *case_insensitive {
-                        (s.to_lowercase(), pattern.to_lowercase())
-                    } else {
-                        (s, pattern.clone())
-                    };
-                    let regex_pattern = pat.replace('%', ".*").replace('_', ".");
-                    let matches = regex::Regex::new(&format!("^{}$", regex_pattern))
-                        .map(|re| re.is_match(&s))
-                        .unwrap_or(false);
+                    let matches = crate::like::like(&s, pattern, *case_insensitive);
                     Ok(Value::Bool(if *negated { !matches } else { matches }))
                 } else {
                     Ok(Value::Bool(false))

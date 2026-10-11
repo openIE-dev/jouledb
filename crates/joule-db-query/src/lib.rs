@@ -20,6 +20,7 @@
 //! ```
 
 pub mod ast;
+pub mod like;
 pub mod vector_scan;
 pub mod error;
 

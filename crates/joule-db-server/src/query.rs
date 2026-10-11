@@ -10329,28 +10329,7 @@ fn evaluate_expression_with_context(expr: &Expression, ctx: &EvalContext) -> ser
         } => {
             let val = evaluate_expression_with_context(inner, ctx);
             if let Some(s) = val.as_str() {
-                let (s, pat) = if *case_insensitive {
-                    (s.to_lowercase(), pattern.to_lowercase())
-                } else {
-                    (s.to_string(), pattern.clone())
-                };
-                // Convert SQL LIKE pattern to regex, escaping metacharacters
-                let mut regex_pattern = String::with_capacity(pat.len() * 2);
-                for ch in pat.chars() {
-                    match ch {
-                        '%' => regex_pattern.push_str(".*"),
-                        '_' => regex_pattern.push('.'),
-                        '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}'
-                        | '|' | '\\' => {
-                            regex_pattern.push('\\');
-                            regex_pattern.push(ch);
-                        }
-                        _ => regex_pattern.push(ch),
-                    }
-                }
-                let matches = regex::Regex::new(&format!("^{}$", regex_pattern))
-                    .map(|re| re.is_match(&s))
-                    .unwrap_or(false);
+                let matches = joule_db_query::like::like(s, pattern, *case_insensitive);
                 serde_json::Value::Bool(if *negated { !matches } else { matches })
             } else if val.is_null() {
                 // SQL: NULL LIKE pattern → NULL
@@ -10363,9 +10342,7 @@ fn evaluate_expression_with_context(expr: &Expression, ctx: &EvalContext) -> ser
         Expression::RegexMatch { expr: inner, pattern, negated } => {
             let val = evaluate_expression_with_context(inner, ctx);
             if let Some(s) = val.as_str() {
-                let matched = regex::Regex::new(pattern)
-                    .map(|re| re.is_match(s))
-                    .unwrap_or(false);
+                let matched = joule_db_query::like::regex_is_match(pattern, s);
                 serde_json::Value::Bool(if *negated { !matched } else { matched })
             } else if val.is_null() {
                 serde_json::Value::Null

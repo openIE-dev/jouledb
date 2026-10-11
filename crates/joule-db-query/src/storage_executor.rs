@@ -2564,29 +2564,7 @@ impl StorageExecutor {
             } => {
                 let val = self.evaluate_expression(expr, row, context)?;
                 if let Value::String(s) = val {
-                    let (s, pat) = if *case_insensitive {
-                        (s.to_lowercase(), pattern.to_lowercase())
-                    } else {
-                        (s, pattern.clone())
-                    };
-                    // Convert SQL LIKE pattern to regex: escape regex metacharacters,
-                    // but preserve SQL wildcards % and _
-                    let mut regex_pattern = String::with_capacity(pat.len() * 2);
-                    for ch in pat.chars() {
-                        match ch {
-                            '%' => regex_pattern.push_str(".*"),
-                            '_' => regex_pattern.push('.'),
-                            '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{'
-                            | '}' | '|' | '\\' => {
-                                regex_pattern.push('\\');
-                                regex_pattern.push(ch);
-                            }
-                            _ => regex_pattern.push(ch),
-                        }
-                    }
-                    let matches = regex::Regex::new(&format!("^{}$", regex_pattern))
-                        .map(|re| re.is_match(&s))
-                        .unwrap_or(false);
+                    let matches = crate::like::like(&s, pattern, *case_insensitive);
                     Ok(Value::Bool(if *negated { !matches } else { matches }))
                 } else if matches!(val, Value::Null) {
                     // SQL: NULL LIKE pattern → NULL
@@ -2598,9 +2576,7 @@ impl StorageExecutor {
             Expression::RegexMatch { expr, pattern, negated } => {
                 let val = self.evaluate_expression(expr, row, context)?;
                 if let Value::String(s) = val {
-                    let matched = regex::Regex::new(pattern)
-                        .map(|re| re.is_match(&s))
-                        .unwrap_or(false);
+                    let matched = crate::like::regex_is_match(pattern, &s);
                     Ok(Value::Bool(if *negated { !matched } else { matched }))
                 } else if matches!(val, Value::Null) {
                     Ok(Value::Null)
