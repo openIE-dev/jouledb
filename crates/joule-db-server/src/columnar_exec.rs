@@ -19,7 +19,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Col {
     /// Values and per-row NULL flags; an empty flag vector means no NULLs.
     Int(Vec<i64>, Vec<bool>),
@@ -31,10 +31,12 @@ pub enum Col {
 }
 
 /// Typed columns of one table, in record id order.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableColumns {
     pub len: usize,
     pub cols: HashMap<String, Col>,
+    /// Reverse dictionaries for text columns, built on first append
+    text_index: HashMap<String, FxMap<Arc<str>, u32>>,
 }
 
 impl TableColumns {
@@ -100,7 +102,96 @@ impl TableColumns {
             };
             cols.insert(c.clone(), col);
         }
-        Self { len: n, cols }
+        Self {
+            len: n,
+            cols,
+            text_index: HashMap::new(),
+        }
+    }
+}
+
+impl TableColumns {
+    /// Append newly committed records (in record id order, after every
+    /// record already here). Returns false when a value does not fit the
+    /// column's current type; the caller then drops this snapshot and the
+    /// next query rebuilds it from the store.
+    pub fn append(&mut self, records: &[&joule_db_amorphic::AmorphicRecord]) -> bool {
+        use joule_db_amorphic::Value as V;
+        let old = self.len;
+        let n = records.len();
+        for (name, col) in self.cols.iter_mut() {
+            match col {
+                Col::Int(v, nulls) => {
+                    for (k, r) in records.iter().enumerate() {
+                        match r.get(name) {
+                            Some(V::Int(i)) => v.push(*i),
+                            None | Some(V::Null) => {
+                                if nulls.is_empty() {
+                                    *nulls = vec![false; old + k];
+                                }
+                                v.push(0);
+                                nulls.push(true);
+                                continue;
+                            }
+                            _ => return false,
+                        }
+                        if !nulls.is_empty() {
+                            nulls.push(false);
+                        }
+                    }
+                }
+                Col::Float(v, nulls) => {
+                    for (k, r) in records.iter().enumerate() {
+                        match r.get(name) {
+                            Some(V::Float(f)) => v.push(*f),
+                            Some(V::Int(i)) => v.push(*i as f64),
+                            None | Some(V::Null) => {
+                                if nulls.is_empty() {
+                                    *nulls = vec![false; old + k];
+                                }
+                                v.push(0.0);
+                                nulls.push(true);
+                                continue;
+                            }
+                            _ => return false,
+                        }
+                        if !nulls.is_empty() {
+                            nulls.push(false);
+                        }
+                    }
+                }
+                Col::Text(codes, dict) => {
+                    let idx = self.text_index.entry(name.clone()).or_insert_with(|| {
+                        dict.iter()
+                            .enumerate()
+                            .map(|(i, d)| (d.clone(), i as u32))
+                            .collect()
+                    });
+                    for r in records {
+                        match r.get(name) {
+                            Some(V::String(s)) => {
+                                let code = match idx.get(s.as_str()) {
+                                    Some(&c) => c,
+                                    None => {
+                                        let a: Arc<str> = Arc::from(s.as_str());
+                                        dict.push(a.clone());
+                                        let c = (dict.len() - 1) as u32;
+                                        idx.insert(a, c);
+                                        c
+                                    }
+                                };
+                                codes.push(code);
+                            }
+                            None | Some(V::Null) => codes.push(NULL_CODE),
+                            _ => return false,
+                        }
+                    }
+                }
+                Col::Other => {}
+            }
+        }
+        self.len = old + n;
+        true
     }
 }
 

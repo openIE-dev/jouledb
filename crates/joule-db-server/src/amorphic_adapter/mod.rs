@@ -374,6 +374,57 @@ impl AmorphicTableStorage {
         Some(t)
     }
 
+    /// After a bulk load committed `ids` into `table`, bring that table's
+    /// column snapshot forward from the batch alone (no full rebuild), so the
+    /// first query after a load is not the one that pays for the build.
+    /// `before` is the store generation just before the batch.
+    pub(crate) fn refresh_columns_after_load(
+        &self,
+        store: &DurableAmorphicStore,
+        table: &str,
+        before: (u64, usize),
+        ids: &[u64],
+    ) {
+        let Ok(mut cache) = self.col_cache.lock() else {
+            return;
+        };
+        let now = store.generation();
+        match cache.get_mut(table) {
+            Some((g, t)) if *g == before => {
+                let recs: Vec<&joule_db_amorphic::AmorphicRecord> =
+                    ids.iter().filter_map(|&id| store.get(id)).collect();
+                if recs.len() == ids.len() && std::sync::Arc::make_mut(t).append(&recs) {
+                    *g = now;
+                } else {
+                    cache.remove(table);
+                }
+            }
+            Some(_) => {
+                cache.remove(table);
+            }
+            None => {
+                // first load into this table: build once now, on the writer
+                drop(cache);
+                let Ok(columns) = self.get_schema_columns(store, table) else {
+                    return;
+                };
+                if columns.is_empty() {
+                    return;
+                }
+                let recs =
+                    store.records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
+                let t =
+                    std::sync::Arc::new(crate::columnar_exec::TableColumns::build(&columns, &recs));
+                if let Ok(mut cache) = self.col_cache.lock() {
+                    if cache.len() > 64 {
+                        cache.clear();
+                    }
+                    cache.insert(table.to_string(), (now, t));
+                }
+            }
+        }
+    }
+
     /// List all user-created table names (from schema metadata).
     pub fn list_tables(&self) -> Vec<String> {
         let store = match self.store.read() {
