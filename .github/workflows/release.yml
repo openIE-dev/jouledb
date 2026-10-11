@@ -34,9 +34,11 @@ jobs:
       matrix:
         include:
           - { target: aarch64-apple-darwin,      os: macos-14 }
-          - { target: x86_64-apple-darwin,       os: macos-13 }
+          # Intel macOS runners are gone; cross-compile on Apple silicon (smoke test runs under Rosetta).
+          - { target: x86_64-apple-darwin,       os: macos-14 }
           - { target: x86_64-unknown-linux-gnu,  os: ubuntu-22.04 }
           - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+          # Experimental: joule-db-server uses tokio::net::UnixListener without a cfg(unix) gate.
           - { target: x86_64-pc-windows-msvc,    os: windows-latest, experimental: true }
     steps:
       - uses: actions/checkout@v4
