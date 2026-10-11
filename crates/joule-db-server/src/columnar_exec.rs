@@ -788,6 +788,35 @@ struct Part {
     map: FxMap<Vec<(u64, bool)>, u32>,
 }
 
+/// Compensated (Neumaier) sum of a slice in 8 independent lanes (the lanes
+/// pipeline/vectorize; one serial chain was the Q3 bottleneck), folded into
+/// `sum`/`comp` with the same compensated step.
+fn neumaier_lanes(sum: &mut f64, comp: &mut f64, xs: &[f64]) {
+    const L: usize = 8;
+    let mut s = [0f64; L];
+    let mut c = [0f64; L];
+    let mut it = xs.chunks_exact(L);
+    for ch in &mut it {
+        for l in 0..L {
+            let x = ch[l];
+            let t = s[l] + x;
+            if s[l].abs() >= x.abs() {
+                c[l] += (s[l] - t) + x;
+            } else {
+                c[l] += (x - t) + s[l];
+            }
+            s[l] = t;
+        }
+    }
+    for l in 0..L {
+        neumaier(sum, comp, s[l]);
+        neumaier(sum, comp, c[l]);
+    }
+    for &x in it.remainder() {
+        neumaier(sum, comp, x);
+    }
+}
+
 fn neumaier(sum: &mut f64, comp: &mut f64, x: f64) {
     let t = *sum + x;
     if sum.abs() >= x.abs() {
@@ -1144,6 +1173,27 @@ fn like_table(dict: &[Arc<str>], pattern: &str, negated: bool, ci: bool) -> Arc<
     v
 }
 
+/// `int_range` from the zone maps when this column has them (no scan).
+fn int_range_t(t: &TableColumns, v: &[i64], nulls: &[bool]) -> Option<(i64, i64)> {
+    for (name, c) in &t.cols {
+        if let Col::Int(cv, _) = c {
+            if std::ptr::eq(cv.as_ptr(), v.as_ptr()) && cv.len() == v.len() {
+                if let Some(zs) = t.zones.get(name) {
+                    let (mut lo, mut hi) = (None::<i64>, None::<i64>);
+                    for z in zs {
+                        if let (Some(Num::I(l)), Some(Num::I(h))) = (z.lo, z.hi) {
+                            lo = Some(lo.map_or(l, |x| x.min(l)));
+                            hi = Some(hi.map_or(h, |x| x.max(h)));
+                        }
+                    }
+                    return lo.zip(hi);
+                }
+            }
+        }
+    }
+    int_range(v, nulls)
+}
+
 fn int_range(v: &[i64], nulls: &[bool]) -> Option<(i64, i64)> {
     use rayon::prelude::*;
     v.par_chunks(MORSEL)
@@ -1388,7 +1438,7 @@ fn aggregate(
     let grouping = match gcols {
         [] => Grouping::One,
         [Col::Text(codes, dict)] => Grouping::Text(codes, dict.len()),
-        [Col::Int(v, nulls)] => match int_range(v, nulls) {
+        [Col::Int(v, nulls)] => match int_range_t(t, v, nulls) {
             Some((lo, hi))
                 if (hi as i128 - lo as i128) < (1 << 20)
                     && ((hi - lo) as usize) <= 4 * n + 1024 =>
@@ -1419,7 +1469,7 @@ fn aggregate(
         .zip(agg_cols)
         .map(|(k, c)| match (k, c, &grouping) {
             (Some(AggKind::CountDistinct), Some(Col::Int(v, nulls)), Grouping::One) => {
-                match int_range(v, nulls) {
+                match int_range_t(t, v, nulls) {
                     Some((lo, hi)) if (hi as i128 - lo as i128) < (1 << 28) => {
                         Some((lo, (hi - lo) as usize + 1))
                     }
@@ -1596,9 +1646,7 @@ fn aggregate(
                         let sl = &v[s..e];
                         let a = &mut accs[oi];
                         a.count += sl.len() as u64;
-                        for &x in sl {
-                            neumaier(&mut a.fsum, &mut a.fcomp, x);
-                        }
+                        neumaier_lanes(&mut a.fsum, &mut a.fcomp, sl);
                         if want_mm {
                             for &x in sl {
                                 if a.min.is_none_or(|m| num_lt(Num::F(x), m)) {
