@@ -17,6 +17,10 @@ fn create_test_server() -> joule_db_server::Server {
             .to_str()
             .unwrap()
             .to_string(),
+        // These tests fire 100+ requests in well under a second from one
+        // client; the default limiter (1000/min, burst 100) refused the
+        // 101st, which was the bug_rapid_insert_select_consistency flake.
+        rate_limiting_enabled: false,
         ..Default::default()
     };
     joule_db_server::Server::new(config).expect("failed to create test server")
@@ -1133,8 +1137,8 @@ async fn bug_rapid_insert_select_consistency() {
     }
 
     // Verify count
-    let (ok, data, _, _) = sql(&app, "SELECT COUNT(*) FROM rapid").await;
-    assert!(ok);
+    let (ok, data, _, err) = sql(&app, "SELECT COUNT(*) FROM rapid").await;
+    assert!(ok, "COUNT failed: {err:?}");
     let count = data[0].as_array().unwrap()[0].as_i64().unwrap_or(0);
     assert_eq!(count, 100, "should have exactly 100 rows after 100 inserts");
 }
@@ -1326,4 +1330,48 @@ async fn bug_multiple_aggregates() {
     assert_eq!(row[2].as_f64().unwrap(), 20.0, "AVG should be 20");
     assert_eq!(row[3].as_f64().unwrap(), 10.0, "MIN should be 10");
     assert_eq!(row[4].as_f64().unwrap(), 30.0, "MAX should be 30");
+}
+
+/// Stress variant: interleave single-row INSERTs with COUNT(*) (and an
+/// aggregate) on several tables concurrently, so the column cache is built,
+/// invalidated and appended to while the background hologram catch-up runs.
+/// Every COUNT must succeed and equal the number of inserts acknowledged so far.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn bug_rapid_insert_select_consistency_stress() {
+    let server = create_test_server();
+    let app = server.router();
+    let mut tasks = Vec::new();
+    for t in 0..4 {
+        let app = app.clone();
+        tasks.push(tokio::spawn(async move {
+            let table = format!("rapid_s{t}");
+            let (ok, _, _, err) =
+                sql(&app, &format!("CREATE TABLE {table} (id INT, val INT)")).await;
+            assert!(ok, "create: {err:?}");
+            for i in 0..150i64 {
+                let (ok, _, _, err) = sql(
+                    &app,
+                    &format!("INSERT INTO {table} VALUES ({i}, {})", i * 10),
+                )
+                .await;
+                assert!(ok, "insert {i}: {err:?}");
+                if i % 7 == 0 {
+                    let (ok, data, _, err) =
+                        sql(&app, &format!("SELECT COUNT(*) FROM {table}")).await;
+                    assert!(ok, "{table} COUNT after {i}: {err:?}");
+                    let c = data[0].as_array().unwrap()[0].as_i64().unwrap_or(-1);
+                    assert_eq!(c, i + 1, "{table}: count after insert {i}");
+                    let (ok, _, _, err) =
+                        sql(&app, &format!("SELECT SUM(val), MAX(id) FROM {table}")).await;
+                    assert!(ok, "{table} SUM after {i}: {err:?}");
+                }
+            }
+            let (ok, data, _, err) = sql(&app, &format!("SELECT COUNT(*) FROM {table}")).await;
+            assert!(ok, "final COUNT: {err:?}");
+            assert_eq!(data[0].as_array().unwrap()[0].as_i64(), Some(150));
+        }));
+    }
+    for t in tasks {
+        t.await.unwrap();
+    }
 }
