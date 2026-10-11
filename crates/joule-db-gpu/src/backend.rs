@@ -235,8 +235,11 @@ impl WgpuComputeBackend {
         &mut self,
         name: &str,
         shader_source: &str,
-    ) -> &wgpu::ComputePipeline {
+    ) -> Result<&wgpu::ComputePipeline, StorageError> {
         if !self.pipelines.contains_key(name) {
+            // Catch WGSL/pipeline validation errors here instead of letting the
+            // uncaptured-error handler abort the process; callers fall back to CPU.
+            let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
             let shader = self
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -477,12 +480,17 @@ impl WgpuComputeBackend {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 });
 
+            if let Some(err) = pollster::block_on(scope.pop()) {
+                return Err(StorageError::Backend(format!(
+                    "GPU kernel '{name}' failed validation: {err}"
+                )));
+            }
             self.bind_group_layouts
                 .insert(name.to_string(), bind_group_layout);
             self.pipelines.insert(name.to_string(), pipeline);
         }
 
-        self.pipelines.get(name).unwrap()
+        Ok(self.pipelines.get(name).unwrap())
     }
 
     /// Execute aggregation on GPU
@@ -530,7 +538,7 @@ impl WgpuComputeBackend {
             }
         };
 
-        let _pipeline = self.get_or_create_pipeline(shader_name, shader_source);
+        let _pipeline = self.get_or_create_pipeline(shader_name, shader_source)?;
 
         // Now get references after pipeline is created
         let pipeline = self.pipelines.get(shader_name).unwrap();
@@ -661,7 +669,7 @@ impl WgpuComputeBackend {
             }
         };
 
-        let _pipeline = self.get_or_create_pipeline(shader_name, shader_source);
+        let _pipeline = self.get_or_create_pipeline(shader_name, shader_source)?;
 
         // Get references after pipeline is created
         let pipeline = self.pipelines.get(shader_name).unwrap();
@@ -792,7 +800,7 @@ impl WgpuComputeBackend {
 
         // Create pipeline first (needs mutable borrow)
         let _pipeline =
-            self.get_or_create_pipeline("btree_range_scan", shaders::BTREE_RANGE_SCAN_SHADER);
+            self.get_or_create_pipeline("btree_range_scan", shaders::BTREE_RANGE_SCAN_SHADER)?;
         let pipeline = self.pipelines.get("btree_range_scan").unwrap();
         let bind_group_layout = self.bind_group_layouts.get("btree_range_scan").unwrap();
 
@@ -977,7 +985,7 @@ impl WgpuComputeBackend {
 
         // Create pipeline first (needs mutable borrow)
         let _pipeline =
-            self.get_or_create_pipeline("binary_hd_bind", shaders::BINARY_HD_BIND_SHADER);
+            self.get_or_create_pipeline("binary_hd_bind", shaders::BINARY_HD_BIND_SHADER)?;
         let pipeline = self.pipelines.get("binary_hd_bind").unwrap();
         let bind_group_layout = self.bind_group_layouts.get("binary_hd_bind").unwrap();
 
@@ -1107,7 +1115,7 @@ impl WgpuComputeBackend {
         let vectors_handle = inputs[0];
         // Create pipeline first (needs mutable borrow)
         let _pipeline =
-            self.get_or_create_pipeline("binary_hd_bundle", shaders::BINARY_HD_BUNDLE_SHADER);
+            self.get_or_create_pipeline("binary_hd_bundle", shaders::BINARY_HD_BUNDLE_SHADER)?;
         let pipeline = self.pipelines.get("binary_hd_bundle").unwrap();
         let bind_group_layout = self.bind_group_layouts.get("binary_hd_bundle").unwrap();
 
@@ -1236,7 +1244,7 @@ impl WgpuComputeBackend {
 
         // Create pipeline first (needs mutable borrow)
         let _pipeline = self
-            .get_or_create_pipeline("binary_hd_similarity", shaders::BINARY_HD_SIMILARITY_SHADER);
+            .get_or_create_pipeline("binary_hd_similarity", shaders::BINARY_HD_SIMILARITY_SHADER)?;
         let pipeline = self.pipelines.get("binary_hd_similarity").unwrap();
         let bind_group_layout = self.bind_group_layouts.get("binary_hd_similarity").unwrap();
 
@@ -1370,7 +1378,7 @@ impl WgpuComputeBackend {
 
         // Create pipeline — same 4-binding layout as bind/similarity
         let _pipeline = self
-            .get_or_create_pipeline("binary_hd_batch_bind", shaders::BINARY_HD_BATCH_BIND_SHADER);
+            .get_or_create_pipeline("binary_hd_batch_bind", shaders::BINARY_HD_BATCH_BIND_SHADER)?;
         let pipeline = self.pipelines.get("binary_hd_batch_bind").unwrap();
         let bind_group_layout = self.bind_group_layouts.get("binary_hd_batch_bind").unwrap();
 
@@ -1502,7 +1510,7 @@ impl WgpuComputeBackend {
         let _pipeline = self.get_or_create_pipeline(
             "binary_hd_multi_similarity",
             shaders::BINARY_HD_MULTI_SIMILARITY_SHADER,
-        );
+        )?;
         let pipeline = self.pipelines.get("binary_hd_multi_similarity").unwrap();
         let bind_group_layout = self
             .bind_group_layouts

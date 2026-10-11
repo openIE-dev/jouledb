@@ -1489,8 +1489,8 @@ fn strip_pg_catalog(sql: &str) -> String {
             in_str = !in_str;
         }
         if !in_str
-            && sql.len() - i >= P.len()
-            && sql[i..i + P.len()].eq_ignore_ascii_case(P)
+            && b.len() - i >= P.len()
+            && b[i..i + P.len()].eq_ignore_ascii_case(P.as_bytes())
             && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b'.'))
         {
             i += P.len();
@@ -4405,6 +4405,9 @@ mod tests {
         let rows = vec![vec![serde_json::json!(1), serde_json::json!(1.5)], vec![serde_json::json!(5_000_000_000i64), serde_json::json!(2)]];
         assert_eq!(column_oids(&rows, 2, &[]), vec![20, 701]);
         assert_eq!(strip_pg_catalog("select pg_catalog.version(), 'pg_catalog.x' from pg_catalog.pg_class"), "select version(), 'pg_catalog.x' from pg_class");
+        // multi-byte text must not split a char (stress_pgwire unicode regression)
+        assert_eq!(strip_pg_catalog("SELECT 'héllo 世界 🎉' FROM t"), "SELECT 'héllo 世界 🎉' FROM t");
+        assert_eq!(strip_pg_catalog("SELECT 世界, pg_catalog.version()"), "SELECT 世界, version()");
         assert!(returns_rows("  WITH a AS (SELECT 1) SELECT * FROM a") && !returns_rows("INSERT INTO t VALUES (1)"));
         assert_eq!(count_placeholders("SELECT $1, $3"), 3);
     }

@@ -18,6 +18,7 @@ joule-db-core = { workspace = true }
 
 # GPU compute
 wgpu = { workspace = true }
+pollster = { workspace = true }  # block on error scopes when validating kernels
 bytemuck = { workspace = true }
 
 # Async runtime (optional)
@@ -31,7 +32,6 @@ rayon = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-pollster = { workspace = true }  # For blocking on async in tests
 
 [lints]
 workspace = true
