@@ -1282,28 +1282,59 @@ fn aggregate_dense_soa(
             fc: vec![vec![]; nout],
         });
     }
-    let mut it = parts.into_iter();
-    let mut m = it.next()?;
-    for p in it {
-        for (a, b) in m.first.iter_mut().zip(&p.first) {
-            if *a == u32::MAX {
-                *a = *b;
+    // Partitioned merge: each task owns a slot range and folds every
+    // morsel's partials for it in morsel order (same sums as a sequential
+    // merge, no shared writes).
+    const SLOTS: usize = 4096;
+    let mut m = P {
+        first: vec![u32::MAX; dense],
+        cnt: parts[0].cnt.iter().map(|v| vec![0u64; v.len()]).collect(),
+        isum: parts[0].isum.iter().map(|v| vec![0i128; v.len()]).collect(),
+        fs: parts[0].fs.iter().map(|v| vec![0f64; v.len()]).collect(),
+        fc: parts[0].fc.iter().map(|v| vec![0f64; v.len()]).collect(),
+    };
+    {
+        let parts = &parts;
+        m.first.par_chunks_mut(SLOTS).enumerate().for_each(|(ci, out)| {
+            let base = ci * SLOTS;
+            for p in parts {
+                for (k, a) in out.iter_mut().enumerate() {
+                    if *a == u32::MAX {
+                        *a = p.first[base + k];
+                    }
+                }
             }
-        }
+        });
         for oi in 0..nout {
-            m.cnt[oi]
-                .iter_mut()
-                .zip(&p.cnt[oi])
-                .for_each(|(a, b)| *a += b);
-            m.isum[oi]
-                .iter_mut()
-                .zip(&p.isum[oi])
-                .for_each(|(a, b)| *a += b);
-            for g in 0..m.fs[oi].len() {
-                let (s, c) = (&mut m.fs[oi][g], &mut m.fc[oi][g]);
-                neumaier(s, c, p.fs[oi][g]);
-                neumaier(s, c, p.fc[oi][g]);
-            }
+            m.cnt[oi].par_chunks_mut(SLOTS).enumerate().for_each(|(ci, out)| {
+                let base = ci * SLOTS;
+                for p in parts {
+                    for (a, b) in out.iter_mut().zip(&p.cnt[oi][base..]) {
+                        *a += b;
+                    }
+                }
+            });
+            m.isum[oi].par_chunks_mut(SLOTS).enumerate().for_each(|(ci, out)| {
+                let base = ci * SLOTS;
+                for p in parts {
+                    for (a, b) in out.iter_mut().zip(&p.isum[oi][base..]) {
+                        *a += b;
+                    }
+                }
+            });
+            m.fs[oi]
+                .par_chunks_mut(SLOTS)
+                .zip(m.fc[oi].par_chunks_mut(SLOTS))
+                .enumerate()
+                .for_each(|(ci, (os, oc))| {
+                    let base = ci * SLOTS;
+                    for p in parts {
+                        for k in 0..os.len() {
+                            neumaier(&mut os[k], &mut oc[k], p.fs[oi][base + k]);
+                            neumaier(&mut os[k], &mut oc[k], p.fc[oi][base + k]);
+                        }
+                    }
+                });
         }
     }
     let mut idx: Vec<usize> = (0..dense).filter(|&i| m.first[i] != u32::MAX).collect();
@@ -1901,26 +1932,24 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
         None => aggregate(t, &preds, &gcols, &kinds, &agg_cols)?,
     };
     let ta = ta.elapsed();
-    let order_of: Vec<Vec<Key>> = if gcols.is_empty() {
-        vec![Vec::new()]
-    } else {
-        firsts
-            .iter()
-            .map(|&r| gcols.iter().map(|c| key_at(c, r as usize)).collect())
-            .collect()
-    };
+    let ngroups = if gcols.is_empty() { 1 } else { firsts.len() };
 
-    // Cheap typed output values; JSON only for the rows returned.
+    // Cheap typed output values, built in parallel per group (group keys
+    // read straight from the columns, no per-group key vectors); JSON only
+    // for the rows returned.
     let no = outs.len();
-    let vals: Vec<Sv> = order_of
-        .iter()
-        .enumerate()
-        .flat_map(|(gi, key)| {
+    use rayon::prelude::*;
+    let vals: Vec<Sv> = (0..ngroups)
+        .into_par_iter()
+        .flat_map_iter(|gi| {
             let accs = &accs[gi * outs.len()..(gi + 1) * outs.len()];
+            let first = firsts.get(gi).copied().unwrap_or(0) as usize;
+            let gcols = &gcols;
+            let agg_cols = &agg_cols;
             outs.iter()
                 .enumerate()
-                .map(|(oi, o)| match o {
-                    OutCol::Group(g) => Sv::from_key(&key[*g]),
+                .map(move |(oi, o)| match o {
+                    OutCol::Group(g) => Sv::from_key(&key_at(gcols[*g], first)),
                     OutCol::Agg(kind, _) => {
                         let a = &accs[oi];
                         let is_int = matches!(agg_cols[oi], Some(Col::Int(..)));
@@ -1955,7 +1984,6 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
                 .collect::<Vec<_>>()
         })
         .collect();
-    let ngroups = order_of.len();
     let mut idx: Vec<usize> = (0..ngroups).collect();
     let off = query.offset.unwrap_or(0);
     let take = query.limit.map(|l| off.saturating_add(l));
