@@ -45,7 +45,7 @@ for r in range(a.repeat):
     t0 = time.perf_counter()
     with Window(meter) as w:
         c.execute(f"COPY {t} FROM '{path}'")
-    jt.append(time.perf_counter() - t0)
+    jt.append(w.t1 - w.t0)  # meter readout (powermetrics settles 0.25 s) is outside the window
     jj.append(w.j)
     got = c.execute(f"SELECT COUNT(*), SUM(amount) FROM {t}").fetchone()
     assert got[0] == want[0] and abs(got[1] - want[1]) < 1e-6 * max(1, abs(want[1])), (got, want)
@@ -54,7 +54,7 @@ for r in range(a.repeat):
     t0 = time.perf_counter()
     with Window(meter) as w:
         con.sql(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path}')")
-    dt.append(time.perf_counter() - t0)
+    dt.append(w.t1 - w.t0)
     dj.append(w.j)
     con.close()
 
