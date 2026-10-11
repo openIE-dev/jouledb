@@ -257,6 +257,65 @@ impl DurableAmorphicStore {
         Ok(id)
     }
 
+    /// Hypervector work still queued from bulk ingest.
+    pub fn pending_holograms(&self) -> usize {
+        self.store.pending_holograms()
+    }
+
+    /// Build up to `max` queued hypervectors (see
+    /// `AmorphicStore::catch_up_holograms`).
+    pub fn catch_up_holograms(&mut self, max: usize) -> usize {
+        self.store.catch_up_holograms(max)
+    }
+
+    /// Ingest many records in one WAL transaction (one commit for the batch:
+    /// a group commit). Records are applied with
+    /// `apply_prepared_ingest_batch` and are visible when this returns.
+    pub fn ingest_fields_batch(
+        &mut self,
+        rows: Vec<HashMap<String, Value>>,
+    ) -> AmorphicResult<Vec<RecordId>> {
+        let tx_id = self.next_tx_id();
+        let t_wal = std::time::Instant::now();
+        let mut prepared = Vec::with_capacity(rows.len());
+        for fields in rows {
+            prepared.push(self.store.prepare_fields_ingest(fields)?);
+        }
+        // Serialize WAL records in parallel; append them in id order.
+        let serialized: Vec<Vec<u8>> = {
+            use rayon::prelude::*;
+            prepared
+                .par_iter()
+                .map(|(id, fields)| {
+                    #[derive(serde::Serialize)]
+                    struct Rec<'a> {
+                        id: RecordId,
+                        fields: &'a HashMap<String, Value>,
+                        edges: [(); 0],
+                        timestamp: Option<()>,
+                    }
+                    serde_json::to_vec(&Rec { id: *id, fields, edges: [], timestamp: None })
+                })
+                .collect::<Result<_, _>>()
+                .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?
+        };
+        for ((id, _), bytes) in prepared.iter().zip(&serialized) {
+            self.wal
+                .log_page_write(tx_id, *id, bytes)
+                .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+        }
+        let ids: Vec<RecordId> = prepared.iter().map(|(id, _)| *id).collect();
+        let t_apply = std::time::Instant::now();
+        self.store.apply_prepared_ingest_batch(prepared)?;
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!("durable batch wal={:?} apply={:?}", t_apply - t_wal, t_apply.elapsed());
+        }
+        self.wal
+            .log_commit(tx_id)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+        Ok(ids)
+    }
+
     /// Ingest a row (columns + values) with durability
     pub fn ingest_row(&mut self, columns: &[&str], values: &[&str]) -> AmorphicResult<RecordId> {
         let tx_id = self.next_tx_id();
@@ -816,6 +875,31 @@ mod tests {
             // Uncommitted is gone
             assert!(store.get_by_name("Uncommitted").is_none());
         }
+    }
+
+    #[test]
+    fn test_bulk_batch_recovers_from_wal() {
+        let temp_dir = TempDir::new().unwrap();
+        {
+            let mut store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+            let rows: Vec<HashMap<String, Value>> = (0..300)
+                .map(|i| {
+                    let mut m = HashMap::new();
+                    m.insert("k".to_string(), Value::Int(i % 3));
+                    m.insert("s".to_string(), Value::String(format!("x{i}")));
+                    m
+                })
+                .collect();
+            let ids = store.ingest_fields_batch(rows).unwrap();
+            assert_eq!(ids.len(), 300);
+            // read-your-writes before the hypervector catch-up
+            assert_eq!(store.query_equals("k", &Value::Int(1)).records.len(), 100);
+            assert_eq!(store.pending_holograms(), 300);
+        }
+        let store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+        assert_eq!(store.len(), 300);
+        assert_eq!(store.query_equals("k", &Value::Int(2)).records.len(), 100);
+        assert_eq!(store.pending_holograms(), 0);
     }
 
     #[test]

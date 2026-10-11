@@ -12,6 +12,7 @@ durable = ["dep:joule-db-local"]
 flowr = []  # Marker feature; real executor injected at app layer
 
 [dependencies]
+rayon = { workspace = true }
 joule-db-hdc = { workspace = true, features = ["holographic", "hyperdimensional", "sdm", "manifold"] }
 joule-db-gpu = { workspace = true }
 joule-db-local = { workspace = true, optional = true }

@@ -738,56 +738,30 @@ impl BundleAccumulator {
     /// two word operations per vector-word instead of 64 counter updates.
     /// Bulk ingest uses this.
     pub fn add_batch(&mut self, hvs: &[&BinaryHV]) {
-        for chunk in hvs.chunks(255) {
-            let k = chunk.len() as i32;
-            let num_words = self.dimension.div_ceil(64);
-            for w in 0..num_words {
-                let mut planes = [0u64; 8];
-                for hv in chunk {
-                    debug_assert_eq!(self.dimension, hv.dimension);
-                    let mut carry = hv.words[w];
-                    for p in planes.iter_mut() {
-                        if carry == 0 {
-                            break;
-                        }
-                        let t = *p & carry;
-                        *p ^= carry;
-                        carry = t;
-                    }
-                }
-                let base = w * 64;
-                let bits = (self.dimension - base).min(64);
-                // only the planes that can be non-zero for k vectors
-                let np = (32 - (k as u32).leading_zeros()) as usize;
-                let counts = &mut self.counts[base..base + bits];
-                if bits == 64 {
-                    // byte-wise expansion through a lookup table (8-lane adds)
-                    let mut add = [-k; 64];
-                    for (pi, p) in planes[..np].iter().enumerate() {
-                        let w2 = 2i32 << pi;
-                        for byte in 0..8 {
-                            let e = &BIT_EXPAND[((p >> (byte * 8)) & 0xFF) as usize];
-                            let dst = &mut add[byte * 8..byte * 8 + 8];
-                            for j in 0..8 {
-                                dst[j] += e[j] * w2;
-                            }
+        // Each 64-bit word's counters are independent, so large batches
+        // split across words in parallel; results are identical.
+        const PAR_MIN_WORK: usize = 1 << 16;
+        let num_words = self.dimension.div_ceil(64);
+        if hvs.len() * num_words >= PAR_MIN_WORK {
+            use rayon::prelude::*;
+            self.counts
+                .par_chunks_mut(64 * 8)
+                .enumerate()
+                .for_each(|(g, counts)| {
+                    for chunk in hvs.chunks(255) {
+                        for (i, c64) in counts.chunks_mut(64).enumerate() {
+                            add_word(g * 8 + i, c64, chunk);
                         }
                     }
-                    for (c, a) in counts.iter_mut().zip(add.iter()) {
-                        *c += *a;
-                    }
-                } else {
-                    for (b, c) in counts.iter_mut().enumerate() {
-                        let mut ones = 0i32;
-                        for (pi, p) in planes[..np].iter().enumerate() {
-                            ones |= (((p >> b) & 1) as i32) << pi;
-                        }
-                        *c += 2 * ones - k;
-                    }
+                });
+        } else {
+            for chunk in hvs.chunks(255) {
+                for (w, c64) in self.counts.chunks_mut(64).enumerate() {
+                    add_word(w, c64, chunk);
                 }
             }
-            self.num_vectors += chunk.len();
         }
+        self.num_vectors += hvs.len();
     }
 
     /// Subtract a binary vector from the bundle (optimized word-level processing)
@@ -3870,5 +3844,67 @@ mod add_batch_tests {
             assert_eq!(a.counts, b.counts, "n={n}");
             assert_eq!(a.num_vectors, b.num_vectors);
         }
+    }
+}
+
+
+/// Add word `w` of every vector in `chunk` (at most 255) into the 64 (or
+/// fewer, for the tail word) counters `counts`, via bit-sliced vertical
+/// counters and a byte-wise lookup expansion.
+fn add_word(w: usize, counts: &mut [i32], chunk: &[&BinaryHV]) {
+    let k = chunk.len() as i32;
+    let mut planes = [0u64; 8];
+    for hv in chunk {
+        let mut carry = hv.words[w];
+        for p in planes.iter_mut() {
+            if carry == 0 {
+                break;
+            }
+            let t = *p & carry;
+            *p ^= carry;
+            carry = t;
+        }
+    }
+    let bits = counts.len();
+    let np = (32 - (k as u32).leading_zeros()) as usize;
+    if bits == 64 {
+        let mut add = [-k; 64];
+        for (pi, p) in planes[..np].iter().enumerate() {
+            let w2 = 2i32 << pi;
+            for byte in 0..8 {
+                let e = &BIT_EXPAND[((p >> (byte * 8)) & 0xFF) as usize];
+                let dst = &mut add[byte * 8..byte * 8 + 8];
+                for j in 0..8 {
+                    dst[j] += e[j] * w2;
+                }
+            }
+        }
+        for (c, a) in counts.iter_mut().zip(add.iter()) {
+            *c += *a;
+        }
+    } else {
+        for (b, c) in counts.iter_mut().enumerate() {
+            let mut ones = 0i32;
+            for (pi, p) in planes[..np].iter().enumerate() {
+                ones |= (((p >> b) & 1) as i32) << pi;
+            }
+            *c += 2 * ones - k;
+        }
+    }
+}
+
+#[cfg(test)]
+mod add_batch_par_tests {
+    use super::*;
+    #[test]
+    fn parallel_add_batch_matches_add() {
+        let hvs: Vec<BinaryHV> = (0..1200).map(|i| BinaryHV::random(10_000, i)).collect();
+        let refs: Vec<&BinaryHV> = hvs.iter().collect();
+        let mut a = BundleAccumulator::new(10_000);
+        for h in &hvs { a.add(h); }
+        let mut b = BundleAccumulator::new(10_000);
+        b.add_batch(&refs);
+        assert_eq!(a.counts, b.counts);
+        assert_eq!(a.num_vectors, b.num_vectors);
     }
 }

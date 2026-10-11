@@ -7,6 +7,7 @@ license.workspace = true
 description = "Hyperdimensional Computing (HDC) library: binary hypervectors, holographic memory, vector symbolic architecture"
 
 [dependencies]
+rayon = { workspace = true }
 # Core
 joule-db-core = { workspace = true }
 joule-db-ternary = { workspace = true }

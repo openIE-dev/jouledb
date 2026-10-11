@@ -580,10 +580,14 @@ impl ColumnarStore {
             _ => return, // Skip non-numeric values
         };
 
-        self.columns
-            .entry(field.to_string())
-            .or_insert_with(Column::new)
-            .push(record_id, numeric_value);
+        // get_mut first: no key allocation on the hot (existing column) path
+        if let Some(c) = self.columns.get_mut(field) {
+            c.push(record_id, numeric_value);
+        } else {
+            let mut c = Column::new();
+            c.push(record_id, numeric_value);
+            self.columns.insert(field.to_string(), c);
+        }
     }
 
     /// Get a column by name

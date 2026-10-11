@@ -754,6 +754,16 @@ pub struct AmorphicStore {
     /// stay below the single-bundle capacity
     hologram: SegmentedHologram,
 
+    /// Bulk-ingested records whose primary data and value/field/numeric/
+    /// columnar indexes are live, but whose hypervector (record hologram,
+    /// global hologram, LSH, HNSW, hologram array) is still to be built by
+    /// `catch_up_holograms`, in ingest order.
+    deferred: std::collections::VecDeque<RecordId>,
+
+    /// Bumped whenever primary data changes without touching the hologram
+    /// (deferred bulk ingest), so `generation()` still moves.
+    data_generation: u64,
+
     /// Individual record storage (for materialization)
     pub(crate) records: HashMap<RecordId, AmorphicRecord>,
 
@@ -875,6 +885,8 @@ impl AmorphicStore {
 
         Self {
             hologram: SegmentedHologram::new(),
+            deferred: std::collections::VecDeque::new(),
+            data_generation: 0,
             records: HashMap::new(),
             field_index: HashMap::new(),
             value_index: HashMap::new(),
@@ -915,6 +927,7 @@ impl AmorphicStore {
 
     /// Enable HNSW indexing on an existing store (builds index from existing records).
     pub fn enable_hnsw(&mut self) {
+        self.catch_up_holograms(usize::MAX);
         let hnsw_dim = (DIMENSION + 63) / 64 * 2;
         let mut hnsw = HNSWIndex::with_metric(
             hnsw_dim,
@@ -935,18 +948,7 @@ impl AmorphicStore {
 
     /// Compute LSH hash for a binary hypervector for a specific table
     fn lsh_hash(&self, hv: &BinaryHV, table_idx: usize) -> u64 {
-        let positions = &self.lsh_bit_positions[table_idx];
-        let words = hv.as_words();
-        let mut hash: u64 = 0;
-
-        for (i, &pos) in positions.iter().enumerate() {
-            let word_idx = pos / 64;
-            let bit_idx = pos % 64;
-            if word_idx < words.len() && (words[word_idx] >> bit_idx) & 1 == 1 {
-                hash |= 1 << (i % 64);
-            }
-        }
-        hash
+        lsh_hash_with(&self.lsh_bit_positions[table_idx], hv)
     }
 
     /// Add a record to all LSH tables
@@ -1037,6 +1039,195 @@ impl AmorphicStore {
                 self.type_vectors["object"].bind(&acc.threshold())
             }
         }
+    }
+
+    /// `encode_value` without the field-vector cache (for parallel bulk
+    /// encoding). `None` for objects, whose keys need `get_field_vector`.
+    fn encode_value_pure(&self, value: &Value) -> Option<BinaryHV> {
+        Some(match value {
+            Value::Null => self.type_vectors["null"].clone(),
+            Value::Bool(b) => {
+                let bool_vec = BinaryHV::from_hash(if *b { b"TRUE" } else { b"FALSE" }, DIMENSION);
+                self.type_vectors["bool"].bind(&bool_vec)
+            }
+            Value::Int(i) => {
+                let shift = ((*i as i128 + i64::MAX as i128) % 10000) as usize;
+                self.type_vectors["int"].bind(&self.scalar_base.permute_words(shift))
+            }
+            Value::Float(f) => {
+                self.type_vectors["float"].bind(&BinaryHV::from_hash(&f.to_le_bytes(), DIMENSION))
+            }
+            Value::String(s) => {
+                self.type_vectors["string"].bind(&BinaryHV::from_hash(s.as_bytes(), DIMENSION))
+            }
+            Value::Array(arr) => {
+                let mut acc = BundleAccumulator::new(DIMENSION);
+                for (i, v) in arr.iter().enumerate() {
+                    let elem_vec = self.encode_value_pure(v)?;
+                    acc.add(&elem_vec.bind(&self.scalar_base.permute_words(i)));
+                }
+                self.type_vectors["array"].bind(&acc.threshold())
+            }
+            Value::Object(_) => return None,
+        })
+    }
+
+    /// `encode_record` from `&self`; every field vector must already be cached.
+    fn encode_record_pure(&self, fields: &HashMap<String, Value>) -> Option<BinaryHV> {
+        let bound: Vec<BinaryHV> = fields
+            .iter()
+            .map(|(field, value)| {
+                let fv = self.field_vectors.get(field)?;
+                Some(fv.bind(&self.encode_value_pure(value)?))
+            })
+            .collect::<Option<_>>()?;
+        let mut acc = BundleAccumulator::new(DIMENSION);
+        acc.add_batch(&bound.iter().collect::<Vec<_>>());
+        Some(acc.threshold())
+    }
+
+    /// Apply many prepared ingests at once (bulk COPY / multi-row INSERT).
+    ///
+    /// The primary write path only: records, field/value/numeric indexes,
+    /// and columnar storage are updated here, so the rows are queryable
+    /// (read-your-writes) as soon as this returns. The hypervector work
+    /// (encode, global hologram, LSH, HNSW, hologram array) is queued and
+    /// done in batches by `catch_up_holograms`; every mutating method that
+    /// touches holograms catches up first, and callers run it (in the
+    /// background or before similarity reads) to keep the index current.
+    /// The end state after catch-up is identical to `apply_prepared_ingest`
+    /// per row, in order.
+    pub fn apply_prepared_ingest_batch(
+        &mut self,
+        rows: Vec<(RecordId, HashMap<String, Value>)>,
+    ) -> AmorphicResult<()> {
+        for (id, fields) in rows {
+            self.index_primary(id, &fields);
+            self.records.insert(
+                id,
+                AmorphicRecord { id, hologram: BinaryHV::zeros(DIMENSION), fields, edges: vec![], timestamp: None },
+            );
+            self.deferred.push_back(id);
+        }
+        self.data_generation = self.data_generation.wrapping_add(1);
+        Ok(())
+    }
+
+    /// Records whose hypervector work is still queued.
+    pub fn pending_holograms(&self) -> usize {
+        self.deferred.len()
+    }
+
+    /// Build the queued hypervectors for up to `max` deferred records
+    /// (encode in parallel, then global hologram, LSH in parallel per
+    /// table, HNSW, hologram array). Returns how many were processed.
+    pub fn catch_up_holograms(&mut self, max: usize) -> usize {
+        use rayon::prelude::*;
+        if self.deferred.is_empty() {
+            return 0;
+        }
+        let n = max.min(self.deferred.len());
+        let ids: Vec<RecordId> = self
+            .deferred
+            .drain(..n)
+            .filter(|id| self.records.contains_key(id))
+            .collect();
+        for id in &ids {
+            let keys: Vec<String> = self.records[id]
+                .fields
+                .keys()
+                .filter(|f| !self.field_vectors.contains_key(*f))
+                .cloned()
+                .collect();
+            for f in keys {
+                self.get_field_vector(&f);
+            }
+        }
+        let holos: Vec<Option<BinaryHV>> = {
+            let this = &*self;
+            ids.par_iter()
+                .map(|id| {
+                    let fields = &this.records[id].fields;
+                    if fields.len() > MAX_FIELDS_WARNING {
+                        None
+                    } else {
+                        this.encode_record_pure(fields)
+                    }
+                })
+                .collect()
+        };
+        let mut built: Vec<(RecordId, BinaryHV)> = Vec::with_capacity(ids.len());
+        for (id, holo) in ids.into_iter().zip(holos) {
+            let hologram = match holo {
+                Some(h) => h,
+                None => {
+                    let fields = self.records[&id].fields.clone();
+                    self.encode_record_hierarchical(&fields)
+                }
+            };
+            self.hologram.add(id, &hologram);
+            if let Some(ref mut hnsw) = self.hnsw_index {
+                let _ = hnsw.insert(id.to_string(), hologram.to_f32_packed());
+            }
+            while self.hologram_array.len() < id as usize {
+                self.hologram_array.push(BinaryHV::zeros(DIMENSION));
+            }
+            self.hologram_array[(id - 1) as usize] = hologram.clone();
+            if let Some(r) = self.records.get_mut(&id) {
+                r.hologram = hologram.clone();
+            }
+            built.push((id, hologram));
+        }
+        {
+            let positions = &self.lsh_bit_positions;
+            self.lsh_tables.par_iter_mut().enumerate().for_each(|(t, table)| {
+                for (id, hv) in &built {
+                    table.entry(lsh_hash_with(&positions[t], hv)).or_default().push(*id);
+                }
+            });
+        }
+        built.len()
+    }
+
+    /// Field, value, name, numeric, and columnar index updates for one record.
+    fn index_primary(&mut self, id: RecordId, fields: &HashMap<String, Value>) {
+        for (field, value) in fields {
+            match self.field_index.get_mut(field) {
+                Some(v) => v.push(id),
+                None => {
+                    self.field_index.insert(field.clone(), vec![id]);
+                }
+            }
+            let value_hash = Self::hash_value(field, value);
+            self.value_index.entry(value_hash).or_default().push(id);
+            if field == "name" || field == "_name" {
+                if let Value::String(name) = value {
+                    self.name_to_id.insert(name.clone(), id);
+                }
+            }
+            if let Some(num) = value.as_f64() {
+                if !self.numeric_index.contains_key(field) {
+                    self.numeric_index.insert(field.clone(), Default::default());
+                }
+                if let Some(tree) = self.numeric_index.get_mut(field) {
+                    tree.entry(OrderedFloat(num)).or_default().push(id);
+                }
+            }
+            self.columnar.record_value(field, id, value);
+        }
+    }
+
+    /// Allocate an id for a field map (bulk path; validates field count).
+    pub fn prepare_fields_ingest(
+        &mut self,
+        fields: HashMap<String, Value>,
+    ) -> AmorphicResult<(RecordId, HashMap<String, Value>)> {
+        if fields.len() > MAX_FIELDS_ERROR {
+            return Err(AmorphicError::FieldCountExceeded(fields.len(), MAX_FIELDS_ERROR));
+        }
+        let id = self.next_id;
+        self.next_id += 1;
+        Ok((id, fields))
     }
 
     /// Encode a complete record
@@ -1180,6 +1371,7 @@ impl AmorphicStore {
         relation: &str,
         target: &str,
     ) -> AmorphicResult<RecordId> {
+        self.catch_up_holograms(usize::MAX);
         // Ensure source and target exist as records
         let source_id = self.ensure_entity(source)?;
         let target_id = self.ensure_entity(target)?;
@@ -1233,6 +1425,7 @@ impl AmorphicStore {
         fields: HashMap<String, Value>,
         timestamp: u64,
     ) -> AmorphicResult<RecordId> {
+        self.catch_up_holograms(usize::MAX);
         let mut fields = fields;
         fields.insert("_timestamp".to_string(), Value::Int(timestamp as i64));
 
@@ -1247,6 +1440,7 @@ impl AmorphicStore {
 
     /// Core ingestion of field map
     fn ingest_fields(&mut self, fields: HashMap<String, Value>) -> AmorphicResult<RecordId> {
+        self.catch_up_holograms(usize::MAX);
         // The hologram is segmented (SegmentedHologram), so no bundle ever
         // holds more than GLOBAL_HOLOGRAM_SATURATION_LIMIT records.
 
@@ -1401,6 +1595,7 @@ impl AmorphicStore {
         id: RecordId,
         fields: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
+        self.catch_up_holograms(usize::MAX);
         // Warnings for large records
         let field_count = fields.len();
         if field_count > MAX_FIELDS_WARNING {
@@ -1483,6 +1678,7 @@ impl AmorphicStore {
         edges: Vec<(String, RecordId)>,
         timestamp: Option<u64>,
     ) -> AmorphicResult<()> {
+        self.catch_up_holograms(usize::MAX);
         // Ensure next_id is beyond this recovered record
         if id >= self.next_id {
             self.next_id = id + 1;
@@ -1826,6 +2022,7 @@ impl AmorphicStore {
         hologram: BinaryHV,
         metadata: HashMap<String, Value>,
     ) -> AmorphicResult<RecordId> {
+        self.catch_up_holograms(usize::MAX);
         let id = self.next_id;
         self.next_id += 1;
 
@@ -1894,6 +2091,7 @@ impl AmorphicStore {
         embedding: &[f32],
         mut metadata: HashMap<String, Value>,
     ) -> AmorphicResult<RecordId> {
+        self.catch_up_holograms(usize::MAX);
         // Random hyperplane projection: preserves cosine similarity as Hamming distance.
         // Seed is fixed so the same projection matrix is used for all embeddings
         // (required for similarity to be meaningful across records).
@@ -2335,7 +2533,7 @@ impl AmorphicStore {
     /// derived from records (e.g. the server's columnar table cache) key on
     /// (generation, len).
     pub fn generation(&self) -> u64 {
-        self.hologram.generation()
+        self.hologram.generation().wrapping_add(self.data_generation)
     }
 
     /// Records in the active hologram segment.
@@ -2431,6 +2629,7 @@ impl AmorphicStore {
     /// Note: This removes from indices but cannot "subtract" from the global hologram.
     /// The global hologram retains traces of deleted records until rebuild.
     pub fn delete(&mut self, id: RecordId) -> AmorphicResult<()> {
+        self.catch_up_holograms(usize::MAX);
         let record = self
             .records
             .remove(&id)
@@ -2503,6 +2702,7 @@ impl AmorphicStore {
     /// Use this after many deletes to clean up the global hologram.
     /// This is expensive: O(N * D) where N = records, D = dimensions.
     pub fn rebuild_hologram(&mut self) {
+        self.catch_up_holograms(usize::MAX);
         self.hologram = SegmentedHologram::new();
         let mut ids: Vec<RecordId> = self.records.keys().copied().collect();
         ids.sort_unstable();
@@ -2551,6 +2751,7 @@ impl AmorphicStore {
         id: RecordId,
         updates: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
+        self.catch_up_holograms(usize::MAX);
         // First, extract what we need from the record to avoid borrow conflicts
         let (old_values, updated_fields, old_hologram) = {
             let record = self
@@ -3556,5 +3757,62 @@ mod segmented_hologram_tests {
         // a record is recognisable in its own segment (not lost in a saturated bundle)
         let r5 = store.get_by_name("r5").unwrap().hologram.clone();
         assert!(segs[0].similarity(&r5) > 0.52, "segment similarity {}", segs[0].similarity(&r5));
+    }
+}
+
+/// LSH bucket hash of `hv` for one table's sampled bit positions.
+fn lsh_hash_with(positions: &[usize], hv: &BinaryHV) -> u64 {
+    let words = hv.as_words();
+    let mut hash: u64 = 0;
+    for (i, &pos) in positions.iter().enumerate() {
+        let word_idx = pos / 64;
+        let bit_idx = pos % 64;
+        if word_idx < words.len() && (words[word_idx] >> bit_idx) & 1 == 1 {
+            hash |= 1 << (i % 64);
+        }
+    }
+    hash
+}
+
+#[cfg(test)]
+mod bulk_ingest_tests {
+    use super::*;
+
+    fn row(i: i64) -> HashMap<String, Value> {
+        let mut m = HashMap::new();
+        m.insert("_table".to_string(), Value::String("t".into()));
+        m.insert("id".to_string(), Value::Int(i));
+        m.insert("x".to_string(), Value::Float(i as f64 * 0.5));
+        m.insert("s".to_string(), Value::String(format!("v{}", i % 7)));
+        m.insert("a".to_string(), Value::Array(vec![Value::Int(i), Value::Null]));
+        m
+    }
+
+    #[test]
+    fn batch_equals_sequential() {
+        let mut a = AmorphicStore::new();
+        let mut b = AmorphicStore::new();
+        let mut prepared = Vec::new();
+        for i in 0..700 {
+            let (id, f) = a.prepare_fields_ingest(row(i)).unwrap();
+            a.apply_prepared_ingest(id, f).unwrap();
+            prepared.push(b.prepare_fields_ingest(row(i)).unwrap());
+        }
+        b.apply_prepared_ingest_batch(prepared).unwrap();
+        assert_eq!(a.len(), b.len());
+        // primary data is queryable before the hypervector catch-up
+        let q0 = |s: &AmorphicStore| s.query_equals("s", &Value::String("v3".into())).records.len();
+        assert_eq!(q0(&a), q0(&b));
+        assert_eq!(b.pending_holograms(), 700);
+        assert_eq!(b.catch_up_holograms(300), 300);
+        assert_eq!(b.catch_up_holograms(usize::MAX), 400);
+        for id in 1..=700u64 {
+            assert!(a.records[&id].hologram.similarity(&b.records[&id].hologram) == 1.0, "id {id}");
+        }
+        assert!(a.hologram().similarity(&b.hologram()) == 1.0);
+        assert_eq!(a.lsh_tables, b.lsh_tables);
+        let q = |s: &AmorphicStore| s.query_equals("s", &Value::String("v3".into())).records.len();
+        assert_eq!(q(&a), q(&b));
+        assert_eq!(a.query_range("x", 10.0, 20.0).records.len(), b.query_range("x", 10.0, 20.0).records.len());
     }
 }
