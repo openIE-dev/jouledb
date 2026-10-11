@@ -1016,11 +1016,16 @@ impl AmorphicStore {
     }
 
     /// Hash a value for indexing
-    fn hash_value(value: &Value) -> u64 {
+    /// Key of the value index: the (field, value) pair. Keying on the value
+    /// alone put every row of a table in one bucket (every row carries
+    /// `_table = <name>`), so a schema lookup for table `t` walked all of
+    /// `t`'s rows on every INSERT, which made ingest quadratic.
+    fn hash_value(field: &str, value: &Value) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
+        field.hash(&mut hasher);
         match value {
             Value::Null => 0u8.hash(&mut hasher),
             Value::Bool(b) => b.hash(&mut hasher),
@@ -1172,7 +1177,7 @@ impl AmorphicStore {
         for (field, value) in &fields {
             self.field_index.entry(field.clone()).or_default().push(id);
 
-            let value_hash = Self::hash_value(value);
+            let value_hash = Self::hash_value(field, value);
             self.value_index.entry(value_hash).or_default().push(id);
 
             // Track name for graph queries
@@ -1323,7 +1328,7 @@ impl AmorphicStore {
         for (field, value) in &fields {
             self.field_index.entry(field.clone()).or_default().push(id);
 
-            let value_hash = Self::hash_value(value);
+            let value_hash = Self::hash_value(field, value);
             self.value_index.entry(value_hash).or_default().push(id);
 
             // Track name for graph queries
@@ -1400,7 +1405,7 @@ impl AmorphicStore {
         for (field, value) in &fields {
             self.field_index.entry(field.clone()).or_default().push(id);
 
-            let value_hash = Self::hash_value(value);
+            let value_hash = Self::hash_value(field, value);
             self.value_index.entry(value_hash).or_default().push(id);
 
             if field == "name" || field == "_name" {
@@ -1486,12 +1491,12 @@ impl AmorphicStore {
 
     /// Query by exact field-value match
     pub fn query_equals(&self, field: &str, value: &Value) -> QueryResult {
-        let value_hash = Self::hash_value(value);
-        let candidate_ids = self
+        let value_hash = Self::hash_value(field, value);
+        let candidate_ids: &[RecordId] = self
             .value_index
             .get(&value_hash)
-            .cloned()
-            .unwrap_or_default();
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
 
         let records: Vec<AmorphicRecord> = candidate_ids
             .iter()
@@ -1721,7 +1726,7 @@ impl AmorphicStore {
         for (field, value) in &metadata {
             self.field_index.entry(field.clone()).or_default().push(id);
 
-            let value_hash = Self::hash_value(value);
+            let value_hash = Self::hash_value(field, value);
             self.value_index.entry(value_hash).or_default().push(id);
 
             if field == "name" || field == "_name" {
@@ -2325,8 +2330,8 @@ impl AmorphicStore {
         }
 
         // Remove from value index
-        for value in record.fields.values() {
-            let hash = Self::hash_value(value);
+        for (field, value) in record.fields.iter() {
+            let hash = Self::hash_value(field, value);
             if let Some(ids) = self.value_index.get_mut(&hash) {
                 ids.retain(|&x| x != id);
             }
@@ -2496,7 +2501,7 @@ impl AmorphicStore {
             // Remove old value from indices
             if let Some(old_value) = old_values.get(field) {
                 // Remove from value index
-                let old_hash = Self::hash_value(old_value);
+                let old_hash = Self::hash_value(field, old_value);
                 if let Some(ids) = self.value_index.get_mut(&old_hash) {
                     ids.retain(|&x| x != id);
                 }
@@ -2512,7 +2517,7 @@ impl AmorphicStore {
             }
 
             // Add new value to indices
-            let new_hash = Self::hash_value(new_value);
+            let new_hash = Self::hash_value(field, new_value);
             self.value_index.entry(new_hash).or_default().push(id);
 
             if let Some(new_num) = new_value.as_f64() {
