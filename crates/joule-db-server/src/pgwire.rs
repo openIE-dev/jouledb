@@ -1661,6 +1661,36 @@ fn split_copy_text(line: &str, delim: char, null: &str) -> Vec<Option<String>> {
 
 /// Parse CSV records (quotes, doubled quotes, embedded newlines).
 fn split_csv(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>> {
+    // Without quotes every record is one line: split large inputs at line
+    // boundaries and parse the pieces in parallel (same rows, same order).
+    const PAR_MIN: usize = 1 << 20;
+    if data.len() >= PAR_MIN && delim != '\n' && !data.as_bytes().contains(&b'"') {
+        use rayon::prelude::*;
+        let pieces = rayon::current_num_threads().max(1) * 4;
+        let step = data.len() / pieces + 1;
+        let mut cuts = vec![0usize];
+        let mut at = 0;
+        while at + step < data.len() {
+            match data.as_bytes()[at + step..].iter().position(|&b| b == b'\n') {
+                Some(p) => {
+                    at = at + step + p + 1;
+                    cuts.push(at);
+                }
+                None => break,
+            }
+        }
+        cuts.push(data.len());
+        cuts.dedup();
+        return cuts
+            .par_windows(2)
+            .map(|w| split_csv_seq(&data[w[0]..w[1]], delim, null))
+            .flatten_iter()
+            .collect();
+    }
+    split_csv_seq(data, delim, null)
+}
+
+fn split_csv_seq(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>> {
     let mut rows = Vec::new();
     let mut row: Vec<Option<String>> = Vec::new();
     let mut field = String::new();
@@ -4400,6 +4430,20 @@ mod tests {
         let params: Vec<serde_json::Value> = (1..=10).map(|i| serde_json::json!(i)).collect();
         let result = substitute_params(sql, &params);
         assert_eq!(result, "SELECT 1, 10, 2");
+    }
+
+    #[test]
+    fn split_csv_parallel_matches_sequential() {
+        let mut d = String::new();
+        for i in 0..60_000 {
+            d.push_str(&format!("{i},,u{},{}.5\r\n", i % 13, i));
+            if i % 977 == 0 {
+                d.push('\n');
+            }
+        }
+        d.push_str("last,1");
+        assert!(d.len() >= 1 << 20);
+        assert_eq!(split_csv(&d, ',', ""), split_csv_seq(&d, ',', ""));
     }
 
     #[test]
