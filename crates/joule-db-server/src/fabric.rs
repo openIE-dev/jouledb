@@ -340,7 +340,14 @@ fn live_ane_lane(kinds: &[AcceleratorKind]) -> Option<AneLane> {
     }
 }
 
+/// The live host profile, probed once (Metal device lookup and ANE
+/// availability were re-probed on every query's receipt).
 fn live_profile() -> HostProfile {
+    static PROFILE: OnceLock<HostProfile> = OnceLock::new();
+    PROFILE.get_or_init(probe_live_profile).clone()
+}
+
+fn probe_live_profile() -> HostProfile {
     let kinds = detected_kinds().to_vec();
     let gpu_found = kinds.iter().any(|k| *k == AcceleratorKind::GPU);
     HostProfile {
