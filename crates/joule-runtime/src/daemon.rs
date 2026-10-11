@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::watch;
 
@@ -357,7 +358,17 @@ impl DaemonCore {
         self.write_pid_file()?;
         self.recover_orphans();
 
+        // Unix: a domain socket at socket_path. Elsewhere (Windows): a loopback
+        // TCP listener whose address is written to socket_path, so the same
+        // client path works on every platform.
+        #[cfg(unix)]
         let listener = UnixListener::bind(&self.socket_path)?;
+        #[cfg(not(unix))]
+        let listener = {
+            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+            std::fs::write(&self.socket_path, l.local_addr()?.to_string())?;
+            l
+        };
         log::info!("Daemon listening on {:?}", self.socket_path);
 
         let mut shutdown_rx = self.shutdown_rx.clone();
@@ -371,7 +382,8 @@ impl DaemonCore {
                             let started_at = self.started_at;
                             let shutdown_tx = self.shutdown_tx.clone();
                             tokio::spawn(async move {
-                                if let Err(e) = handle_connection(stream, manager, started_at, shutdown_tx).await {
+                                let (reader, writer) = stream.into_split();
+                                if let Err(e) = handle_connection(reader, writer, manager, started_at, shutdown_tx).await {
                                     log::error!("Connection error: {}", e);
                                 }
                             });
@@ -407,13 +419,13 @@ impl DaemonCore {
 }
 
 /// Handle a single client connection.
-async fn handle_connection(
-    stream: tokio::net::UnixStream,
+async fn handle_connection<R: AsyncReadExt + Unpin, W: AsyncWriteExt + Unpin>(
+    mut reader: R,
+    mut writer: W,
     manager: Arc<RuntimeManager>,
     started_at: Instant,
     shutdown_tx: watch::Sender<bool>,
 ) -> std::io::Result<()> {
-    let (mut reader, mut writer) = stream.into_split();
 
     let request: DaemonRequest = read_message(&mut reader).await?;
     let response = process_request(request, &manager, started_at, &shutdown_tx).await;
@@ -797,6 +809,7 @@ mod tests {
         daemon.signal_shutdown();
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_daemon_accepts_connection() {
         let tmp = tempfile::tempdir().unwrap();

@@ -53,8 +53,14 @@ impl DaemonClient {
 
     /// Send a request and receive a response.
     async fn send(&self, request: DaemonRequest) -> Result<DaemonResponse, RuntimeError> {
-        let stream = tokio::net::UnixStream::connect(&self.socket_path)
-            .await
+        #[cfg(unix)]
+        let stream = tokio::net::UnixStream::connect(&self.socket_path).await;
+        #[cfg(not(unix))]
+        let stream = match std::fs::read_to_string(&self.socket_path) {
+            Ok(addr) => tokio::net::TcpStream::connect(addr.trim()).await,
+            Err(e) => Err(e),
+        };
+        let stream = stream
             .map_err(|e| {
                 RuntimeError::ProcessError(format!(
                     "cannot connect to daemon at {:?}: {}",
