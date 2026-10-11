@@ -5522,6 +5522,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
+ "flate2",
  "half",
  "hashbrown 0.17.1",
  "num-bigint",
@@ -6927,6 +6928,7 @@ name = "sigql"
 version = "0.1.0"
 dependencies = [
  "approx",
+ "arrow 58.4.0",
  "bincode",
  "bytemuck",
  "chrono",
@@ -6939,6 +6941,7 @@ dependencies = [
  "nom 8.0.0",
  "num-complex",
  "num-traits",
+ "parquet",
  "proptest",
  "rayon",
  "rustfft",

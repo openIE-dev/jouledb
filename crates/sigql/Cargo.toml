@@ -20,7 +20,7 @@ path = "examples/neuroplay_query.rs"
 
 [features]
 default = ["std", "simd"]
-std = ["rustfft", "hound", "csv", "dep:chrono"]
+std = ["rustfft", "hound", "csv", "dep:chrono", "dep:parquet", "dep:arrow"]
 simd = ["std"]
 wasm = ["wasm-bindgen"]
 cuda = []
@@ -59,6 +59,8 @@ bytemuck = { workspace = true }
 # File I/O
 hound = { version = "3.5", optional = true }  # WAV files
 csv = { version = "1.4", optional = true }     # CSV files
+parquet = { version = "58", optional = true, default-features = false, features = ["arrow", "snap", "zstd", "flate2", "flate2-rust_backened"] }
+arrow = { version = "58", optional = true, default-features = false }
 
 # WASM support
 wasm-bindgen = { workspace = true, optional = true }
