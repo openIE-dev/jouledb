@@ -8,7 +8,83 @@
 //! - B-tree operations (range scan, filtering)
 //! - Columnar operations (format conversion, aggregations)
 
-/// Sum aggregation shader
+/// Portable aggregation shader: per-workgroup partials reduced on the host.
+///
+/// WGSL has no float atomics (naga rejects `atomicAdd` on f32), so each
+/// workgroup reduces its grid-stride slice in shared memory and writes one
+/// `vec4(sum, count, min, max)` partial. The host folds the partials in f64.
+/// Input is read as `u32` words: `mode == 1` (COUNT) counts non-zero words,
+/// any other mode bitcasts each word to `f32`. No atomics anywhere, so it
+/// validates on every backend (Vulkan/NVIDIA, Metal, DX12, GL).
+pub const AGG_PARTIALS_SHADER: &str = r#"
+struct AggParams {
+    num_elements: u32,
+    mode: u32,
+    _p0: u32,
+    _p1: u32,
+}
+
+@group(0) @binding(0) var<storage, read> input_data: array<u32>;
+@group(0) @binding(1) var<storage, read_write> partials: array<vec4<f32>>;
+@group(0) @binding(2) var<uniform> params: AggParams;
+
+var<workgroup> s_sum: array<f32, 256>;
+var<workgroup> s_cnt: array<f32, 256>;
+var<workgroup> s_min: array<f32, 256>;
+var<workgroup> s_max: array<f32, 256>;
+
+@compute @workgroup_size(256)
+fn main(
+    @builtin(local_invocation_id) lid: vec3<u32>,
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(num_workgroups) nwg: vec3<u32>,
+) {
+    let t = lid.x;
+    let stride = nwg.x * 256u;
+    var sum = 0.0;
+    var cnt = 0.0;
+    var mn = 3.4028235e38;
+    var mx = -3.4028235e38;
+    var i = wid.x * 256u + t;
+    loop {
+        if (i >= params.num_elements) { break; }
+        let w = input_data[i];
+        if (params.mode == 1u) {
+            if (w != 0u) { cnt = cnt + 1.0; }
+        } else {
+            let v = bitcast<f32>(w);
+            sum = sum + v;
+            cnt = cnt + 1.0;
+            mn = min(mn, v);
+            mx = max(mx, v);
+        }
+        i = i + stride;
+    }
+    s_sum[t] = sum;
+    s_cnt[t] = cnt;
+    s_min[t] = mn;
+    s_max[t] = mx;
+    workgroupBarrier();
+    var off = 128u;
+    loop {
+        if (off == 0u) { break; }
+        if (t < off) {
+            s_sum[t] = s_sum[t] + s_sum[t + off];
+            s_cnt[t] = s_cnt[t] + s_cnt[t + off];
+            s_min[t] = min(s_min[t], s_min[t + off]);
+            s_max[t] = max(s_max[t], s_max[t + off]);
+        }
+        workgroupBarrier();
+        off = off / 2u;
+    }
+    if (t == 0u) {
+        partials[wid.x] = vec4<f32>(s_sum[0], s_cnt[0], s_min[0], s_max[0]);
+    }
+}
+"#;
+
+/// Sum aggregation shader (legacy; uses f32 atomics that naga rejects —
+/// kept for reference, not dispatched; see [`AGG_PARTIALS_SHADER`]).
 pub const SUM_SHADER: &str = r#"
 struct AggregationParams {
     num_elements: u32,

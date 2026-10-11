@@ -4146,6 +4146,7 @@ dependencies = [
  "bytemuck",
  "joule-db-core",
  "log",
+ "naga",
  "pollster",
  "rayon",
  "tokio",

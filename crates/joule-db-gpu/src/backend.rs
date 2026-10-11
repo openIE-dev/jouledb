@@ -523,58 +523,53 @@ impl WgpuComputeBackend {
             }
         };
 
-        let shader_source = match agg_type {
-            AggregationType::Sum => shaders::SUM_SHADER,
-            AggregationType::Count => shaders::COUNT_SHADER,
-            AggregationType::Avg => shaders::AVG_SHADER,
-            AggregationType::Min => shaders::MIN_SHADER,
-            AggregationType::Max => shaders::MAX_SHADER,
-            // Should have been filtered by the first match, but return error just in case
-            _ => {
-                return Err(StorageError::Backend(format!(
-                    "No shader for aggregation: {:?}",
-                    agg_type
-                )));
-            }
+        let _ = shader_name;
+        let mode: u32 = match agg_type {
+            AggregationType::Count => 1,
+            _ => 0,
         };
-
-        let _pipeline = self.get_or_create_pipeline(shader_name, shader_source)?;
-
-        // Now get references after pipeline is created
-        let pipeline = self.pipelines.get(shader_name).unwrap();
-        let bind_group_layout = self.bind_group_layouts.get(shader_name).unwrap();
+        // One portable pipeline for all five: per-workgroup partials, host
+        // reduction in f64 (no float atomics; naga rejects them).
+        self.get_or_create_pipeline("agg_partials", shaders::AGG_PARTIALS_SHADER)?;
+        let pipeline = self.pipelines.get("agg_partials").unwrap();
+        let bind_group_layout = self.bind_group_layouts.get("agg_partials").unwrap();
         let input_data = self.buffers.get(&input_handle.0).unwrap();
+        let num_items = num_items.min((input_data.size / 4) as u32);
 
-        // Create output buffer (single f32 for aggregation result)
-        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("aggregate_output"),
-            size: 8, // f32 result + padding
+        const WG: u32 = 256;
+        let workgroups = num_items.div_ceil(WG).clamp(1, 4096);
+        let partial_bytes = workgroups as u64 * 16;
+        let partials = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("aggregate_partials"),
+            size: partial_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
+        let staging = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("aggregate_partials_read"),
+            size: partial_bytes,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
-        // Create params buffer
         #[repr(C)]
         #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-        struct AggregateParams {
+        struct AggParams {
             num_items: u32,
-            _padding: [u32; 3],
+            mode: u32,
+            _padding: [u32; 2],
         }
-
-        let params = AggregateParams {
-            num_items,
-            _padding: [0; 3],
-        };
-
         let params_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("aggregate_params"),
-                contents: bytemuck::bytes_of(&params),
+                contents: bytemuck::bytes_of(&AggParams {
+                    num_items,
+                    mode,
+                    _padding: [0; 2],
+                }),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
-
-        // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("aggregate_bind_group"),
             layout: bind_group_layout,
@@ -585,7 +580,7 @@ impl WgpuComputeBackend {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: output_buffer.as_entire_binding(),
+                    resource: partials.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -593,32 +588,71 @@ impl WgpuComputeBackend {
                 },
             ],
         });
-
-        // Create command encoder
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("aggregate_encoder"),
             });
-
         {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("aggregate_pass"),
                 timestamp_writes: None,
             });
-            compute_pass.set_pipeline(pipeline);
-            compute_pass.set_bind_group(0, &bind_group, &[]);
-
-            // Calculate workgroup count
-            let workgroup_size = 256u32;
-            let workgroup_count = (num_items + workgroup_size - 1) / workgroup_size;
-            compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+            pass.set_pipeline(pipeline);
+            pass.set_bind_group(0, &bind_group, &[]);
+            pass.dispatch_workgroups(workgroups, 1, 1);
         }
-
-        // Submit
+        encoder.copy_buffer_to_buffer(&partials, 0, &staging, 0, partial_bytes);
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        // Store output buffer
+        let slice = staging.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |r| {
+            let _ = tx.send(r);
+        });
+        self.device.poll(wgpu::PollType::wait_indefinitely());
+        rx.recv()
+            .map_err(|_| StorageError::Backend("aggregate map result lost".into()))?
+            .map_err(|e| StorageError::Backend(format!("aggregate map failed: {e:?}")))?;
+        let (mut sum, mut cnt, mut mn, mut mx) = (0.0f64, 0.0f64, f64::INFINITY, f64::NEG_INFINITY);
+        {
+            let bytes = slice.get_mapped_range();
+            let vals: &[f32] = bytemuck::cast_slice(&bytes);
+            for p in vals.chunks_exact(4) {
+                sum += p[0] as f64;
+                cnt += p[1] as f64;
+                if p[1] > 0.0 {
+                    mn = mn.min(p[2] as f64);
+                    mx = mx.max(p[3] as f64);
+                }
+            }
+        }
+        staging.unmap();
+        staging.destroy();
+        partials.destroy();
+
+        let value = match agg_type {
+            AggregationType::Sum => sum,
+            AggregationType::Count => cnt,
+            AggregationType::Avg if cnt > 0.0 => sum / cnt,
+            AggregationType::Min if cnt > 0.0 => mn,
+            AggregationType::Max if cnt > 0.0 => mx,
+            _ => 0.0,
+        };
+
+        // Output contract unchanged: 8-byte buffer, f32 result at [0..4].
+        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("aggregate_output"),
+            size: 8,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut out = [0u8; 8];
+        out[..4].copy_from_slice(&(value as f32).to_le_bytes());
+        self.queue.write_buffer(&output_buffer, 0, &out);
+
         let output_id = self.next_buffer_id;
         self.next_buffer_id += 1;
         self.buffers.insert(
@@ -2760,5 +2794,66 @@ mod tests {
         backend.destroy_buffer(q_buf).unwrap();
         backend.destroy_buffer(v_buf).unwrap();
         backend.destroy_buffer(result.output_buffer).unwrap();
+    }
+
+    /// The aggregation shader must pass naga validation (the old f32-atomic
+    /// shaders did not, which logged ERRORs and fell back to the CPU).
+    #[test]
+    fn test_agg_partials_shader_validates() {
+        let module =
+            naga::front::wgsl::parse_str(shaders::AGG_PARTIALS_SHADER).expect("WGSL parses");
+        naga::valid::Validator::new(
+            naga::valid::ValidationFlags::all(),
+            naga::valid::Capabilities::empty(),
+        )
+        .validate(&module)
+        .expect("WGSL validates with no extra capabilities");
+    }
+
+    /// GPU parity for SUM/AVG/MIN/MAX/COUNT against an f64 CPU reference.
+    /// Skips when no adapter is present.
+    #[test]
+    fn test_aggregate_parity_on_gpu() {
+        let Ok(mut be) = pollster::block_on(WgpuComputeBackend::new()) else {
+            eprintln!("no GPU adapter; skipping parity");
+            return;
+        };
+        let n = 1_000_003usize;
+        let vals: Vec<f32> = (0..n)
+            .map(|i| ((i * 37 % 1000) as f32) * 0.25 - 50.0)
+            .collect();
+        let bytes: Vec<u8> = vals.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let buf = be
+            .create_buffer(bytes.len() as u64, BufferUsage::STORAGE_READ, Some("t"))
+            .unwrap();
+        be.write_buffer(buf, 0, &bytes).unwrap();
+        let sum: f64 = vals.iter().map(|&v| v as f64).sum();
+        let min = vals.iter().cloned().fold(f32::INFINITY, f32::min) as f64;
+        let max = vals.iter().cloned().fold(f32::NEG_INFINITY, f32::max) as f64;
+        let nonzero = vals.iter().filter(|v| v.to_bits() != 0).count() as f64;
+        for (agg, want) in [
+            (AggregationType::Sum, sum),
+            (AggregationType::Avg, sum / n as f64),
+            (AggregationType::Min, min),
+            (AggregationType::Max, max),
+            (AggregationType::Count, nonzero),
+        ] {
+            let r = be
+                .execute(
+                    ComputeOp::Aggregate {
+                        agg_type: agg,
+                        num_items: n as u32,
+                    },
+                    &[buf],
+                )
+                .unwrap();
+            let out = be.read_buffer(r.output_buffer, 0, 4).unwrap();
+            let got = f32::from_le_bytes(out[..4].try_into().unwrap()) as f64;
+            let tol = want.abs().max(1.0) * 1e-5;
+            assert!(
+                (got - want).abs() <= tol,
+                "{agg:?}: gpu {got} vs cpu {want}"
+            );
+        }
     }
 }
