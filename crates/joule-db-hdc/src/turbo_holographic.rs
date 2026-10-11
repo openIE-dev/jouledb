@@ -652,6 +652,21 @@ impl BinaryHV {
 // Majority Vote Bundler - For combining multiple vectors
 // ============================================================================
 
+/// BIT_EXPAND[b][j] = bit j of byte b.
+static BIT_EXPAND: [[i32; 8]; 256] = {
+    let mut t = [[0i32; 8]; 256];
+    let mut b = 0;
+    while b < 256 {
+        let mut j = 0;
+        while j < 8 {
+            t[b][j] = ((b >> j) & 1) as i32;
+            j += 1;
+        }
+        b += 1;
+    }
+    t
+};
+
 /// Accumulator for majority-vote bundling of binary vectors.
 ///
 /// Instead of adding floats, we count bits and threshold.
@@ -745,12 +760,30 @@ impl BundleAccumulator {
                 // only the planes that can be non-zero for k vectors
                 let np = (32 - (k as u32).leading_zeros()) as usize;
                 let counts = &mut self.counts[base..base + bits];
-                for (b, c) in counts.iter_mut().enumerate() {
-                    let mut ones = 0i32;
+                if bits == 64 {
+                    // byte-wise expansion through a lookup table (8-lane adds)
+                    let mut add = [-k; 64];
                     for (pi, p) in planes[..np].iter().enumerate() {
-                        ones |= (((p >> b) & 1) as i32) << pi;
+                        let w2 = 2i32 << pi;
+                        for byte in 0..8 {
+                            let e = &BIT_EXPAND[((p >> (byte * 8)) & 0xFF) as usize];
+                            let dst = &mut add[byte * 8..byte * 8 + 8];
+                            for j in 0..8 {
+                                dst[j] += e[j] * w2;
+                            }
+                        }
                     }
-                    *c += 2 * ones - k;
+                    for (c, a) in counts.iter_mut().zip(add.iter()) {
+                        *c += *a;
+                    }
+                } else {
+                    for (b, c) in counts.iter_mut().enumerate() {
+                        let mut ones = 0i32;
+                        for (pi, p) in planes[..np].iter().enumerate() {
+                            ones |= (((p >> b) & 1) as i32) << pi;
+                        }
+                        *c += 2 * ones - k;
+                    }
                 }
             }
             self.num_vectors += chunk.len();
