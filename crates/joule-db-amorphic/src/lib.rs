@@ -1261,6 +1261,7 @@ impl AmorphicStore {
                     .insert((*f).to_string(), Default::default());
             }
         }
+        let t_pre = t_start.elapsed();
         let mut side_result = None;
         let nrows = rows.len();
         let mut shells: Vec<BinaryHV> = Vec::new();
@@ -1393,7 +1394,7 @@ impl AmorphicStore {
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
             let (pf, vi, wal): (std::time::Duration, std::time::Duration, std::time::Duration) = branch_t;
             eprintln!(
-                "apply indexes+wal={:?} (per-field={pf:?} value_index={vi:?} wal={wal:?}) shells={:?} records_insert={:?}",
+                "apply indexes+wal={:?} (pre={t_pre:?} per-field={pf:?} value_index={vi:?} wal={wal:?}) shells={:?} records_insert={:?}",
                 t_shell - t_start,
                 t_ins - t_shell,
                 t_ins.elapsed()
