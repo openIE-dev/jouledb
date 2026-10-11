@@ -973,6 +973,26 @@ fn count_where(t: &TableColumns, preds: &[Pred]) -> Option<u64> {
             if live.is_empty() {
                 return Some((e - s) as u64);
             }
+            // one integer comparison, no NULLs: count directly (vectorizes)
+            if let [Pred::Cmp { col, op, lit: Lit::N(Num::I(x)) }] = live.as_slice() {
+                if let Some(Col::Int(v, nulls)) = t.cols.get(*col) {
+                    if nulls.is_empty() {
+                        let (vs, x) = (&v[s..e], *x);
+                        let n: Option<u64> = match op {
+                            Operator::Eq => Some(vs.iter().map(|&y| (y == x) as u64).sum()),
+                            Operator::Ne => Some(vs.iter().map(|&y| (y != x) as u64).sum()),
+                            Operator::Lt => Some(vs.iter().map(|&y| (y < x) as u64).sum()),
+                            Operator::Le => Some(vs.iter().map(|&y| (y <= x) as u64).sum()),
+                            Operator::Gt => Some(vs.iter().map(|&y| (y > x) as u64).sum()),
+                            Operator::Ge => Some(vs.iter().map(|&y| (y >= x) as u64).sum()),
+                            _ => None,
+                        };
+                        if n.is_some() {
+                            return n;
+                        }
+                    }
+                }
+            }
             let mut buf = [true; ZONE];
             let mask = &mut buf[..e - s];
             for p in live {
