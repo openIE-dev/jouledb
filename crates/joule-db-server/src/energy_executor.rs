@@ -217,7 +217,7 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
         &self,
         table: &str,
         columns: &[String],
-        rows: Vec<Vec<joule_db_query::ast::Value>>,
+        rows: &mut Vec<Vec<joule_db_query::ast::Value>>,
     ) -> Option<Result<usize, QueryErrorResponse>> {
         self.inner.bulk_insert_values(table, columns, rows)
     }

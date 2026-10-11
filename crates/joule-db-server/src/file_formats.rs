@@ -271,14 +271,17 @@ pub fn batches_to_values(
     let columns: Vec<String> = first.schema().fields().iter().map(|f| f.name().clone()).collect();
     let total: usize = batches.iter().map(|b| b.num_rows()).sum();
     let mut rows: Vec<Vec<joule_db_query::ast::Value>> = Vec::with_capacity(total);
+    use rayon::prelude::*;
     for b in batches {
+        // decode columns in parallel, then move (not clone) cells into rows
         let cols: Vec<Vec<joule_db_query::ast::Value>> = b
             .columns()
-            .iter()
+            .par_iter()
             .map(|a| array_values(a.as_ref()))
             .collect::<Result<_, _>>()?;
-        for i in 0..b.num_rows() {
-            rows.push(cols.iter().map(|c| c[i].clone()).collect());
+        let mut its: Vec<_> = cols.into_iter().map(|c| c.into_iter()).collect();
+        for _ in 0..b.num_rows() {
+            rows.push(its.iter_mut().map(|it| it.next().unwrap_or(joule_db_query::ast::Value::Null)).collect());
         }
     }
     Ok((columns, rows))

@@ -1789,15 +1789,20 @@ fn copy_file(
         )
         .map_err(|e| (e.code, e.message))?;
         let p = copy_file_path(&path, false).map_err(bad)?;
+        let t_read = std::time::Instant::now();
         let batches = crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
-        let (file_cols, rows) = crate::file_formats::batches_to_values(&batches).map_err(bad)?;
+        let t_dec = std::time::Instant::now();
+        let (file_cols, mut rows) = crate::file_formats::batches_to_values(&batches).map_err(bad)?;
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!("copy_file read={:?} decode={:?}", t_dec - t_read, t_dec.elapsed());
+        }
         let cols = if spec.columns.is_empty() { file_cols } else { spec.columns.clone() };
         if rows.is_empty() {
             return Ok(0);
         }
         if conn_state.session_id.is_none() {
             // Not in a transaction: typed rows straight into the store.
-            match executor.bulk_insert_values(&spec.target, &cols, rows.clone()) {
+            match executor.bulk_insert_values(&spec.target, &cols, &mut rows) {
                 Some(Ok(n)) => return Ok(n),
                 Some(Err(e)) => return Err((e.code, e.message)),
                 None => {} // not eligible here: batched INSERTs below

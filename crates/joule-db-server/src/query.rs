@@ -216,11 +216,15 @@ pub trait QueryExecutor: Send + Sync {
         &self,
         _table: &str,
         _columns: &[String],
-        _rows: Vec<Vec<AstValue>>,
+        _rows: &mut Vec<Vec<AstValue>>,
     ) -> Option<Result<usize, QueryErrorResponse>> {
         None
     }
 }
+
+/// Rows per validated insert batch in bulk COPY / file import (one store
+/// write-lock, WAL group commit and column-cache append per batch).
+const BULK_CHUNK_ROWS: usize = 65_536;
 
 /// COPY text field -> value, with the same typing COPY's INSERT fallback
 /// gets from `sql_literal` + the SQL parser (numbers unquoted, else text).
@@ -647,11 +651,17 @@ impl SimpleQueryExecutor {
     ) -> Result<usize, QueryErrorResponse> {
         self.fire_triggers(table, "BEFORE", "INSERT");
         let mut inserted = 0usize;
-        for chunk in rows.chunks(8192) {
+        let mut rows_it = rows.into_iter();
+        loop {
+            let chunk: Vec<Vec<AstValue>> = rows_it.by_ref().take(BULK_CHUNK_ROWS).collect();
+            if chunk.is_empty() {
+                break;
+            }
             let t_val = std::time::Instant::now();
             use rayon::prelude::*;
+            let n_chunk = chunk.len();
             let validated: Vec<Result<RowData, String>> = chunk
-                .par_iter()
+                .into_par_iter()
                 .enumerate()
                 .map(|(i, r)| {
                     if r.len() != insert_columns.len() {
@@ -662,10 +672,10 @@ impl SimpleQueryExecutor {
                             r.len()
                         ));
                     }
-                    apply_defaults_and_validate(insert_columns.clone(), r.clone(), &column_defs)
+                    apply_defaults_and_validate(insert_columns.clone(), r, &column_defs)
                 })
                 .collect();
-            let mut batch = Vec::with_capacity(chunk.len());
+            let mut batch = Vec::with_capacity(n_chunk);
             for v in validated {
                 match v {
                     Ok(row) => batch.push(row),
@@ -738,7 +748,7 @@ impl QueryExecutor for SimpleQueryExecutor {
         &self,
         table: &str,
         columns: &[String],
-        rows: Vec<Vec<AstValue>>,
+        rows: &mut Vec<Vec<AstValue>>,
     ) -> Option<Result<usize, QueryErrorResponse>> {
         if table == "holographic" || table == "kv" || self.amorphic.get_view(table).is_some() {
             return None;
@@ -749,7 +759,7 @@ impl QueryExecutor for SimpleQueryExecutor {
             return None;
         }
         let insert_columns = if columns.is_empty() { table_columns } else { columns.to_vec() };
-        Some(self.bulk_insert_core(table, insert_columns, column_defs, rows))
+        Some(self.bulk_insert_core(table, insert_columns, column_defs, std::mem::take(rows)))
     }
 
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
