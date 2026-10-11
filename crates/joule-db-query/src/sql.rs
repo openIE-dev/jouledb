@@ -1477,6 +1477,27 @@ pub struct SqlParser {
 }
 
 impl SqlParser {
+    /// `schema.func(args)`. Kept out of `parse_primary` (and never inlined)
+    /// so it does not enlarge that frame, which recurses once per nesting
+    /// level (see MAX_EXPRESSION_DEPTH).
+    #[inline(never)]
+    fn parse_qualified_call(&mut self, schema: String, func: String) -> Result<Expression, QueryError> {
+        self.advance();
+        let mut args = Vec::new();
+        if *self.peek() != Token::RParen {
+            loop {
+                args.push(self.parse_expression()?);
+                if *self.peek() == Token::Comma {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect(Token::RParen)?;
+        Ok(Expression::Function { name: format!("{schema}.{func}"), args })
+    }
+
     /// Create new parser
     pub fn new() -> Self {
         Self {
@@ -2947,7 +2968,10 @@ impl SqlParser {
         // Each nesting level costs ~9 frames; unoptimized builds make them
         // large. Grow the stack on the heap when it runs low so the depth
         // limit, not the thread's stack size, decides when to reject input.
-        let result = stacker::maybe_grow(64 * 1024, 1024 * 1024, || self.parse_or_expression());
+        // The red zone must cover one full nesting level: in debug builds the
+        // nine frames between two parse_expression calls can exceed 64 KB,
+        // which let CI's 2 MB test threads overflow before stacker grew.
+        let result = stacker::maybe_grow(256 * 1024, 2 * 1024 * 1024, || self.parse_or_expression());
         self.expression_depth -= 1;
         result
     }
@@ -3508,23 +3532,7 @@ impl SqlParser {
                         let column = self.parse_identifier()?;
                         if *self.peek() == Token::LParen {
                             // Schema-qualified function call: pg_catalog.version(), etc.
-                            self.advance();
-                            let mut args = Vec::new();
-                            if *self.peek() != Token::RParen {
-                                loop {
-                                    args.push(self.parse_expression()?);
-                                    if *self.peek() == Token::Comma {
-                                        self.advance();
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-                            self.expect(Token::RParen)?;
-                            Ok(Expression::Function {
-                                name: format!("{name}.{column}"),
-                                args,
-                            })
+                            self.parse_qualified_call(name, column)
                         } else {
                             Ok(Expression::QualifiedColumn {
                                 table: name,
