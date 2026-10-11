@@ -411,7 +411,9 @@ impl AmorphicTableStorage {
 
     /// Drop a SQL table (removes schema record and all data records)
     pub fn drop_table(&self, name: &str) -> QueryResult<bool> {
+        let tl = std::time::Instant::now();
         let mut store = self.store.write().map_err(lock_error)?;
+        let lock_wait = tl.elapsed();
 
         // Find and delete the schema record
         let schema_result =
@@ -429,15 +431,30 @@ impl AmorphicTableStorage {
             return Ok(false);
         }
 
-        for id in &schema_records {
-            let _ = store.delete(*id);
-        }
+        // delete_batch, not delete: single-record delete first encodes the
+        // whole deferred hypervector backlog (~180 ms per 20k fresh rows).
+        store
+            .delete_batch(&schema_records)
+            .map_err(|e| QueryError::ExecutionError(e.to_string()))?;
 
         // Delete all data records belonging to this table
+        let t0 = std::time::Instant::now();
         let data_result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(name.to_string()));
         let data_ids: Vec<RecordId> = data_result.records().iter().map(|r| r.id).collect();
-        for id in data_ids {
-            let _ = store.delete(id);
+        // One WAL entry and one sweep per index, not a full-index scan per row
+        // (100k rows took >30 s through per-record delete).
+        let t1 = std::time::Instant::now();
+        store
+            .delete_batch(&data_ids)
+            .map_err(|e| QueryError::ExecutionError(e.to_string()))?;
+        if std::env::var_os("JOULEDB_LAT_TRACE").is_some() {
+            eprintln!(
+                "[lat] drop_table {name}: {} rows, lock {lock_wait:?}, schema {:?}, find {:?}, delete {:?}",
+                data_ids.len(),
+                t0 - tl - lock_wait,
+                t1 - t0,
+                t1.elapsed()
+            );
         }
 
         Ok(true)

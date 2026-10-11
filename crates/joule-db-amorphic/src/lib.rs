@@ -78,8 +78,7 @@ pub use trending::{TrendWindow, TrendingIndex, TrendingItem};
 // Content moderation workflow (trust & safety)
 pub mod moderation;
 pub use moderation::{
-    FlaggedItem, ModerationAction, ModerationMatch, ModerationPolicy, ModerationQueue,
-    ReviewStatus,
+    FlaggedItem, ModerationAction, ModerationMatch, ModerationPolicy, ModerationQueue, ReviewStatus,
 };
 
 // ContentID: live fingerprint matching for copyright detection
@@ -95,7 +94,7 @@ pub mod cdn;
 
 // JouleDB AI — tiered inference runtime (holographic → embedded → local → frontier)
 pub mod ai;
-pub use ai::{JouleDbAi, AiReceipt, InferenceTier, TierConstraints};
+pub use ai::{AiReceipt, InferenceTier, JouleDbAi, TierConstraints};
 
 // Authentication & authorization — token-based auth with RBAC
 pub mod auth;
@@ -122,7 +121,9 @@ pub use voiceprint::{
 
 // Ad tech targeting engine (programmatic ad decisioning)
 pub mod ad_targeting;
-pub use ad_targeting::{AdCampaign, AdDecision, AdTargetingEngine, FrequencyCap, TargetingCriteria};
+pub use ad_targeting::{
+    AdCampaign, AdDecision, AdTargetingEngine, FrequencyCap, TargetingCriteria,
+};
 
 // Semantic hybrid search (vector + keyword + metadata fusion)
 pub mod hybrid_search;
@@ -150,9 +151,7 @@ pub use distribution::{
 
 // Selective replication + edge query routing
 pub mod selective_replication;
-pub use selective_replication::{
-    ContentFilter, EdgeRouter, QueryRoute, ReplicationPolicy,
-};
+pub use selective_replication::{ContentFilter, EdgeRouter, QueryRoute, ReplicationPolicy};
 
 pub use gpu::{GpuContext, GpuVectorStore};
 
@@ -629,7 +628,9 @@ impl std::fmt::Debug for SegmentedHologram {
 
 impl Clone for SegmentedHologram {
     fn clone(&self) -> Self {
-        Self { inner: std::sync::Mutex::new(self.lock().clone()) }
+        Self {
+            inner: std::sync::Mutex::new(self.lock().clone()),
+        }
     }
 }
 
@@ -694,6 +695,55 @@ impl SegmentedHologram {
         }
     }
 
+    /// Remove many records at once. A segment that loses all its records is
+    /// reset in O(D) instead of subtracting each one, so dropping a bulk-
+    /// loaded table costs O(segments); partly emptied segments subtract
+    /// their records, in parallel across segments.
+    pub fn remove_batch(&mut self, items: Vec<(RecordId, BinaryHV)>) {
+        use rayon::prelude::*;
+        if items.is_empty() {
+            return;
+        }
+        let g = self.inner_mut();
+        g.generation += 1;
+        g.flush();
+        let mut per: HashMap<usize, Vec<BinaryHV>> = HashMap::new();
+        for (id, hv) in items {
+            if let Some(s) = g.of.remove(&id) {
+                per.entry(s).or_default().push(hv);
+            }
+        }
+        let counts = &mut g.counts;
+        let mut work: Vec<(usize, Vec<BinaryHV>, bool)> = per
+            .into_iter()
+            .map(|(s, hvs)| {
+                let empty = hvs.len() >= counts[s];
+                counts[s] = counts[s].saturating_sub(hvs.len());
+                (s, hvs, empty)
+            })
+            .collect();
+        work.sort_unstable_by_key(|w| w.0);
+        let segs: Vec<(usize, BundleAccumulator)> = {
+            let segments = &g.segments;
+            work.par_iter_mut()
+                .map(|(s, hvs, empty)| {
+                    if *empty {
+                        (*s, BundleAccumulator::new(DIMENSION))
+                    } else {
+                        let mut acc = segments[*s].clone();
+                        for hv in hvs.iter() {
+                            acc.subtract(hv);
+                        }
+                        (*s, acc)
+                    }
+                })
+                .collect()
+        };
+        for (s, acc) in segs {
+            g.segments[s] = acc;
+        }
+    }
+
     pub fn replace(&mut self, id: RecordId, old: &BinaryHV, new: &BinaryHV) {
         let g = self.inner_mut();
         g.generation += 1;
@@ -711,7 +761,10 @@ impl SegmentedHologram {
     pub fn active(&self) -> BundleAccumulator {
         let mut g = self.lock();
         g.flush();
-        g.segments.last().cloned().unwrap_or_else(|| BundleAccumulator::new(DIMENSION))
+        g.segments
+            .last()
+            .cloned()
+            .unwrap_or_else(|| BundleAccumulator::new(DIMENSION))
     }
 
     pub fn generation(&self) -> u64 {
@@ -1106,7 +1159,8 @@ impl AmorphicStore {
         &mut self,
         rows: Vec<(RecordId, HashMap<String, Value>)>,
     ) -> AmorphicResult<()> {
-        self.apply_prepared_ingest_batch_with(rows, |_| ()).map(|_| ())
+        self.apply_prepared_ingest_batch_with(rows, |_| ())
+            .map(|_| ())
     }
 
     /// `apply_prepared_ingest_batch`, running `side` on the rows (e.g. WAL
@@ -1118,23 +1172,31 @@ impl AmorphicStore {
     ) -> AmorphicResult<R> {
         use rayon::prelude::*;
         self.records.reserve(rows.len());
-        self.value_index.reserve(rows.iter().map(|(_, f)| f.len()).sum());
+        self.value_index
+            .reserve(rows.iter().map(|(_, f)| f.len()).sum());
         // numeric B-trees are per field: fill them in parallel across fields
         // (same per-key id order as the row-at-a-time path).
         // Per-field work (field index, numeric B-trees, columnar) touches
         // disjoint per-field structures: gather per field in id order, then
         // fill them in parallel. Same contents as the row-at-a-time path.
         let mut by_field: rustc_hash::FxHashMap<&str, Vec<RecordId>> = Default::default();
-        let mut numeric: rustc_hash::FxHashMap<&str, Vec<(OrderedFloat, RecordId)>> = Default::default();
+        let mut numeric: rustc_hash::FxHashMap<&str, Vec<(OrderedFloat, RecordId)>> =
+            Default::default();
         let mut cols: rustc_hash::FxHashMap<&str, Vec<(RecordId, f64)>> = Default::default();
         for (id, fields) in &rows {
             for (field, value) in fields {
                 by_field.entry(field.as_str()).or_default().push(*id);
                 if let Some(num) = value.as_f64() {
-                    numeric.entry(field.as_str()).or_default().push((OrderedFloat(num), *id));
+                    numeric
+                        .entry(field.as_str())
+                        .or_default()
+                        .push((OrderedFloat(num), *id));
                 }
                 match value {
-                    Value::Int(i) => cols.entry(field.as_str()).or_default().push((*id, *i as f64)),
+                    Value::Int(i) => cols
+                        .entry(field.as_str())
+                        .or_default()
+                        .push((*id, *i as f64)),
                     Value::Float(f) => cols.entry(field.as_str()).or_default().push((*id, *f)),
                     _ => {}
                 }
@@ -1147,7 +1209,8 @@ impl AmorphicStore {
         }
         for f in numeric.keys() {
             if !self.numeric_index.contains_key(*f) {
-                self.numeric_index.insert((*f).to_string(), Default::default());
+                self.numeric_index
+                    .insert((*f).to_string(), Default::default());
             }
         }
         let mut side_result = None;
@@ -1159,50 +1222,56 @@ impl AmorphicStore {
         {
             // per-field structures in parallel, overlapped with the shared
             // value index / name map (disjoint fields of self)
-            let (fi, ni, co) = (&mut self.field_index, &mut self.numeric_index, &mut self.columnar);
+            let (fi, ni, co) = (
+                &mut self.field_index,
+                &mut self.numeric_index,
+                &mut self.columnar,
+            );
             let (vi, names) = (&mut self.value_index, &mut self.name_to_id);
             let rows_ref = &rows;
             let hashes_ref = &hashes;
             let (_, side_out) = rayon::join(
-                || rayon::join(
                 || {
                     rayon::join(
                         || {
-                            fi.par_iter_mut().for_each(|(f, v)| {
-                                if let Some(list) = by_field.get(f.as_str()) {
-                                    v.extend_from_slice(list);
-                                }
-                            })
-                        },
-                        || {
                             rayon::join(
                                 || {
-                                    ni.par_iter_mut().for_each(|(f, tree)| {
-                                        if let Some(list) = numeric.get(f.as_str()) {
-                                            for (k, id) in list {
-                                                tree.entry(*k).or_default().push(*id);
-                                            }
+                                    fi.par_iter_mut().for_each(|(f, v)| {
+                                        if let Some(list) = by_field.get(f.as_str()) {
+                                            v.extend_from_slice(list);
                                         }
                                     })
                                 },
-                                || co.record_batch(&cols),
+                                || {
+                                    rayon::join(
+                                        || {
+                                            ni.par_iter_mut().for_each(|(f, tree)| {
+                                                if let Some(list) = numeric.get(f.as_str()) {
+                                                    for (k, id) in list {
+                                                        tree.entry(*k).or_default().push(*id);
+                                                    }
+                                                }
+                                            })
+                                        },
+                                        || co.record_batch(&cols),
+                                    )
+                                },
                             )
+                        },
+                        || {
+                            for ((id, fields), hs) in rows_ref.iter().zip(hashes_ref) {
+                                for (i, (field, value)) in fields.iter().enumerate() {
+                                    vi.entry(hs[i]).or_default().push(*id);
+                                    if field == "name" || field == "_name" {
+                                        if let Value::String(name) = value {
+                                            names.insert(name.clone(), *id);
+                                        }
+                                    }
+                                }
+                            }
                         },
                     )
                 },
-                || {
-                    for ((id, fields), hs) in rows_ref.iter().zip(hashes_ref) {
-                        for (i, (field, value)) in fields.iter().enumerate() {
-                            vi.entry(hs[i]).or_default().push(*id);
-                            if field == "name" || field == "_name" {
-                                if let Value::String(name) = value {
-                                    names.insert(name.clone(), *id);
-                                }
-                            }
-                        }
-                    }
-                },
-            ),
                 || side(rows_ref),
             );
             side_result = Some(side_out);
@@ -1298,11 +1367,17 @@ impl AmorphicStore {
         }
         {
             let positions = &self.lsh_bit_positions;
-            self.lsh_tables.par_iter_mut().enumerate().for_each(|(t, table)| {
-                for (id, hv) in &built {
-                    table.entry(lsh_hash_with(&positions[t], hv)).or_default().push(*id);
-                }
-            });
+            self.lsh_tables
+                .par_iter_mut()
+                .enumerate()
+                .for_each(|(t, table)| {
+                    for (id, hv) in &built {
+                        table
+                            .entry(lsh_hash_with(&positions[t], hv))
+                            .or_default()
+                            .push(*id);
+                    }
+                });
         }
         // catch-up changes no data: keep `generation()` where it was
         self.catchup_generation = self
@@ -1355,7 +1430,10 @@ impl AmorphicStore {
         fields: HashMap<String, Value>,
     ) -> AmorphicResult<(RecordId, HashMap<String, Value>)> {
         if fields.len() > MAX_FIELDS_ERROR {
-            return Err(AmorphicError::FieldCountExceeded(fields.len(), MAX_FIELDS_ERROR));
+            return Err(AmorphicError::FieldCountExceeded(
+                fields.len(),
+                MAX_FIELDS_ERROR,
+            ));
         }
         let id = self.next_id;
         self.next_id += 1;
@@ -1737,7 +1815,6 @@ impl AmorphicStore {
             );
         }
 
-
         let hologram = self.encode_record(&fields);
 
         // Update indices
@@ -2117,7 +2194,12 @@ impl AmorphicStore {
     ///
     /// This is the retrieval endpoint for MediaQL queries like:
     /// `FROM amorphic.images WHERE similar_to(media('query.jpg'), threshold: 0.8)`
-    pub fn query_media_similar(&self, media_hologram: &BinaryHV, k: usize, threshold: f32) -> QueryResult {
+    pub fn query_media_similar(
+        &self,
+        media_hologram: &BinaryHV,
+        k: usize,
+        threshold: f32,
+    ) -> QueryResult {
         // Use HNSW path if available (higher recall)
         if let Some(ref hnsw) = self.hnsw_index {
             let packed = media_hologram.to_f32_packed();
@@ -2461,14 +2543,8 @@ impl AmorphicStore {
         let join_quality = if left_has_field && right_has_field {
             let left_val = &left.fields[join_field];
             let right_val = &right.fields[join_field];
-            let left_hv = BinaryHV::from_bytes(
-                format!("{:?}", left_val).as_bytes(),
-                DIMENSION,
-            );
-            let right_hv = BinaryHV::from_bytes(
-                format!("{:?}", right_val).as_bytes(),
-                DIMENSION,
-            );
+            let left_hv = BinaryHV::from_bytes(format!("{:?}", left_val).as_bytes(), DIMENSION);
+            let right_hv = BinaryHV::from_bytes(format!("{:?}", right_val).as_bytes(), DIMENSION);
             left_hv.similarity(&right_hv)
         } else {
             0.0
@@ -2509,9 +2585,9 @@ impl AmorphicStore {
             .iter()
             .map(|&id| {
                 let hv = self.records.get(&id).and_then(|r| {
-                    r.fields.get(join_field).map(|v| {
-                        BinaryHV::from_bytes(format!("{:?}", v).as_bytes(), DIMENSION)
-                    })
+                    r.fields
+                        .get(join_field)
+                        .map(|v| BinaryHV::from_bytes(format!("{:?}", v).as_bytes(), DIMENSION))
                 });
                 (id, hv)
             })
@@ -2521,9 +2597,9 @@ impl AmorphicStore {
             .iter()
             .map(|&id| {
                 let hv = self.records.get(&id).and_then(|r| {
-                    r.fields.get(join_field).map(|v| {
-                        BinaryHV::from_bytes(format!("{:?}", v).as_bytes(), DIMENSION)
-                    })
+                    r.fields
+                        .get(join_field)
+                        .map(|v| BinaryHV::from_bytes(format!("{:?}", v).as_bytes(), DIMENSION))
                 });
                 (id, hv)
             })
@@ -2830,6 +2906,106 @@ impl AmorphicStore {
         self.hologram.remove(id, &record.hologram);
 
         Ok(())
+    }
+
+    /// Delete many records with one pass over each index (DROP TABLE).
+    /// Same effect as calling [`Self::delete`] per id, but records whose
+    /// hypervector is still deferred are just dropped from the queue rather
+    /// than encoded first, and LSH/graph/field indexes are swept once.
+    /// Returns how many of `ids` existed.
+    pub fn delete_batch(&mut self, ids: &[RecordId]) -> usize {
+        use rustc_hash::FxHashSet;
+        let gone: FxHashSet<RecordId> = ids
+            .iter()
+            .copied()
+            .filter(|id| self.records.contains_key(id))
+            .collect();
+        if gone.is_empty() {
+            return 0;
+        }
+        let pending: FxHashSet<RecordId> = if self.deferred.is_empty() {
+            FxHashSet::default()
+        } else {
+            let p = self
+                .deferred
+                .iter()
+                .copied()
+                .filter(|id| gone.contains(id))
+                .collect();
+            self.deferred.retain(|id| !gone.contains(id));
+            p
+        };
+        let mut fields_touched: FxHashSet<String> = FxHashSet::default();
+        let mut hashes = FxHashSet::default();
+        let mut numeric: HashMap<String, Vec<f64>> = HashMap::new();
+        let mut any_encoded = false;
+        let mut holos: Vec<(RecordId, BinaryHV)> = Vec::new();
+        for id in &gone {
+            let record = self.records.remove(id).expect("checked above");
+            for (field, value) in record.fields.iter() {
+                if !fields_touched.contains(field) {
+                    fields_touched.insert(field.clone());
+                }
+                hashes.insert(Self::hash_value(field, value));
+                if let Some(num) = value.as_f64() {
+                    numeric.entry(field.clone()).or_default().push(num);
+                }
+            }
+            if let Some(Value::String(name)) = record.fields.get("name") {
+                self.name_to_id.remove(name);
+            }
+            if let Some(Value::String(name)) = record.fields.get("_name") {
+                self.name_to_id.remove(name);
+            }
+            if !pending.contains(id) {
+                any_encoded = true;
+                let i = (*id as usize).wrapping_sub(1);
+                if i < self.hologram_array.len() {
+                    self.hologram_array[i] = BinaryHV::zeros(DIMENSION);
+                }
+                holos.push((*id, record.hologram));
+            }
+        }
+        self.hologram.remove_batch(holos);
+        for field in &fields_touched {
+            if let Some(v) = self.field_index.get_mut(field) {
+                v.retain(|x| !gone.contains(x));
+            }
+        }
+        for h in &hashes {
+            if let Some(v) = self.value_index.get_mut(h) {
+                v.retain(|x| !gone.contains(x));
+            }
+        }
+        for (field, nums) in &numeric {
+            if let Some(btree) = self.numeric_index.get_mut(field) {
+                for n in nums {
+                    if let Some(v) = btree.get_mut(&OrderedFloat(*n)) {
+                        v.retain(|x| !gone.contains(x));
+                    }
+                }
+            }
+        }
+        if any_encoded {
+            for table in &mut self.lsh_tables {
+                for v in table.values_mut() {
+                    v.retain(|x| !gone.contains(x));
+                }
+            }
+        }
+        if !self.graph_index.is_empty() || !self.reverse_graph_index.is_empty() {
+            self.graph_index.retain(|k, _| !gone.contains(k));
+            for edges in self.graph_index.values_mut() {
+                edges.retain(|(_, t)| !gone.contains(t));
+            }
+            self.reverse_graph_index.retain(|k, _| !gone.contains(k));
+            for edges in self.reverse_graph_index.values_mut() {
+                edges.retain(|(_, s)| !gone.contains(s));
+            }
+        }
+        // primary data changed even if no hologram did
+        self.data_generation = self.data_generation.wrapping_add(1);
+        gone.len()
     }
 
     /// Rebuild the global hologram from scratch
@@ -3884,14 +4060,23 @@ mod segmented_hologram_tests {
     fn segments_cap_capacity_and_deletes_subtract() {
         let mut store = AmorphicStore::new();
         for i in 0..1000 {
-            store.ingest_json(&format!(r#"{{"name": "r{i}", "v": {i}}}"#)).unwrap();
+            store
+                .ingest_json(&format!(r#"{{"name": "r{i}", "v": {i}}}"#))
+                .unwrap();
         }
         let segs = store.hologram_segments();
-        assert_eq!(segs.len(), 1000usize.div_ceil(GLOBAL_HOLOGRAM_SATURATION_LIMIT));
+        assert_eq!(
+            segs.len(),
+            1000usize.div_ceil(GLOBAL_HOLOGRAM_SATURATION_LIMIT)
+        );
         assert!(store.active_hologram_len() <= GLOBAL_HOLOGRAM_SATURATION_LIMIT);
         // a record is recognisable in its own segment (not lost in a saturated bundle)
         let r5 = store.get_by_name("r5").unwrap().hologram.clone();
-        assert!(segs[0].similarity(&r5) > 0.52, "segment similarity {}", segs[0].similarity(&r5));
+        assert!(
+            segs[0].similarity(&r5) > 0.52,
+            "segment similarity {}",
+            segs[0].similarity(&r5)
+        );
     }
 }
 
@@ -3919,11 +4104,15 @@ mod bulk_ingest_tests {
         m.insert("id".to_string(), Value::Int(i));
         m.insert("x".to_string(), Value::Float(i as f64 * 0.5));
         m.insert("s".to_string(), Value::String(format!("v{}", i % 7)));
-        m.insert("a".to_string(), Value::Array(vec![Value::Int(i), Value::Null]));
+        m.insert(
+            "a".to_string(),
+            Value::Array(vec![Value::Int(i), Value::Null]),
+        );
         m
     }
 
     #[test]
+    #[cfg(feature = "durable")]
     fn batch_equals_sequential() {
         let mut a = AmorphicStore::new();
         let mut b = AmorphicStore::new();
@@ -3936,20 +4125,108 @@ mod bulk_ingest_tests {
         b.apply_prepared_ingest_batch(prepared).unwrap();
         assert_eq!(a.len(), b.len());
         // primary data is queryable before the hypervector catch-up
-        let q0 = |s: &AmorphicStore| s.query_equals("s", &Value::String("v3".into())).records.len();
+        let q0 = |s: &AmorphicStore| {
+            s.query_equals("s", &Value::String("v3".into()))
+                .records
+                .len()
+        };
         assert_eq!(q0(&a), q0(&b));
         assert_eq!(b.pending_holograms(), 700);
         assert_eq!(b.catch_up_holograms(300), 300);
         let g = b.generation();
         assert_eq!(b.catch_up_holograms(usize::MAX), 400);
-        assert_eq!(b.generation(), g, "catch-up must not invalidate data caches");
+        assert_eq!(
+            b.generation(),
+            g,
+            "catch-up must not invalidate data caches"
+        );
         for id in 1..=700u64 {
-            assert!(a.records[&id].hologram.similarity(&b.records[&id].hologram) == 1.0, "id {id}");
+            assert!(
+                a.records[&id].hologram.similarity(&b.records[&id].hologram) == 1.0,
+                "id {id}"
+            );
         }
         assert!(a.hologram().similarity(&b.hologram()) == 1.0);
         assert_eq!(a.lsh_tables, b.lsh_tables);
-        let q = |s: &AmorphicStore| s.query_equals("s", &Value::String("v3".into())).records.len();
+        let q = |s: &AmorphicStore| {
+            s.query_equals("s", &Value::String("v3".into()))
+                .records
+                .len()
+        };
         assert_eq!(q(&a), q(&b));
-        assert_eq!(a.query_range("x", 10.0, 20.0).records.len(), b.query_range("x", 10.0, 20.0).records.len());
+        assert_eq!(
+            a.query_range("x", 10.0, 20.0).records.len(),
+            b.query_range("x", 10.0, 20.0).records.len()
+        );
+    }
+
+    /// delete_batch leaves the store as per-record delete does, including for
+    /// rows whose hypervector is still deferred, and empties segments wholesale.
+    #[test]
+    #[cfg(feature = "durable")]
+    fn delete_batch_equals_sequential() {
+        let mut a = AmorphicStore::new();
+        let mut b = AmorphicStore::new();
+        let mut pa = Vec::new();
+        let mut pb = Vec::new();
+        for i in 0..900 {
+            pa.push(a.prepare_fields_ingest(row(i)).unwrap());
+            pb.push(b.prepare_fields_ingest(row(i)).unwrap());
+        }
+        a.apply_prepared_ingest_batch(pa).unwrap();
+        b.apply_prepared_ingest_batch(pb).unwrap();
+        b.catch_up_holograms(500); // 400 rows still deferred in b
+        let gone: Vec<RecordId> = (1..=900u64).filter(|id| id % 3 != 0).collect();
+        let g = b.generation();
+        for id in &gone {
+            a.delete(*id).unwrap();
+        }
+        assert_eq!(b.delete_batch(&gone), gone.len());
+        assert_ne!(b.generation(), g, "delete must invalidate data caches");
+        b.catch_up_holograms(usize::MAX);
+        assert_eq!(a.len(), b.len());
+        // same non-empty LSH buckets (sequential delete leaves empty ones)
+        let norm = |s: &AmorphicStore| {
+            s.lsh_tables
+                .iter()
+                .map(|t| {
+                    let mut v: Vec<_> = t
+                        .iter()
+                        .filter(|(_, ids)| !ids.is_empty())
+                        .map(|(k, ids)| {
+                            let mut ids = ids.clone();
+                            ids.sort_unstable();
+                            (*k, ids)
+                        })
+                        .collect();
+                    v.sort_unstable();
+                    v
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(norm(&a), norm(&b));
+        // Survivors match; b encoded its still-deferred rows after the delete,
+        // so they can sit in different segments: same content, near-identical
+        // global superposition rather than bit-identical.
+        let sim = a.hologram().similarity(&b.hologram());
+        assert!(sim > 0.9, "global hologram similarity {sim}");
+        for id in (1..=900u64).filter(|id| id % 3 == 0) {
+            assert!(a.records[&id].hologram.similarity(&b.records[&id].hologram) == 1.0);
+        }
+        let q = |s: &AmorphicStore| {
+            s.query_equals("s", &Value::String("v3".into()))
+                .records
+                .len()
+        };
+        assert_eq!(q(&a), q(&b));
+        assert_eq!(
+            a.query_range("x", 0.0, 500.0).records.len(),
+            b.query_range("x", 0.0, 500.0).records.len()
+        );
+        // drop the rest: every segment empties
+        let rest: Vec<RecordId> = (1..=900u64).filter(|id| id % 3 == 0).collect();
+        assert_eq!(b.delete_batch(&rest), rest.len());
+        assert_eq!(b.len(), 0);
+        assert_eq!(b.delete_batch(&rest), 0);
     }
 }

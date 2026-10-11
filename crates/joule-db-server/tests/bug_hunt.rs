@@ -1375,3 +1375,45 @@ async fn bug_rapid_insert_select_consistency_stress() {
         t.await.unwrap();
     }
 }
+
+/// DROP TABLE on a bulk-loaded table removes every row in one batch (it used
+/// to scan whole indexes per row: >30 s at 100k) and leaves other tables alone.
+#[tokio::test]
+async fn bug_drop_large_table_is_batched() {
+    let server = create_test_server();
+    let app = server.router();
+    sql(&app, "CREATE TABLE big (id INT, g TEXT, v FLOAT)").await;
+    sql(&app, "CREATE TABLE keep (id INT)").await;
+    sql(&app, "INSERT INTO keep VALUES (1), (2), (3)").await;
+    // JOULEDB_DROP_ROWS (thousands) scales it for timing runs; default 20k.
+    let k: i64 = std::env::var("JOULEDB_DROP_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20);
+    for chunk in 0..k {
+        let rows: Vec<String> = (0..1000)
+            .map(|i| {
+                let id = chunk * 1000 + i;
+                format!("({id}, 'g{}', {}.5)", id % 17, id)
+            })
+            .collect();
+        let (ok, _, _, err) =
+            sql(&app, &format!("INSERT INTO big VALUES {}", rows.join(", "))).await;
+        assert!(ok, "load: {err:?}");
+    }
+    let (_, data, _, _) = sql(&app, "SELECT COUNT(*) FROM big").await;
+    assert_eq!(data[0].as_array().unwrap()[0].as_i64(), Some(k * 1000));
+    let t = std::time::Instant::now();
+    let (ok, _, _, err) = sql(&app, "DROP TABLE big").await;
+    assert!(ok, "drop: {err:?}");
+    eprintln!("DROP TABLE {k}k rows: {:?}", t.elapsed());
+    let (ok, data, _, _) = sql(&app, "SELECT COUNT(*) FROM keep").await;
+    assert!(ok);
+    assert_eq!(data[0].as_array().unwrap()[0].as_i64(), Some(3));
+    let (ok, _, _, _) = sql(&app, "CREATE TABLE big (id INT)").await;
+    assert!(ok);
+    let (_, data, _, _) = sql(&app, "SELECT COUNT(*) FROM big").await;
+    assert_eq!(data[0].as_array().unwrap()[0].as_i64(), Some(0));
+    let (_, data, _, _) = sql(&app, "SELECT * FROM big WHERE id = 5").await;
+    assert!(data.is_empty());
+}

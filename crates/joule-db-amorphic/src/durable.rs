@@ -90,6 +90,9 @@ enum WalOperation {
     /// Delete a record by ID
     #[serde(rename = "delete")]
     Delete { id: RecordId },
+    /// Delete many records in one entry (DROP TABLE, bulk DELETE)
+    #[serde(rename = "delete_batch")]
+    DeleteBatch { ids: Vec<RecordId> },
     /// Update specific fields of a record
     #[serde(rename = "update_fields")]
     UpdateFields {
@@ -180,6 +183,9 @@ impl DurableAmorphicStore {
                     }
                     WalOperation::Delete { id } => {
                         let _ = store.delete(id);
+                    }
+                    WalOperation::DeleteBatch { ids } => {
+                        store.delete_batch(&ids);
                     }
                     WalOperation::UpdateFields { id, updates } => {
                         let _ = store.update_fields(id, updates);
@@ -287,28 +293,46 @@ impl DurableAmorphicStore {
         // crash before it leaves an uncommitted (ignored) transaction.
         let wal = &mut self.wal;
         let t_apply = std::time::Instant::now();
-        let wal_result = self.store.apply_prepared_ingest_batch_with(prepared, |rows| {
-            use rayon::prelude::*;
-            #[derive(serde::Serialize)]
-            struct Rec<'a> {
-                id: RecordId,
-                fields: &'a HashMap<String, Value>,
-                edges: [(); 0],
-                timestamp: Option<()>,
-            }
-            let serialized: Vec<Vec<u8>> = rows
-                .par_iter()
-                .map(|(id, fields)| serde_json::to_vec(&Rec { id: *id, fields, edges: [], timestamp: None }))
-                .collect::<Result<_, _>>()
-                .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
-            let writes: Vec<(RecordId, &[u8])> =
-                rows.iter().zip(&serialized).map(|((id, _), b)| (*id, b.as_slice())).collect();
-            wal.log_page_writes(tx_id, &writes)
-                .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
-        })?;
+        let wal_result = self
+            .store
+            .apply_prepared_ingest_batch_with(prepared, |rows| {
+                use rayon::prelude::*;
+                #[derive(serde::Serialize)]
+                struct Rec<'a> {
+                    id: RecordId,
+                    fields: &'a HashMap<String, Value>,
+                    edges: [(); 0],
+                    timestamp: Option<()>,
+                }
+                let serialized: Vec<Vec<u8>> = rows
+                    .par_iter()
+                    .map(|(id, fields)| {
+                        serde_json::to_vec(&Rec {
+                            id: *id,
+                            fields,
+                            edges: [],
+                            timestamp: None,
+                        })
+                    })
+                    .collect::<Result<_, _>>()
+                    .map_err(|e| {
+                        AmorphicError::IngestionError(format!("Serialization failed: {}", e))
+                    })?;
+                let writes: Vec<(RecordId, &[u8])> = rows
+                    .iter()
+                    .zip(&serialized)
+                    .map(|((id, _), b)| (*id, b.as_slice()))
+                    .collect();
+                wal.log_page_writes(tx_id, &writes)
+                    .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
+            })?;
         wal_result?;
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("durable batch prep={:?} wal+apply={:?}", t_apply - t_wal, t_apply.elapsed());
+            eprintln!(
+                "durable batch prep={:?} wal+apply={:?}",
+                t_apply - t_wal,
+                t_apply.elapsed()
+            );
         }
         self.wal
             .log_commit(tx_id)
@@ -594,6 +618,27 @@ impl DurableAmorphicStore {
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
         Ok(())
+    }
+
+    /// Delete many records in one WAL entry and one index pass.
+    /// Returns how many existed. O(deleted + touched index entries), not
+    /// O(deleted x table) like a loop over [`Self::delete`].
+    pub fn delete_batch(&mut self, ids: &[RecordId]) -> AmorphicResult<usize> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let tx_id = self.next_tx_id();
+        let op = WalOperation::DeleteBatch { ids: ids.to_vec() };
+        let serialized = serde_json::to_vec(&op)
+            .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
+        self.wal
+            .log_page_write(tx_id, u64::MAX - tx_id, &serialized)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+        let n = self.store.delete_batch(ids);
+        self.wal
+            .log_commit(tx_id)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+        Ok(n)
     }
 
     /// Update specific fields of a record with durability
