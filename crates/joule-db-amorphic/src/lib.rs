@@ -801,6 +801,52 @@ impl SegmentedHologram {
     }
 }
 
+const VI_SHARDS: usize = 64;
+
+/// `value hash -> ids` split into shards by the hash's top bits. Same
+/// contents and per-key id order as one map; batch ingest updates the
+/// shards in parallel.
+#[derive(Debug, Clone)]
+pub(crate) struct ShardedValueIndex {
+    shards: Vec<rustc_hash::FxHashMap<u64, Vec<RecordId>>>,
+}
+
+impl Default for ShardedValueIndex {
+    fn default() -> Self {
+        Self {
+            shards: (0..VI_SHARDS).map(|_| Default::default()).collect(),
+        }
+    }
+}
+
+impl ShardedValueIndex {
+    #[inline]
+    fn shard_of(h: u64) -> usize {
+        (h >> 58) as usize % VI_SHARDS
+    }
+    pub(crate) fn entry(
+        &mut self,
+        h: u64,
+    ) -> std::collections::hash_map::Entry<'_, u64, Vec<RecordId>> {
+        self.shards[Self::shard_of(h)].entry(h)
+    }
+    pub(crate) fn get(&self, h: &u64) -> Option<&Vec<RecordId>> {
+        self.shards[Self::shard_of(*h)].get(h)
+    }
+    pub(crate) fn get_mut(&mut self, h: &u64) -> Option<&mut Vec<RecordId>> {
+        self.shards[Self::shard_of(*h)].get_mut(h)
+    }
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        let per = additional / VI_SHARDS + 1;
+        for m in &mut self.shards {
+            m.reserve(per);
+        }
+    }
+    pub(crate) fn len(&self) -> usize {
+        self.shards.iter().map(|m| m.len()).sum()
+    }
+}
+
 /// The Amorphic Store - a database without fixed structure
 pub struct AmorphicStore {
     /// The holographic superposition of all records, in segments that each
@@ -827,8 +873,9 @@ pub struct AmorphicStore {
     /// Index: field name -> records containing that field
     field_index: HashMap<String, Vec<RecordId>>,
 
-    /// Index: value hash -> records with that value
-    value_index: rustc_hash::FxHashMap<u64, Vec<RecordId>>,
+    /// Index: value hash -> records with that value (sharded by hash so
+    /// batch ingest fills shards in parallel)
+    value_index: ShardedValueIndex,
 
     /// Graph index: source -> [(relation, target)]
     graph_index: HashMap<RecordId, Vec<(String, RecordId)>>,
@@ -1266,26 +1313,24 @@ impl AmorphicStore {
                         },
                         || {
                             let t = std::time::Instant::now();
-                            // (hash, row) pairs sorted in parallel, then one
-                            // map entry per distinct hash (ids stay in row
-                            // order) instead of one per cell
-                            let mut pairs: Vec<(u64, u32)> = hashes_ref
+                            // (hash, row) pairs bucketed by shard in
+                            // parallel; each shard then appended by its own
+                            // task (ids stay in row order per key)
+                            let pairs: Vec<(u64, u32)> = hashes_ref
                                 .par_iter()
                                 .enumerate()
                                 .flat_map_iter(|(r, hs)| hs.iter().map(move |&h| (h, r as u32)))
                                 .collect();
-                            pairs.par_sort_unstable();
-                            let mut k = 0;
-                            while k < pairs.len() {
-                                let h = pairs[k].0;
-                                let mut e = k;
-                                while e < pairs.len() && pairs[e].0 == h {
-                                    e += 1;
-                                }
-                                let list = vi.entry(h).or_default();
-                                list.extend(pairs[k..e].iter().map(|&(_, r)| rows_ref[r as usize].0));
-                                k = e;
+                            let mut buckets: Vec<Vec<(u64, u32)>> = vec![Vec::new(); VI_SHARDS];
+                            for &(h, r) in &pairs {
+                                buckets[ShardedValueIndex::shard_of(h)].push((h, r));
                             }
+                            vi.shards.par_iter_mut().zip(buckets).for_each(|(m, b)| {
+                                m.reserve(b.len());
+                                for (h, r) in b {
+                                    m.entry(h).or_default().push(rows_ref[r as usize].0);
+                                }
+                            });
                             for (id, fields) in rows_ref.iter() {
                                 for (field, value) in fields.iter() {
                                     if field == "name" || field == "_name" {
