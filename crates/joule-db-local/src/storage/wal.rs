@@ -327,6 +327,55 @@ pub struct WalManager {
     committed_lsn: std::sync::Arc<AtomicU64>,
 }
 
+/// How a commit is made durable (`JOULEDB_SYNC_METHOD`).
+///
+/// * `fullfsync` (default): on macOS `fcntl(F_FULLFSYNC)`, which also flushes
+///   the drive's write cache — survives power loss, ~4 ms per flush on Apple
+///   SSDs (~250 single-writer commits/s). Elsewhere identical to `fsync`.
+/// * `fsync`: plain `fsync`/`fdatasync`. On macOS this only reaches the
+///   drive, whose cache may still lose the last commits on power loss
+///   (PostgreSQL's macOS default, `wal_sync_method=fsync`), but is much faster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncMethod {
+    FullFsync,
+    Fsync,
+}
+
+impl SyncMethod {
+    /// From `JOULEDB_SYNC_METHOD` (default `fullfsync`; unknown values warn
+    /// and keep the default).
+    pub fn from_env() -> Self {
+        static M: std::sync::OnceLock<SyncMethod> = std::sync::OnceLock::new();
+        *M.get_or_init(|| match std::env::var("JOULEDB_SYNC_METHOD") {
+            Ok(v) => Self::parse(&v).unwrap_or_else(|| {
+                tracing::warn!("JOULEDB_SYNC_METHOD={v:?} unknown; using fullfsync");
+                SyncMethod::FullFsync
+            }),
+            Err(_) => SyncMethod::FullFsync,
+        })
+    }
+
+    pub fn parse(v: &str) -> Option<Self> {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "fullfsync" | "full" | "f_fullfsync" => Some(Self::FullFsync),
+            "fsync" | "fdatasync" => Some(Self::Fsync),
+            _ => None,
+        }
+    }
+}
+
+fn sync_file(file: &File) -> std::io::Result<()> {
+    #[cfg(target_os = "macos")]
+    if SyncMethod::from_env() == SyncMethod::FullFsync {
+        use std::os::unix::io::AsRawFd;
+        // fall back to fsync if the filesystem doesn't support F_FULLFSYNC
+        if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_FULLFSYNC) } != -1 {
+            return Ok(());
+        }
+    }
+    file.sync_data()
+}
+
 /// Group commit: makes commits durable (fsync) with concurrent committers
 /// sharing one fsync. A committer calls `wait_durable(lsn)` after releasing
 /// its write lock; if another committer's fsync already covered `lsn` it
@@ -340,6 +389,8 @@ pub struct GroupSync {
     synced: std::sync::Mutex<u64>,
     fsyncs: AtomicU64,
     failed: std::sync::atomic::AtomicBool,
+    /// fault injection (tests): the next fsync reports an I/O error
+    inject: std::sync::atomic::AtomicBool,
 }
 
 impl GroupSync {
@@ -356,20 +407,23 @@ impl GroupSync {
             return Err(StorageError::Backend("WAL fsync failed earlier".into()));
         }
         let mut synced = self.synced.lock().unwrap_or_else(|p| p.into_inner());
+        // re-check under the lock: a waiter queued behind a failed fsync must
+        // not be acknowledged by a later "successful" one (dirty pages may
+        // have been dropped by the kernel)
+        if self.failed.load(Ordering::Acquire) {
+            return Err(StorageError::Backend("WAL fsync failed earlier".into()));
+        }
         if *synced >= lsn {
             return Ok(());
         }
         // everything up to `target` is already in the OS page cache
         let target = self.committed.load(Ordering::Acquire).max(lsn);
-        #[cfg(target_os = "macos")]
-        let r = {
-            // F_FULLFSYNC: flush the drive cache too (plain fsync does not on macOS)
-            use std::os::unix::io::AsRawFd;
-            let rc = unsafe { libc::fcntl(self.file.as_raw_fd(), libc::F_FULLFSYNC) };
-            if rc == -1 { self.file.sync_data() } else { Ok(()) }
+        let r = sync_file(&self.file);
+        let r = if self.inject.swap(false, Ordering::AcqRel) {
+            Err(std::io::Error::other("injected fsync failure"))
+        } else {
+            r
         };
-        #[cfg(not(target_os = "macos"))]
-        let r = self.file.sync_data();
         self.fsyncs.fetch_add(1, Ordering::Relaxed);
         match r {
             Ok(()) => {
@@ -381,6 +435,12 @@ impl GroupSync {
                 Err(StorageError::Backend(format!("WAL fsync error: {e}")))
             }
         }
+    }
+
+    /// Fault injection for tests: make the next fsync fail.
+    #[doc(hidden)]
+    pub fn inject_fsync_failure(&self) {
+        self.inject.store(true, Ordering::Release);
     }
 
     /// True once an fsync has failed (sticky)
@@ -456,6 +516,7 @@ impl WalManager {
             synced: std::sync::Mutex::new(0),
             fsyncs: AtomicU64::new(0),
             failed: std::sync::atomic::AtomicBool::new(false),
+            inject: std::sync::atomic::AtomicBool::new(false),
         })
     }
 

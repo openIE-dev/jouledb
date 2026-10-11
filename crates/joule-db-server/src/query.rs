@@ -649,6 +649,21 @@ impl SimpleQueryExecutor {
         column_defs: Vec<crate::amorphic_adapter::ColumnDefInfo>,
         rows: Vec<Vec<AstValue>>,
     ) -> Result<usize, QueryErrorResponse> {
+        crate::amorphic_adapter::take_commit_error();
+        let r = self.bulk_insert_core_body(table, insert_columns, column_defs, rows);
+        match crate::amorphic_adapter::take_commit_error() {
+            Some(e) => Err(QueryErrorResponse::execution_error(&e)),
+            None => r,
+        }
+    }
+
+    fn bulk_insert_core_body(
+        &self,
+        table: &str,
+        insert_columns: Vec<String>,
+        column_defs: Vec<crate::amorphic_adapter::ColumnDefInfo>,
+        rows: Vec<Vec<AstValue>>,
+    ) -> Result<usize, QueryErrorResponse> {
         self.fire_triggers(table, "BEFORE", "INSERT");
         let mut inserted = 0usize;
         let mut rows_it = rows.into_iter();
@@ -1080,6 +1095,20 @@ fn collect_aggregates(
 impl SimpleQueryExecutor {
     /// Inner execution logic (separated for timeout wrapping)
     fn execute_inner(
+        &self,
+        request: &QueryRequest,
+        start: Instant,
+    ) -> Result<QueryResponse, QueryErrorResponse> {
+        // A commit whose fsync failed is an error to the client, never an ack.
+        crate::amorphic_adapter::take_commit_error();
+        let r = self.execute_inner_body(request, start);
+        match crate::amorphic_adapter::take_commit_error() {
+            Some(e) => Err(QueryErrorResponse::execution_error(&e)),
+            None => r,
+        }
+    }
+
+    fn execute_inner_body(
         &self,
         request: &QueryRequest,
         start: Instant,
@@ -12913,6 +12942,35 @@ impl SimpleQueryExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A commit whose fsync fails is an error to its client (not an ack),
+    /// and the store refuses writes afterwards.
+    #[test]
+    fn test_fsync_failure_fails_the_commit() {
+        let executor = SimpleQueryExecutor::new();
+        zq(&executor, "CREATE TABLE fs (v INT)");
+        zq(&executor, "INSERT INTO fs VALUES (1)");
+        let Some(gs) = executor.amorphic.group_sync() else {
+            return; // JOULEDB_SYNC_COMMIT=off in this environment
+        };
+        gs.inject_fsync_failure();
+        let req = |sql: &str| QueryRequest {
+            sql: sql.to_string(),
+            params: Default::default(),
+            args: Vec::new(),
+            explain: false,
+            limit: None,
+            session_id: None,
+            query_timeout_ms: None,
+            branch_id: None,
+            tenant_id: None,
+        };
+        let err = executor.execute(&req("INSERT INTO fs VALUES (2)")).unwrap_err();
+        assert!(err.message.contains("not durable"), "{}", err.message);
+        assert!(executor.execute(&req("INSERT INTO fs VALUES (3)")).is_err());
+        let bulk = executor.bulk_copy("fs", &["v".into()], &[vec![Some("4".into())]]);
+        assert!(matches!(bulk, Some(Err(_)) | None));
+    }
 
     fn zq(executor: &SimpleQueryExecutor, sql: &str) -> Vec<Vec<serde_json::Value>> {
         let request = QueryRequest {

@@ -265,12 +265,25 @@ impl Drop for SyncWriteGuard<'_> {
         drop(self.guard.take());
         if let (Some(g), Some(lsn)) = (self.sync, lsn) {
             if let Err(e) = g.wait_durable(lsn) {
-                // sticky: GroupSync reports it on every later commit too
+                // sticky in GroupSync; the statement that owns this commit
+                // turns it into an error via `take_commit_error`
                 tracing::error!("commit durability: {e}");
                 SYNC_FAILURES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                COMMIT_ERROR.with(|c| c.replace(Some(format!("commit not durable: {e}"))));
             }
         }
     }
+}
+
+thread_local! {
+    static COMMIT_ERROR: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Take (and clear) a durability failure raised by a commit on this thread.
+/// Statement entry points call this before and after running, so a commit
+/// whose fsync failed is reported to its client as an error.
+pub fn take_commit_error() -> Option<String> {
+    COMMIT_ERROR.with(|c| c.borrow_mut().take())
 }
 
 /// fsync failures seen by commit guards (metric; also sticky in GroupSync)
@@ -419,6 +432,11 @@ pub struct AmorphicTableStorage {
 }
 
 impl AmorphicTableStorage {
+    /// Group-commit handle (None when JOULEDB_SYNC_COMMIT=off).
+    pub fn group_sync(&self) -> Option<&joule_db_local::storage::wal::GroupSync> {
+        self.store.group_sync()
+    }
+
     pub fn new(store: DurableAmorphicStore) -> Self {
         Self {
             store: HoloLock::new(store),
