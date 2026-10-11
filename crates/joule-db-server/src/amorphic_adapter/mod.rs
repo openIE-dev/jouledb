@@ -208,12 +208,10 @@ pub struct ColumnStatistics {
 /// `__table__` field value. Column schemas are stored as dedicated
 /// `__schemas__` records for `CREATE TABLE` / `DROP TABLE` support.
 /// The store lock, plus background catch-up of the hypervector work that
-/// bulk ingest defers. `write()` is the plain write lock. `read()` first
-/// finishes any queued hypervector work, so every reader sees a complete
-/// index; `read_primary()` skips that for readers that only need primary
-/// data and the field/value/columnar indexes (the vectorized analytics path).
-/// If the lock is contended, `read()` does not wait for the catch-up; the
-/// background thread completes it within milliseconds.
+/// bulk ingest defers. `write()` is the plain write lock. `read()` and
+/// `read_primary()` never do hypervector work; `read_indexed()` (similarity
+/// search) finishes the queued work first. The background thread catches up
+/// in bounded steps once writes go idle.
 pub(crate) struct HoloLock {
     inner: std::sync::Arc<RwLock<DurableAmorphicStore>>,
     pending: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -283,27 +281,26 @@ impl HoloLock {
         self.inner.write()
     }
 
+    /// Plain read lock. Primary data and the field/value/columnar indexes
+    /// are always current; deferred hypervector work is left to the
+    /// background thread so analytics never pay for it (a bounded per-read
+    /// catch-up put ~7 ms on every query until a 1M-row backlog drained).
     pub(crate) fn read(
         &self,
     ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
-        let now = self.epoch.elapsed().as_millis() as u64;
-        let ingesting = now
-            .saturating_sub(self.last_bulk_ms.load(std::sync::atomic::Ordering::Relaxed))
-            < Self::IDLE_MS;
-        // While a bulk load is streaming, readers don't stall it: the
-        // hypervector index catches up once writes go idle.
-        if !ingesting && self.pending.load(std::sync::atomic::Ordering::Acquire) {
-            // try_write: never block (or self-deadlock under a nested read);
-            // if the lock is busy the background thread finishes the work.
-            // Bounded: one STEP per read, so no reader pays for the whole
-            // backlog (a 1M-row load left ~5 s of catch-up on jetson-hub's
-            // first query). The background thread finishes the rest.
-            if let Ok(mut g) = self.inner.try_write() {
-                g.catch_up_holograms(Self::STEP);
-                if g.pending_holograms() == 0 {
-                    self.pending
-                        .store(false, std::sync::atomic::Ordering::Release);
-                }
+        self.inner.read()
+    }
+
+    /// Read lock for hypervector consumers (similarity search): finishes any
+    /// queued hypervector work first so results cover every committed row.
+    pub(crate) fn read_indexed(
+        &self,
+    ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
+        if self.pending.load(std::sync::atomic::Ordering::Acquire) {
+            if let Ok(mut g) = self.inner.write() {
+                g.catch_up_holograms(usize::MAX);
+                self.pending
+                    .store(false, std::sync::atomic::Ordering::Release);
             }
         }
         self.inner.read()

@@ -157,7 +157,7 @@ impl AmorphicTableStorage {
 
     /// Query similar records by name
     pub fn query_similar_to(&self, name: &str, k: usize) -> Vec<serde_json::Value> {
-        let store = match self.store.read() {
+        let store = match self.store.read_indexed() {
             Ok(s) => s,
             Err(_) => return vec![],
         };
