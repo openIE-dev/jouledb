@@ -119,9 +119,22 @@ async fn run_server(
 
     // Everything else is on by default — TCP, PgWire, energy monitoring.
     // Auth, replication, TLS are env-var only for operators who need them.
+    // Auth: on whenever a secret is configured, and always on for
+    // non-loopback binds. A loopback-only server with no secret uses trust
+    // auth (as stock Postgres does), so `psql`, psycopg, and ORMs connect out of
+    // the box. Before this change, auth was on with no password, which
+    // rejected every pgwire client.
+    let loopback = matches!(bind_host.as_str(), "127.0.0.1" | "localhost" | "::1");
+    config.auth_enabled = !loopback;
     if let Ok(secret) = std::env::var("JOULEDB_JWT_SECRET") {
         config.auth_enabled = true;
         config.auth_jwt_secret = Some(secret);
+    }
+    if config.auth_enabled && config.auth_jwt_secret.is_none() {
+        eprintln!(
+            "jouledb: binding {bind_host} without JOULEDB_JWT_SECRET: clients will be refused. \
+             Set JOULEDB_JWT_SECRET (also the pgwire password)."
+        );
     }
     if let Ok(role) = std::env::var("JOULEDB_REPLICATION_ROLE") {
         config.enable_replication = true;

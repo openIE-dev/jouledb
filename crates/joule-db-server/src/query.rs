@@ -4561,11 +4561,24 @@ impl SimpleQueryExecutor {
             }
 
             SqlStatement::Commit => {
-                let sid = session_id.ok_or_else(|| {
-                    QueryErrorResponse::execution_error(
-                        "COMMIT without an active transaction (no session_id)",
-                    )
-                })?;
+                let Some(sid) = session_id else {
+                    // PostgreSQL: WARNING "there is no transaction in progress", success.
+                    return Ok(QueryResponse {
+                        columns: Vec::new(),
+                        rows: Vec::new(),
+                        affected_rows: Some(0),
+                        execution_time_ms: start.elapsed().as_millis() as u64,
+                        truncated: false,
+                        warnings: vec!["WARNING: there is no transaction in progress".to_string()],
+                        energy_joules: None,
+                        power_watts: None,
+                        device_target: None,
+                        algorithm_type: None,
+                        session_id: None,
+                        viz_hint: None,
+                        energy_receipt: None,
+                    });
+                };
                 self.mvcc
                     .commit_transaction(sid)
                     .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
@@ -4587,11 +4600,24 @@ impl SimpleQueryExecutor {
             }
 
             SqlStatement::Rollback => {
-                let sid = session_id.ok_or_else(|| {
-                    QueryErrorResponse::execution_error(
-                        "ROLLBACK without an active transaction (no session_id)",
-                    )
-                })?;
+                let Some(sid) = session_id else {
+                    // PostgreSQL: WARNING "there is no transaction in progress", success.
+                    return Ok(QueryResponse {
+                        columns: Vec::new(),
+                        rows: Vec::new(),
+                        affected_rows: Some(0),
+                        execution_time_ms: start.elapsed().as_millis() as u64,
+                        truncated: false,
+                        warnings: vec!["WARNING: there is no transaction in progress".to_string()],
+                        energy_joules: None,
+                        power_watts: None,
+                        device_target: None,
+                        algorithm_type: None,
+                        session_id: None,
+                        viz_hint: None,
+                        energy_receipt: None,
+                    });
+                };
                 self.mvcc
                     .rollback_transaction(sid)
                     .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
@@ -12357,7 +12383,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_without_begin_errors() {
+    fn test_commit_without_begin_warns() {
         let executor = SimpleQueryExecutor::new();
         let result = executor.execute(&QueryRequest {
             sql: "COMMIT".to_string(),
@@ -12370,11 +12396,13 @@ mod tests {
             branch_id: None,
             tenant_id: None,
         });
-        assert!(result.is_err(), "COMMIT without session_id should fail");
+        // PostgreSQL semantics: WARNING "there is no transaction in progress", success.
+        let r = result.expect("COMMIT without a transaction succeeds with a warning");
+        assert!(r.warnings.iter().any(|w| w.contains("no transaction in progress")));
     }
 
     #[test]
-    fn test_rollback_without_begin_errors() {
+    fn test_rollback_without_begin_warns() {
         let executor = SimpleQueryExecutor::new();
         let result = executor.execute(&QueryRequest {
             sql: "ROLLBACK".to_string(),
@@ -12387,7 +12415,9 @@ mod tests {
             branch_id: None,
             tenant_id: None,
         });
-        assert!(result.is_err(), "ROLLBACK without session_id should fail");
+        // PostgreSQL semantics: WARNING "there is no transaction in progress", success.
+        let r = result.expect("ROLLBACK without a transaction succeeds with a warning");
+        assert!(r.warnings.iter().any(|w| w.contains("no transaction in progress")));
     }
 
     #[test]

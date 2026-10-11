@@ -422,6 +422,10 @@ where
 
                 if sql.is_empty() {
                     write_empty_query_response(&mut writer).await?;
+                } else if let Some(copy) = parse_copy(&sql) {
+                    let timeout = (config.query_timeout_ms > 0).then_some(config.query_timeout_ms);
+                    handle_copy(copy, &mut reader, &mut writer, &executor, &mut conn_state, timeout)
+                        .await?;
                 } else {
                     let timeout = if config.query_timeout_ms > 0 {
                         Some(config.query_timeout_ms)
@@ -465,6 +469,16 @@ where
                 } else {
                     0
                 };
+                let mut oids = Vec::with_capacity(param_count);
+                for k in 0..param_count {
+                    let o = offset2 + 2 + k * 4;
+                    if o + 4 > body.len() {
+                        break;
+                    }
+                    oids.push(i32::from_be_bytes([body[o], body[o + 1], body[o + 2], body[o + 3]]));
+                }
+                let oid_key = stmt_name.clone();
+                conn_state.param_oids.insert(oid_key, oids);
 
                 // Store in prepared statement cache
                 let cache_name = if stmt_name.is_empty() {
@@ -494,8 +508,9 @@ where
                 let (portal_name, offset) = extract_cstring(&body, 0);
                 let (stmt_name, mut offset) = extract_cstring(&body, offset);
 
-                // Parse parameter format codes (skip for now)
-                let num_format_codes = if offset + 2 <= body.len() {
+                // Parameter format codes (0 text, 1 binary; one code applies to all)
+                let mut param_formats: Vec<i16> = Vec::new();
+                if offset + 2 <= body.len() {
                     let n = i16::from_be_bytes([body[offset], body[offset + 1]]) as usize;
                     offset += 2;
                     let skip = n.saturating_mul(2);
@@ -508,12 +523,15 @@ where
                         .await?;
                         continue;
                     }
+                    for k in 0..n {
+                        param_formats.push(i16::from_be_bytes([
+                            body[offset + 2 * k],
+                            body[offset + 2 * k + 1],
+                        ]));
+                    }
                     offset += skip;
-                    n
-                } else {
-                    0
-                };
-                let _ = num_format_codes;
+                }
+                let stmt_oids = conn_state.param_oids.get(&stmt_name).cloned().unwrap_or_default();
 
                 // Parse parameter values
                 let mut params = Vec::new();
@@ -544,12 +562,32 @@ where
                     } else {
                         let param_len = param_len as usize;
                         if offset + param_len <= body.len() {
-                            let val_str =
-                                String::from_utf8_lossy(&body[offset..offset + param_len])
-                                    .to_string();
-                            params.push(serde_json::Value::String(val_str));
+                            let k = params.len();
+                            let fmt = match param_formats.len() {
+                                0 => 0,
+                                1 => param_formats[0],
+                                _ => param_formats.get(k).copied().unwrap_or(0),
+                            };
+                            let oid = stmt_oids.get(k).copied().unwrap_or(0);
+                            params.push(decode_param(&body[offset..offset + param_len], fmt, oid));
                             offset += param_len;
                         }
+                    }
+                }
+
+                // Result-column format codes
+                let mut result_formats: Vec<i16> = Vec::new();
+                if offset + 2 <= body.len() {
+                    let n = i16::from_be_bytes([body[offset], body[offset + 1]]) as usize;
+                    offset += 2;
+                    for k in 0..n {
+                        if offset + 2 * k + 2 > body.len() {
+                            break;
+                        }
+                        result_formats.push(i16::from_be_bytes([
+                            body[offset + 2 * k],
+                            body[offset + 2 * k + 1],
+                        ]));
                     }
                 }
 
@@ -567,6 +605,8 @@ where
                             statement_name: lookup_name,
                             sql,
                             params,
+                            result_formats,
+                            described: None,
                         },
                     );
                     write_message(&mut writer, b'2', &[]).await?; // BindComplete
@@ -600,13 +640,15 @@ where
                         let param_count = conn_state
                             .prepared_statements
                             .get(&name)
-                            .map(|s| s.param_count)
+                            .map(|s| s.param_count.max(count_placeholders(&s.sql)))
                             .unwrap_or(0);
+                        let declared = conn_state.param_oids.get(&name).cloned().unwrap_or_default();
                         // ParameterDescription
                         let mut pd = Vec::new();
                         pd.extend_from_slice(&(param_count as i16).to_be_bytes());
-                        for _ in 0..param_count {
-                            pd.extend_from_slice(&25i32.to_be_bytes()); // text OID per param
+                        for k in 0..param_count {
+                            let oid = declared.get(k).copied().filter(|o| *o != 0).unwrap_or(25);
+                            pd.extend_from_slice(&oid.to_be_bytes());
                         }
                         write_message(&mut writer, b't', &pd).await?;
                         // Try to extract column names from SQL
@@ -620,15 +662,32 @@ where
                             write_message(&mut writer, b'n', &[]).await?;
                         }
                     } else {
-                        // Describe Portal — try same extraction from portal's SQL
-                        let cols = conn_state
+                        // Describe Portal: a row-returning statement is executed here and
+                        // its result cached, so the RowDescription carries the real columns
+                        // and types and Execute sends only DataRows (the protocol forbids a
+                        // second RowDescription there).
+                        let target = conn_state
                             .portals
                             .get(&name)
-                            .and_then(|p| extract_select_columns(&p.sql));
-                        if let Some(columns) = cols {
-                            write_row_description(&mut writer, &columns).await?;
-                        } else {
-                            write_message(&mut writer, b'n', &[]).await?;
+                            .map(|p| (bound_sql(p), p.result_formats.clone()));
+                        match target {
+                            Some((sql, formats)) if returns_rows(&sql) => {
+                                let timeout = (config.query_timeout_ms > 0)
+                                    .then_some(config.query_timeout_ms);
+                                let res = run_statement(&sql, &executor, &mut conn_state, timeout);
+                                match &res {
+                                    Ok(r) => {
+                                        let oids = column_oids(&r.rows, r.columns.len(), &formats);
+                                        write_row_description_fmt(&mut writer, &r.columns, &oids, &formats)
+                                            .await?;
+                                    }
+                                    Err(_) => write_message(&mut writer, b'n', &[]).await?,
+                                }
+                                if let Some(p) = conn_state.portals.get_mut(&name) {
+                                    p.described = Some(res);
+                                }
+                            }
+                            _ => write_message(&mut writer, b'n', &[]).await?,
                         }
                     }
                 } else {
@@ -649,26 +708,27 @@ where
 
                 let (portal_name, _offset) = extract_cstring(&body, 0);
 
-                if let Some(portal) = conn_state.portals.get(&portal_name) {
-                    let sql = if portal.params.is_empty() {
-                        portal.sql.clone()
-                    } else {
-                        substitute_params(&portal.sql, &portal.params)
-                    };
+                if let Some(portal) = conn_state.portals.get_mut(&portal_name) {
+                    let sql = bound_sql(portal);
+                    let formats = portal.result_formats.clone();
+                    let cached = portal.described.take();
                     let timeout = if config.query_timeout_ms > 0 {
                         Some(config.query_timeout_ms)
                     } else {
                         None
                     };
-                    execute_and_write(
-                        &sql,
-                        &executor,
-                        &mut writer,
-                        stats,
-                        &mut conn_state,
-                        timeout,
-                    )
-                    .await?;
+                    if let Some(copy) = parse_copy(&sql) {
+                        handle_copy(copy, &mut reader, &mut writer, &executor, &mut conn_state, timeout)
+                            .await?;
+                        continue;
+                    }
+                    stats.queries_executed.fetch_add(1, Ordering::Relaxed);
+                    let res = match cached {
+                        Some(r) => r,
+                        None => run_statement(&sql, &executor, &mut conn_state, timeout),
+                    };
+                    write_statement_result(&sql, res, &mut writer, stats, &mut conn_state, false, &formats)
+                        .await?;
                 } else {
                     write_error_response(
                         &mut writer,
@@ -1215,6 +1275,16 @@ where
     Ok(params)
 }
 
+fn is_tx_begin(sql: &str) -> bool {
+    let u = sql.trim_start().to_ascii_uppercase();
+    u.starts_with("BEGIN") || u.starts_with("START TRANSACTION")
+}
+
+fn is_tx_end(sql: &str) -> bool {
+    let u = sql.trim_start().to_ascii_uppercase();
+    u.starts_with("COMMIT") || u.starts_with("ROLLBACK") || u.starts_with("END") || u.starts_with("ABORT")
+}
+
 /// Infer PostgreSQL type OIDs from the first row of data
 fn infer_type_oids(columns: &[String], rows: &[Vec<serde_json::Value>]) -> Vec<i32> {
     if let Some(first_row) = rows.first() {
@@ -1224,70 +1294,87 @@ fn infer_type_oids(columns: &[String], rows: &[Vec<serde_json::Value>]) -> Vec<i
     }
 }
 
-/// Execute a SQL query and write results to the PgWire stream
-async fn execute_and_write<W: AsyncWriteExt + Unpin>(
+/// Run one statement for this connection, carrying its MVCC session.
+fn run_statement(
     sql: &str,
     executor: &Arc<dyn QueryExecutor>,
-    writer: &mut W,
-    stats: &PgWireStats,
     conn_state: &mut ConnectionState,
     query_timeout_ms: Option<u64>,
-) -> Result<(), PgWireError> {
-    stats.queries_executed.fetch_add(1, Ordering::Relaxed);
-
-    // RBAC: check write permission before executing
-    if let Err(e) =
-        crate::query::check_write_permission(&conn_state.user_id, &conn_state.roles, sql)
-    {
-        write_error_response(writer, &e.code, &e.message).await?;
-        write_ready_for_query(writer, conn_state.transaction_status).await?;
-        return Ok(());
+) -> Result<QueryResponse, QueryErrorResponse> {
+    if let Some(r) = show_setting(sql).or_else(|| type_info_lookup(sql)) {
+        return Ok(r);
     }
-
+    {
+        // Session commands drivers issue that the SQL engine has no use for.
+        let t = sql.trim().trim_end_matches(';').trim();
+        let u = t.to_ascii_uppercase();
+        let mut w = u.split_whitespace();
+        let first = w.next().unwrap_or("");
+        if first == "DEALLOCATE" || u == "DISCARD ALL" {
+            let name = t.split_whitespace().last().unwrap_or("").trim_matches('"').to_string();
+            if u == "DISCARD ALL" || name.eq_ignore_ascii_case("ALL") {
+                conn_state.prepared_statements = PreparedStatementCache::new(256);
+                conn_state.param_oids.clear();
+            } else {
+                conn_state.prepared_statements.remove(&name);
+                conn_state.param_oids.remove(&name);
+            }
+            return Ok(empty_response());
+        }
+        if first == "SET" || first == "RESET" {
+            // Session GUCs (extra_float_digits, application_name, DateStyle,
+            // TimeZone, ...) are accepted and have no effect on results.
+            return Ok(empty_response());
+        }
+    }
+    // RBAC: check write permission before executing
+    crate::query::check_write_permission(&conn_state.user_id, &conn_state.roles, sql)?;
     let request = QueryRequest {
-        sql: sql.to_string(),
+        sql: strip_pg_catalog(sql),
         params: HashMap::new(),
         args: Vec::new(),
         explain: false,
         limit: None,
-        session_id: None,
+        session_id: conn_state.session_id.clone(),
         query_timeout_ms,
         branch_id: None,
         tenant_id: None,
     };
+    let result = executor.execute(&request);
+    if is_tx_end(sql) {
+        // COMMIT/ROLLBACK end the session whether or not they succeeded.
+        conn_state.session_id = None;
+    }
+    if let Ok(response) = &result {
+        conn_state.update_transaction_status(sql);
+        if is_tx_begin(sql) && response.session_id.is_some() {
+            conn_state.session_id = response.session_id.clone();
+        }
+    }
+    result
+}
 
-    match executor.execute(&request) {
+/// Write a statement's result. `describe` sends the RowDescription (simple
+/// protocol); the extended protocol already sent it from Describe.
+async fn write_statement_result<W: AsyncWriteExt + Unpin>(
+    sql: &str,
+    result: Result<QueryResponse, QueryErrorResponse>,
+    writer: &mut W,
+    stats: &PgWireStats,
+    conn_state: &mut ConnectionState,
+    describe: bool,
+    formats: &[i16],
+) -> Result<(), PgWireError> {
+    match result {
         Ok(response) => {
-            // Update transaction state
-            conn_state.update_transaction_status(sql);
-
-            // Infer type OIDs from first row
-            let oids = infer_type_oids(&response.columns, &response.rows);
-
-            // Send RowDescription with typed OIDs
-            write_row_description_typed(writer, &response.columns, Some(&oids)).await?;
-
-            // Send DataRows
-            for row in &response.rows {
-                write_data_row(writer, row).await?;
+            let oids = column_oids(&response.rows, response.columns.len(), formats);
+            if describe && (!response.columns.is_empty() || returns_rows(sql)) {
+                write_row_description_fmt(writer, &response.columns, &oids, formats).await?;
             }
-
-            // Send CommandComplete
-            let tag = if let Some(affected) = response.affected_rows {
-                if sql.trim().to_uppercase().starts_with("INSERT") {
-                    format!("INSERT 0 {}", affected)
-                } else if sql.trim().to_uppercase().starts_with("UPDATE") {
-                    format!("UPDATE {}", affected)
-                } else if sql.trim().to_uppercase().starts_with("DELETE") {
-                    format!("DELETE {}", affected)
-                } else {
-                    format!("SELECT {}", response.rows.len())
-                }
-            } else {
-                format!("SELECT {}", response.rows.len())
-            };
-            write_command_complete(writer, &tag).await?;
-
+            for row in &response.rows {
+                write_data_row_fmt(writer, row, &oids, formats).await?;
+            }
+            write_command_complete(writer, &command_tag(sql, &response)).await?;
             let bytes_sent = response.rows.len() * response.columns.len() * 8; // estimate
             stats
                 .bytes_sent
@@ -1304,8 +1391,701 @@ async fn execute_and_write<W: AsyncWriteExt + Unpin>(
             stats.errors.fetch_add(1, Ordering::Relaxed);
         }
     }
-
     Ok(())
+}
+
+/// Execute a SQL query and write results to the PgWire stream (simple protocol)
+async fn execute_and_write<W: AsyncWriteExt + Unpin>(
+    sql: &str,
+    executor: &Arc<dyn QueryExecutor>,
+    writer: &mut W,
+    stats: &PgWireStats,
+    conn_state: &mut ConnectionState,
+    query_timeout_ms: Option<u64>,
+) -> Result<(), PgWireError> {
+    stats.queries_executed.fetch_add(1, Ordering::Relaxed);
+    let res = run_statement(sql, executor, conn_state, query_timeout_ms);
+    write_statement_result(sql, res, writer, stats, conn_state, true, &[]).await
+}
+
+/// `SHOW <setting>` for the session settings drivers read on connect
+/// (SQLAlchemy, JDBC, BI tools). `SHOW TABLES`/`SHOW COLUMNS` go to the executor.
+fn show_setting(sql: &str) -> Option<QueryResponse> {
+    let t = sql.trim().trim_end_matches(';').trim();
+    let mut w = t.split_whitespace();
+    if !w.next()?.eq_ignore_ascii_case("SHOW") {
+        return None;
+    }
+    let name = w.collect::<Vec<_>>().join(" ").to_ascii_lowercase();
+    let value = match name.as_str() {
+        "standard_conforming_strings" => "on",
+        "transaction isolation level" | "transaction_isolation" | "default_transaction_isolation" => {
+            "repeatable read"
+        }
+        "server_version" => "16.0",
+        "server_version_num" => "160000",
+        "server_encoding" | "client_encoding" => "UTF8",
+        "datestyle" => "ISO, MDY",
+        "timezone" => "UTC",
+        "integer_datetimes" => "on",
+        "search_path" => "\"$user\", public",
+        "transaction_read_only" | "default_transaction_read_only" => "off",
+        "max_identifier_length" => "63",
+        "is_superuser" => "on",
+        _ => return None,
+    };
+    Some(QueryResponse {
+        columns: vec![name.replace(' ', "_")],
+        rows: vec![vec![serde_json::json!(value)]],
+        affected_rows: None,
+        execution_time_ms: 0,
+        truncated: false,
+        warnings: Vec::new(),
+        energy_joules: None,
+        power_watts: None,
+        device_target: None,
+        algorithm_type: None,
+        session_id: None,
+        viz_hint: None,
+        energy_receipt: None,
+    })
+}
+
+/// psycopg's `TypeInfo.fetch` (SQLAlchemy runs it for hstore on connect) looks
+/// up extension types by name with `'name'::regtype`. JouleDB has no extension
+/// types, so it answers with zero rows, which psycopg reads as "not installed".
+fn type_info_lookup(sql: &str) -> Option<QueryResponse> {
+    let l = sql.to_ascii_lowercase();
+    if !(l.contains("from pg_type t") && l.contains("::regtype")) {
+        return None;
+    }
+    Some(QueryResponse {
+        columns: ["name", "oid", "array_oid", "regtype", "delimiter"].map(String::from).to_vec(),
+        rows: Vec::new(),
+        affected_rows: None,
+        execution_time_ms: 0,
+        truncated: false,
+        warnings: Vec::new(),
+        energy_joules: None,
+        power_watts: None,
+        device_target: None,
+        algorithm_type: None,
+        session_id: None,
+        viz_hint: None,
+        energy_receipt: None,
+    })
+}
+
+/// `pg_catalog.pg_class` -> `pg_class` (the catalog tables live unqualified),
+/// skipping string literals.
+fn strip_pg_catalog(sql: &str) -> String {
+    const P: &str = "pg_catalog.";
+    let mut out = String::with_capacity(sql.len());
+    let mut in_str = false;
+    let mut i = 0;
+    let b = sql.as_bytes();
+    while i < b.len() {
+        if b[i] == b'\'' {
+            in_str = !in_str;
+        }
+        if !in_str
+            && sql.len() - i >= P.len()
+            && sql[i..i + P.len()].eq_ignore_ascii_case(P)
+            && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b'.'))
+        {
+            i += P.len();
+            continue;
+        }
+        let ch = sql[i..].chars().next().unwrap_or(' ');
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
+fn empty_response() -> QueryResponse {
+    QueryResponse {
+        columns: Vec::new(),
+        rows: Vec::new(),
+        affected_rows: None,
+        execution_time_ms: 0,
+        truncated: false,
+        warnings: Vec::new(),
+        energy_joules: None,
+        power_watts: None,
+        device_target: None,
+        algorithm_type: None,
+        session_id: None,
+        viz_hint: None,
+        energy_receipt: None,
+    }
+}
+
+fn command_tag(sql: &str, response: &QueryResponse) -> String {
+    let u = sql.trim_start().to_ascii_uppercase();
+    let word = u.split_whitespace().next().unwrap_or("");
+    let n = response.affected_rows.unwrap_or(0);
+    match word {
+        "INSERT" => format!("INSERT 0 {n}"),
+        "UPDATE" => format!("UPDATE {n}"),
+        "DELETE" => format!("DELETE {n}"),
+        "BEGIN" | "START" => "BEGIN".into(),
+        "COMMIT" | "END" => "COMMIT".into(),
+        "ROLLBACK" | "ABORT" => "ROLLBACK".into(),
+        "CREATE" | "DROP" | "ALTER" => {
+            let obj = u.split_whitespace().nth(1).unwrap_or("TABLE");
+            format!("{word} {obj}")
+        }
+        "SET" => "SET".into(),
+        "SHOW" => "SHOW".into(),
+        "RESET" => "RESET".into(),
+        "DEALLOCATE" => "DEALLOCATE".into(),
+        "DISCARD" => "DISCARD ALL".into(),
+        _ => format!("SELECT {}", response.rows.len()),
+    }
+}
+
+// ============================================================================
+// COPY (text and CSV, FROM STDIN and TO STDOUT)
+// ============================================================================
+
+#[derive(Debug, Clone, PartialEq)]
+struct CopySpec {
+    /// Table name, or the inner query for `COPY (query) TO`
+    target: String,
+    is_query: bool,
+    columns: Vec<String>,
+    from_stdin: bool,
+    csv: bool,
+    header: bool,
+    delimiter: char,
+    null: String,
+}
+
+/// Parse `COPY t [(a, b)] FROM STDIN | COPY t|(query) TO STDOUT [WITH] [(options)] | [CSV] [HEADER]`.
+fn parse_copy(sql: &str) -> Option<CopySpec> {
+    let t = sql.trim().trim_end_matches(';').trim();
+    if !t.get(..5)?.eq_ignore_ascii_case("COPY ") {
+        return None;
+    }
+    let mut rest = t[5..].trim_start();
+    let (target, is_query) = if rest.starts_with('(') {
+        let mut depth = 0i32;
+        let mut end = None;
+        for (i, c) in rest.char_indices() {
+            match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let e = end?;
+        let q = rest[1..e].trim().to_string();
+        rest = rest[e + 1..].trim_start();
+        (q, true)
+    } else {
+        let e = rest.find(|c: char| c.is_whitespace() || c == '(').unwrap_or(rest.len());
+        let name = rest[..e].trim_matches('"').to_string();
+        rest = rest[e..].trim_start();
+        (name, false)
+    };
+    let mut columns = Vec::new();
+    if !is_query && rest.starts_with('(') {
+        let e = rest.find(')')?;
+        columns = rest[1..e]
+            .split(',')
+            .map(|c| c.trim().trim_matches('"').to_string())
+            .filter(|c| !c.is_empty())
+            .collect();
+        rest = rest[e + 1..].trim_start();
+    }
+    let upper = rest.to_ascii_uppercase();
+    let from_stdin = if upper.starts_with("FROM STDIN") {
+        true
+    } else if upper.starts_with("TO STDOUT") {
+        false
+    } else {
+        return None; // server-side files are not supported over the wire
+    };
+    let opts = rest[if from_stdin { 10 } else { 9 }..].to_string();
+    let ou = opts.to_ascii_uppercase();
+    let csv = ou.contains("CSV");
+    let header = ou.contains("HEADER") && !ou.contains("HEADER FALSE") && !ou.contains("HEADER 0");
+    let quoted = |key: &str| -> Option<String> {
+        let i = ou.find(key)?;
+        let after = &opts[i + key.len()..];
+        let a = after.find('\'')?;
+        let b = after[a + 1..].find('\'')?;
+        Some(after[a + 1..a + 1 + b].to_string())
+    };
+    let delimiter = quoted("DELIMITER")
+        .and_then(|d| if d == "\\t" { Some('\t') } else { d.chars().next() })
+        .unwrap_or(if csv { ',' } else { '\t' });
+    let null = quoted("NULL").unwrap_or_else(|| if csv { String::new() } else { "\\N".into() });
+    Some(CopySpec { target, is_query, columns, from_stdin, csv, header, delimiter, null })
+}
+
+/// Split one line of COPY text format (backslash escapes) into fields.
+fn split_copy_text(line: &str, delim: char, null: &str) -> Vec<Option<String>> {
+    line.split(delim)
+        .map(|f| {
+            if f == null {
+                return None;
+            }
+            let mut out = String::with_capacity(f.len());
+            let mut it = f.chars();
+            while let Some(c) = it.next() {
+                if c == '\\' {
+                    match it.next() {
+                        Some('t') => out.push('\t'),
+                        Some('n') => out.push('\n'),
+                        Some('r') => out.push('\r'),
+                        Some('\\') => out.push('\\'),
+                        Some(o) => out.push(o),
+                        None => {}
+                    }
+                } else {
+                    out.push(c);
+                }
+            }
+            Some(out)
+        })
+        .collect()
+}
+
+/// Parse CSV records (quotes, doubled quotes, embedded newlines).
+fn split_csv(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>> {
+    let mut rows = Vec::new();
+    let mut row: Vec<Option<String>> = Vec::new();
+    let mut field = String::new();
+    let (mut in_q, mut was_q) = (false, false);
+    let mut chars = data.chars().peekable();
+    let finish = |field: &mut String, was_q: &mut bool, row: &mut Vec<Option<String>>| {
+        let v = if !*was_q && field == null { None } else { Some(std::mem::take(field)) };
+        field.clear();
+        *was_q = false;
+        row.push(v);
+    };
+    while let Some(c) = chars.next() {
+        if in_q {
+            if c == '"' {
+                if chars.peek() == Some(&'"') {
+                    field.push('"');
+                    chars.next();
+                } else {
+                    in_q = false;
+                }
+            } else {
+                field.push(c);
+            }
+        } else if c == '"' {
+            in_q = true;
+            was_q = true;
+        } else if c == delim {
+            finish(&mut field, &mut was_q, &mut row);
+        } else if c == '\n' || c == '\r' {
+            if c == '\r' && chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            finish(&mut field, &mut was_q, &mut row);
+            if !(row.len() == 1 && row[0].as_deref() == Some("")) || was_q {
+                rows.push(std::mem::take(&mut row));
+            }
+            row.clear();
+        } else {
+            field.push(c);
+        }
+    }
+    if !field.is_empty() || !row.is_empty() || was_q {
+        finish(&mut field, &mut was_q, &mut row);
+        rows.push(row);
+    }
+    rows
+}
+
+fn sql_literal(v: &Option<String>) -> String {
+    match v {
+        None => "NULL".into(),
+        Some(s) => {
+            let t = s.trim();
+            let numeric = !t.is_empty()
+                && t.parse::<f64>().map(|f| f.is_finite()).unwrap_or(false)
+                && !t.starts_with('+')
+                && !(t.len() > 1 && t.starts_with('0') && !t.starts_with("0."));
+            if numeric {
+                t.to_string()
+            } else {
+                format!("'{}'", s.replace('\'', "''"))
+            }
+        }
+    }
+}
+
+fn csv_field(s: &str, delim: char) -> String {
+    if s.contains(delim) || s.contains('"') || s.contains('\n') || s.contains('\r') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+fn copy_text_field(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
+}
+
+async fn read_copy_message<R: AsyncReadExt + Unpin>(
+    reader: &mut R,
+) -> Result<(u8, Vec<u8>), PgWireError> {
+    let t = reader.read_u8().await.map_err(|e| PgWireError::Io(e.to_string()))?;
+    let len = reader.read_i32().await.map_err(|e| PgWireError::Io(e.to_string()))?;
+    let n = (len as usize).saturating_sub(4);
+    if n > MAX_PGWIRE_MESSAGE_SIZE {
+        return Err(PgWireError::Protocol(format!("CopyData message too large ({n} bytes)")));
+    }
+    let mut body = vec![0u8; n];
+    reader.read_exact(&mut body).await.map_err(|e| PgWireError::Io(e.to_string()))?;
+    Ok((t, body))
+}
+
+/// Rows per INSERT statement issued for COPY FROM.
+const COPY_BATCH_ROWS: usize = 500;
+
+async fn handle_copy<R, W>(
+    spec: CopySpec,
+    reader: &mut R,
+    writer: &mut W,
+    executor: &Arc<dyn QueryExecutor>,
+    conn_state: &mut ConnectionState,
+    timeout: Option<u64>,
+) -> Result<(), PgWireError>
+where
+    R: AsyncReadExt + Unpin,
+    W: AsyncWriteExt + Unpin,
+{
+    if spec.from_stdin {
+        if spec.is_query {
+            write_error_response(writer, "42601", "COPY (query) FROM STDIN is not valid").await?;
+            return Ok(());
+        }
+        if let Err(e) = crate::query::check_write_permission(
+            &conn_state.user_id,
+            &conn_state.roles,
+            &format!("INSERT INTO {} VALUES (1)", spec.target),
+        ) {
+            write_error_response(writer, &e.code, &e.message).await?;
+            return Ok(());
+        }
+        // CopyInResponse: overall text format, per-column text
+        let n = spec.columns.len() as i16;
+        let mut b = vec![0u8];
+        b.extend_from_slice(&n.to_be_bytes());
+        for _ in 0..n {
+            b.extend_from_slice(&0i16.to_be_bytes());
+        }
+        write_message(writer, b'G', &b).await?;
+        writer.flush().await.map_err(|e| PgWireError::Io(e.to_string()))?;
+        let mut data = Vec::new();
+        loop {
+            let (t, body) = read_copy_message(reader).await?;
+            match t {
+                b'd' => data.extend_from_slice(&body),
+                b'c' => break,
+                b'f' => {
+                    let msg = String::from_utf8_lossy(&body).trim_end_matches('\0').to_string();
+                    conn_state.set_error_in_transaction();
+                    write_error_response(writer, "57014", &format!("COPY from stdin failed: {msg}"))
+                        .await?;
+                    return Ok(());
+                }
+                b'H' | b'S' => {} // Flush/Sync may arrive mid-copy in extended mode
+                other => {
+                    return Err(PgWireError::Protocol(format!(
+                        "unexpected message '{}' during COPY",
+                        other as char
+                    )))
+                }
+            }
+        }
+        let text = String::from_utf8_lossy(&data);
+        let mut rows: Vec<Vec<Option<String>>> = if spec.csv {
+            split_csv(&text, spec.delimiter, &spec.null)
+        } else {
+            text.lines()
+                .filter(|l| *l != "\\.")
+                .map(|l| split_copy_text(l, spec.delimiter, &spec.null))
+                .collect()
+        };
+        if spec.header && !rows.is_empty() {
+            rows.remove(0);
+        }
+        let cols = if spec.columns.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", spec.columns.join(", "))
+        };
+        let mut total = 0usize;
+        for chunk in rows.chunks(COPY_BATCH_ROWS) {
+            let values: Vec<String> = chunk
+                .iter()
+                .map(|r| format!("({})", r.iter().map(sql_literal).collect::<Vec<_>>().join(", ")))
+                .collect();
+            let sql = format!("INSERT INTO {}{} VALUES {}", spec.target, cols, values.join(", "));
+            if let Err(e) = run_statement(&sql, executor, conn_state, timeout) {
+                conn_state.set_error_in_transaction();
+                write_error_response(writer, &e.code, &format!("COPY row {}: {}", total + 1, e.message))
+                    .await?;
+                return Ok(());
+            }
+            total += chunk.len();
+        }
+        write_command_complete(writer, &format!("COPY {total}")).await?;
+        return Ok(());
+    }
+    // COPY ... TO STDOUT
+    let query = if spec.is_query {
+        spec.target.clone()
+    } else if spec.columns.is_empty() {
+        format!("SELECT * FROM {}", spec.target)
+    } else {
+        format!("SELECT {} FROM {}", spec.columns.join(", "), spec.target)
+    };
+    let resp = match run_statement(&query, executor, conn_state, timeout) {
+        Ok(r) => r,
+        Err(e) => {
+            conn_state.set_error_in_transaction();
+            write_error_response(writer, &e.code, &e.message).await?;
+            return Ok(());
+        }
+    };
+    let n = resp.columns.len() as i16;
+    let mut b = vec![0u8];
+    b.extend_from_slice(&n.to_be_bytes());
+    for _ in 0..n {
+        b.extend_from_slice(&0i16.to_be_bytes());
+    }
+    write_message(writer, b'H', &b).await?;
+    let d = spec.delimiter.to_string();
+    let line = |vals: Vec<String>| format!("{}\n", vals.join(&d));
+    if spec.header {
+        let h = resp.columns.iter().map(|c| if spec.csv { csv_field(c, spec.delimiter) } else { copy_text_field(c) });
+        write_message(writer, b'd', line(h.collect()).as_bytes()).await?;
+    }
+    for r in &resp.rows {
+        let vals = r
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Null => spec.null.clone(),
+                other => {
+                    let t = text_value(other);
+                    if spec.csv { csv_field(&t, spec.delimiter) } else { copy_text_field(&t) }
+                }
+            })
+            .collect();
+        write_message(writer, b'd', line(vals).as_bytes()).await?;
+    }
+    write_message(writer, b'c', &[]).await?;
+    write_command_complete(writer, &format!("COPY {}", resp.rows.len())).await?;
+    Ok(())
+}
+
+fn bound_sql(p: &Portal) -> String {
+    if p.params.is_empty() {
+        p.sql.clone()
+    } else {
+        substitute_params(&p.sql, &p.params)
+    }
+}
+
+fn count_placeholders(sql: &str) -> usize {
+    let b = sql.as_bytes();
+    let mut max = 0usize;
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'$' {
+            let mut j = i + 1;
+            while j < b.len() && b[j].is_ascii_digit() {
+                j += 1;
+            }
+            if let Ok(n) = sql[i + 1..j].parse::<usize>() {
+                max = max.max(n);
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    max
+}
+
+/// Statements whose result has columns, so Describe should report them.
+fn returns_rows(sql: &str) -> bool {
+    let u = sql.trim_start().trim_start_matches('(').to_ascii_uppercase();
+    let w = u.split_whitespace().next().unwrap_or("");
+    matches!(w, "SELECT" | "WITH" | "VALUES" | "SHOW" | "TABLE" | "EXPLAIN")
+        || u.contains(" RETURNING ")
+}
+
+/// Decode one Bind parameter using its format code and declared type OID.
+fn decode_param(raw: &[u8], fmt: i16, oid: i32) -> serde_json::Value {
+    use serde_json::Value;
+    if fmt == 1 {
+        let int = |b: &[u8]| -> Option<i64> {
+            Some(match b.len() {
+                2 => i16::from_be_bytes(b.try_into().ok()?) as i64,
+                4 => i32::from_be_bytes(b.try_into().ok()?) as i64,
+                8 => i64::from_be_bytes(b.try_into().ok()?),
+                _ => return None,
+            })
+        };
+        let v = match oid {
+            16 => raw.first().map(|b| Value::Bool(*b != 0)),
+            20 | 21 | 23 => int(raw).map(Value::from),
+            700 => raw.try_into().ok().map(|a| Value::from(f32::from_be_bytes(a) as f64)),
+            701 => raw.try_into().ok().map(|a| Value::from(f64::from_be_bytes(a))),
+            _ => None,
+        };
+        return v.unwrap_or_else(|| Value::String(String::from_utf8_lossy(raw).into_owned()));
+    }
+    let text = String::from_utf8_lossy(raw).into_owned();
+    match oid {
+        20 | 21 | 23 | 26 => text.trim().parse::<i64>().map(Value::from).unwrap_or(Value::String(text)),
+        700 | 701 | 1700 => match text.trim().parse::<f64>() {
+            Ok(f) if f.is_finite() => Value::from(f),
+            _ => Value::String(text),
+        },
+        16 => match text.trim() {
+            "t" | "true" | "TRUE" | "1" | "on" | "yes" => Value::Bool(true),
+            "f" | "false" | "FALSE" | "0" | "off" | "no" => Value::Bool(false),
+            _ => Value::String(text),
+        },
+        _ => Value::String(text),
+    }
+}
+
+fn result_format(formats: &[i16], i: usize) -> i16 {
+    match formats.len() {
+        0 => 0,
+        1 => formats[0],
+        _ => formats.get(i).copied().unwrap_or(0),
+    }
+}
+
+/// One type OID per column, consistent across every row (binary encoding
+/// needs that). Integers widen to int8, mixed numbers to float8; a binary
+/// column that is neither number nor bool is sent as text.
+fn column_oids(rows: &[Vec<serde_json::Value>], ncols: usize, formats: &[i16]) -> Vec<i32> {
+    (0..ncols)
+        .map(|c| {
+            let (mut ints, mut nums, mut bools, mut other, mut wide) = (0, 0, 0, 0, false);
+            let mut first_other: Option<&serde_json::Value> = None;
+            for r in rows {
+                match r.get(c) {
+                    None | Some(serde_json::Value::Null) => {}
+                    Some(serde_json::Value::Bool(_)) => bools += 1,
+                    Some(serde_json::Value::Number(n)) => {
+                        if let Some(i) = n.as_i64() {
+                            ints += 1;
+                            wide |= i32::try_from(i).is_err();
+                        } else {
+                            nums += 1;
+                        }
+                    }
+                    Some(v) => {
+                        other += 1;
+                        first_other.get_or_insert(v);
+                    }
+                }
+            }
+            let binary = result_format(formats, c) == 1;
+            if other == 0 && bools == 0 && nums == 0 && ints > 0 {
+                if wide { 20 } else { 23 }
+            } else if other == 0 && bools == 0 && nums > 0 {
+                701
+            } else if other == 0 && bools > 0 && ints + nums == 0 {
+                16
+            } else if other > 0 && ints + nums + bools == 0 && !binary {
+                first_other.map(value_to_pg_oid).unwrap_or(25)
+            } else {
+                25
+            }
+        })
+        .collect()
+}
+
+async fn write_row_description_fmt<W: AsyncWriteExt + Unpin>(
+    writer: &mut W,
+    columns: &[String],
+    oids: &[i32],
+    formats: &[i16],
+) -> Result<(), PgWireError> {
+    let mut body = Vec::new();
+    body.extend_from_slice(&(columns.len() as i16).to_be_bytes());
+    for (i, col) in columns.iter().enumerate() {
+        body.extend_from_slice(col.as_bytes());
+        body.push(0);
+        body.extend_from_slice(&0i32.to_be_bytes());
+        body.extend_from_slice(&0i16.to_be_bytes());
+        let oid = oids.get(i).copied().unwrap_or(25);
+        body.extend_from_slice(&oid.to_be_bytes());
+        let size: i16 = match oid {
+            16 => 1,
+            23 => 4,
+            20 | 701 => 8,
+            _ => -1,
+        };
+        body.extend_from_slice(&size.to_be_bytes());
+        body.extend_from_slice(&(-1i32).to_be_bytes());
+        body.extend_from_slice(&result_format(formats, i).to_be_bytes());
+    }
+    write_message(writer, b'T', &body).await
+}
+
+fn text_value(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => if *b { "t" } else { "f" }.to_string(),
+        other => other.to_string(),
+    }
+}
+
+async fn write_data_row_fmt<W: AsyncWriteExt + Unpin>(
+    writer: &mut W,
+    row: &[serde_json::Value],
+    oids: &[i32],
+    formats: &[i16],
+) -> Result<(), PgWireError> {
+    if formats.iter().all(|f| *f == 0) {
+        return write_data_row(writer, row).await;
+    }
+    let mut body = Vec::new();
+    body.extend_from_slice(&(row.len() as i16).to_be_bytes());
+    for (i, v) in row.iter().enumerate() {
+        if v.is_null() {
+            body.extend_from_slice(&(-1i32).to_be_bytes());
+            continue;
+        }
+        let bytes: Vec<u8> = if result_format(formats, i) == 1 {
+            match (oids.get(i).copied().unwrap_or(25), v) {
+                (16, serde_json::Value::Bool(b)) => vec![*b as u8],
+                (23, serde_json::Value::Number(n)) => (n.as_i64().unwrap_or(0) as i32).to_be_bytes().to_vec(),
+                (20, serde_json::Value::Number(n)) => n.as_i64().unwrap_or(0).to_be_bytes().to_vec(),
+                (701, serde_json::Value::Number(n)) => n.as_f64().unwrap_or(0.0).to_be_bytes().to_vec(),
+                _ => text_value(v).into_bytes(),
+            }
+        } else {
+            text_value(v).into_bytes()
+        };
+        body.extend_from_slice(&(bytes.len() as i32).to_be_bytes());
+        body.extend_from_slice(&bytes);
+    }
+    write_message(writer, b'D', &body).await
 }
 
 /// Handle a simple query (Q message) — backward-compatible wrapper
@@ -1847,6 +2627,10 @@ struct ConnectionState {
     user_id: String,
     /// User roles for write permission checks
     roles: Vec<String>,
+    /// MVCC session from BEGIN, sent with every statement until COMMIT/ROLLBACK
+    session_id: Option<String>,
+    /// Parameter type OIDs declared in Parse, by statement name
+    param_oids: HashMap<String, Vec<i32>>,
 }
 
 /// A prepared statement parsed from a Parse message
@@ -1862,6 +2646,10 @@ struct Portal {
     statement_name: String,
     sql: String,
     params: Vec<serde_json::Value>,
+    /// Result-column format codes from Bind (0 text, 1 binary)
+    result_formats: Vec<i16>,
+    /// Result computed by Describe so Execute does not run it twice
+    described: Option<Result<QueryResponse, QueryErrorResponse>>,
 }
 
 /// Substitute `$1`, `$2`, ... placeholders with bound parameter values.
@@ -1997,6 +2785,8 @@ impl ConnectionState {
             portals: HashMap::new(),
             transaction_status: b'I',
             in_explicit_transaction: false,
+            session_id: None,
+            param_oids: HashMap::new(),
             user_id: "anonymous".to_string(),
             roles: vec!["superuser".to_string()],
         }
@@ -2008,6 +2798,8 @@ impl ConnectionState {
             portals: HashMap::new(),
             transaction_status: b'I',
             in_explicit_transaction: false,
+            session_id: None,
+            param_oids: HashMap::new(),
             user_id,
             // When auth is enabled, default to readonly; when disabled, grant superuser
             roles: if auth_enabled {
@@ -2419,6 +3211,8 @@ mod tests {
                 statement_name: "s1".into(),
                 sql,
                 params: vec![serde_json::json!("42")],
+                result_formats: Vec::new(),
+                described: None,
             },
         );
 
@@ -3579,4 +4373,40 @@ mod tests {
         let result = substitute_params(sql, &params);
         assert_eq!(result, "SELECT 1, 10, 2");
     }
+
+    #[test]
+    fn copy_parse_and_fields() {
+        let c = parse_copy("COPY t (a, b) FROM STDIN WITH (FORMAT csv, HEADER true)").unwrap();
+        assert!(c.from_stdin && c.csv && c.header && c.columns == vec!["a", "b"]);
+        let o = parse_copy("COPY (SELECT 1) TO STDOUT").unwrap();
+        assert!(o.is_query && !o.from_stdin && o.delimiter == '\t');
+        assert!(parse_copy("COPY t FROM '/etc/passwd'").is_none());
+        assert_eq!(split_copy_text("1\t\\N\ta\\tb", '\t', "\\N"), vec![Some("1".into()), None, Some("a\tb".into())]);
+        let rows = split_csv("1,\"x,y\",\n2,\"q\"\"\",z\n", ',', "");
+        assert_eq!(rows[0], vec![Some("1".into()), Some("x,y".into()), None]);
+        assert_eq!(rows[1], vec![Some("2".into()), Some("q\"".into()), Some("z".into())]);
+        assert_eq!(sql_literal(&Some("007".into())), "'007'");
+        assert_eq!(sql_literal(&Some("2.5".into())), "2.5");
+        assert_eq!(sql_literal(&Some("o'k".into())), "'o''k'");
+    }
+
+    #[test]
+    fn params_decode_by_oid_and_format() {
+        assert_eq!(decode_param(b"42", 0, 23), serde_json::json!(42));
+        assert_eq!(decode_param(b"1.5", 0, 701), serde_json::json!(1.5));
+        assert_eq!(decode_param(b"42", 0, 0), serde_json::json!("42"));
+        assert_eq!(decode_param(&7i32.to_be_bytes(), 1, 23), serde_json::json!(7));
+        assert_eq!(decode_param(&2.5f64.to_be_bytes(), 1, 701), serde_json::json!(2.5));
+        assert_eq!(decode_param(b"t", 0, 16), serde_json::json!(true));
+    }
+
+    #[test]
+    fn column_oids_are_consistent() {
+        let rows = vec![vec![serde_json::json!(1), serde_json::json!(1.5)], vec![serde_json::json!(5_000_000_000i64), serde_json::json!(2)]];
+        assert_eq!(column_oids(&rows, 2, &[]), vec![20, 701]);
+        assert_eq!(strip_pg_catalog("select pg_catalog.version(), 'pg_catalog.x' from pg_catalog.pg_class"), "select version(), 'pg_catalog.x' from pg_class");
+        assert!(returns_rows("  WITH a AS (SELECT 1) SELECT * FROM a") && !returns_rows("INSERT INTO t VALUES (1)"));
+        assert_eq!(count_placeholders("SELECT $1, $3"), 3);
+    }
+
 }

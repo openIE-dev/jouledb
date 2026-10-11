@@ -3506,10 +3506,31 @@ impl SqlParser {
                         Ok(Expression::QualifiedWildcard(name))
                     } else {
                         let column = self.parse_identifier()?;
-                        Ok(Expression::QualifiedColumn {
-                            table: name,
-                            column,
-                        })
+                        if *self.peek() == Token::LParen {
+                            // Schema-qualified function call: pg_catalog.version(), etc.
+                            self.advance();
+                            let mut args = Vec::new();
+                            if *self.peek() != Token::RParen {
+                                loop {
+                                    args.push(self.parse_expression()?);
+                                    if *self.peek() == Token::Comma {
+                                        self.advance();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                            self.expect(Token::RParen)?;
+                            Ok(Expression::Function {
+                                name: format!("{name}.{column}"),
+                                args,
+                            })
+                        } else {
+                            Ok(Expression::QualifiedColumn {
+                                table: name,
+                                column,
+                            })
+                        }
                     }
                 } else {
                     Ok(Expression::Column(name))

@@ -523,7 +523,24 @@ pub fn eval_scalar_function(
     table_scanner: Option<TableScanFn>,
 ) -> QueryResult<Value> {
     let name_upper = name.to_uppercase();
+    let name_upper = name_upper
+        .strip_prefix("PG_CATALOG.")
+        .map(str::to_string)
+        .unwrap_or(name_upper);
     match name_upper.as_str() {
+        // ==================== SESSION / CATALOG ====================
+        // Drivers (SQLAlchemy, JDBC, BI tools) parse this on connect; the
+        // leading "PostgreSQL 16.0" is what their version regexes expect.
+        "VERSION" => Ok(Value::String(format!(
+            "PostgreSQL 16.0 (JouleDB {}) on {}-{}",
+            env!("CARGO_PKG_VERSION"),
+            std::env::consts::ARCH,
+            std::env::consts::OS
+        ))),
+        "CURRENT_SCHEMA" => Ok(Value::String("public".into())),
+        "CURRENT_DATABASE" => Ok(Value::String("jouledb".into())),
+        "CURRENT_USER" | "SESSION_USER" | "USER" => Ok(Value::String("postgres".into())),
+        "PG_BACKEND_PID" => Ok(Value::Int(std::process::id() as i64)),
         // ==================== STRING FUNCTIONS ====================
         "UPPER" => {
             if let Some(Value::String(s)) = args.first() {

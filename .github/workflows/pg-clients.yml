@@ -1,0 +1,67 @@
+name: Postgres clients
+
+# Real-driver compatibility for the pgwire server: psql, psycopg 3,
+# SQLAlchemy 2 (+ pandas), node-postgres, and pgJDBC against a release
+# `jouledb` binary. Each check prints one matrix line; known gaps print xfail.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pg-clients-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_TOOLCHAIN: 1.94.1
+
+jobs:
+  clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pg-clients
+      - name: Build jouledb (release)
+        run: cargo build --release --locked -p joule-db-server --bin jouledb
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install clients
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
+          pip install "psycopg[binary]==3.*" "sqlalchemy==2.*" pandas
+          cd tests/clients && npm install --no-save pg@8
+          curl -fsSL -o /tmp/pgjdbc.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar
+      - name: Start jouledb
+        run: |
+          ./target/release/jouledb -p 18080 -d "$RUNNER_TEMP/jdb" > "$RUNNER_TEMP/jouledb.log" 2>&1 &
+          for i in $(seq 60); do (echo > /dev/tcp/127.0.0.1/18082) 2>/dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/jouledb.log"; exit 1
+      - name: Client matrix
+        env:
+          JOULEDB_PG_PORT: '18082'
+          PGJDBC_JAR: /tmp/pgjdbc.jar
+        run: bash tests/clients/run_all.sh | tee "$RUNNER_TEMP/matrix.txt"; exit ${PIPESTATUS[0]}
+      - name: Server log
+        if: always()
+        run: tail -100 "$RUNNER_TEMP/jouledb.log" || true
