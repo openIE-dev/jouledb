@@ -90,6 +90,14 @@ enum WalOperation {
     /// Delete a record by ID
     #[serde(rename = "delete")]
     Delete { id: RecordId },
+    /// A chunk of batch-ingested records in one entry: column names once,
+    /// then one value per column per row (`None` = field absent).
+    #[serde(rename = "ingest_chunk")]
+    IngestChunk {
+        ids: Vec<RecordId>,
+        columns: Vec<String>,
+        rows: Vec<Vec<Option<Value>>>,
+    },
     /// Delete many records in one entry (DROP TABLE, bulk DELETE)
     #[serde(rename = "delete_batch")]
     DeleteBatch { ids: Vec<RecordId> },
@@ -186,6 +194,16 @@ impl DurableAmorphicStore {
                     }
                     WalOperation::DeleteBatch { ids } => {
                         store.delete_batch(&ids);
+                    }
+                    WalOperation::IngestChunk { ids, columns, rows } => {
+                        for (id, vals) in ids.into_iter().zip(rows) {
+                            let fields: HashMap<String, Value> = columns
+                                .iter()
+                                .zip(vals)
+                                .filter_map(|(c, v)| v.map(|v| (c.clone(), v)))
+                                .collect();
+                            store.apply_recovered_record(id, fields, vec![], None)?;
+                        }
                     }
                     WalOperation::UpdateFields { id, updates } => {
                         let _ = store.update_fields(id, updates);
@@ -297,32 +315,42 @@ impl DurableAmorphicStore {
             .store
             .apply_prepared_ingest_batch_with(prepared, |rows| {
                 use rayon::prelude::*;
+                // compact chunk records: column names once per chunk, one
+                // WAL entry per CHUNK rows (page id = first record id, so
+                // replay order and dedup stay per id range)
+                const CHUNK: usize = 4096;
                 #[derive(serde::Serialize)]
-                struct Rec<'a> {
-                    id: RecordId,
-                    fields: &'a HashMap<String, Value>,
-                    edges: [(); 0],
-                    timestamp: Option<()>,
+                #[serde(tag = "op", rename = "ingest_chunk")]
+                struct Chunk<'a> {
+                    ids: Vec<RecordId>,
+                    columns: Vec<&'a str>,
+                    rows: Vec<Vec<Option<&'a Value>>>,
                 }
-                let serialized: Vec<Vec<u8>> = rows
-                    .par_iter()
-                    .map(|(id, fields)| {
-                        serde_json::to_vec(&Rec {
-                            id: *id,
-                            fields,
-                            edges: [],
-                            timestamp: None,
-                        })
+                let writes: Vec<(RecordId, Vec<u8>)> = rows
+                    .par_chunks(CHUNK)
+                    .map(|chunk| {
+                        let mut columns: Vec<&str> = Vec::new();
+                        for (_, f) in chunk {
+                            for k in f.keys() {
+                                if !columns.contains(&k.as_str()) {
+                                    columns.push(k.as_str());
+                                }
+                            }
+                        }
+                        let c = Chunk {
+                            ids: chunk.iter().map(|(id, _)| *id).collect(),
+                            rows: chunk
+                                .iter()
+                                .map(|(_, f)| columns.iter().map(|k| f.get(*k)).collect())
+                                .collect(),
+                            columns,
+                        };
+                        serde_json::to_vec(&c).map(|b| (chunk[0].0, b))
                     })
                     .collect::<Result<_, _>>()
                     .map_err(|e| {
                         AmorphicError::IngestionError(format!("Serialization failed: {}", e))
                     })?;
-                let writes: Vec<(RecordId, Vec<u8>)> = rows
-                    .iter()
-                    .zip(serialized)
-                    .map(|((id, _), b)| (*id, b))
-                    .collect();
                 wal.log_page_writes_owned(tx_id, writes)
                     .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
             })?;
@@ -945,6 +973,52 @@ mod tests {
         assert_eq!(store.len(), 300);
         assert_eq!(store.query_equals("k", &Value::Int(2)).records.len(), 100);
         assert_eq!(store.pending_holograms(), 0);
+    }
+
+    /// Chunked batch WAL records (> one chunk, sparse fields, mixed types)
+    /// replay exactly after a crash (store dropped without checkpoint), and
+    /// later deletes still apply after the replayed chunks.
+    #[test]
+    fn test_chunked_batch_wal_crash_recovery() {
+        let temp_dir = TempDir::new().unwrap();
+        let n = 10_000i64;
+        let mut before: Vec<(RecordId, HashMap<String, Value>)> = Vec::new();
+        {
+            let mut store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+            let rows: Vec<HashMap<String, Value>> = (0..n)
+                .map(|i| {
+                    let mut m = HashMap::new();
+                    m.insert("i".to_string(), Value::Int(i));
+                    if i % 3 != 0 {
+                        m.insert("f".to_string(), Value::Float(i as f64 / 4.0));
+                    }
+                    if i % 5 == 0 {
+                        m.insert("s".to_string(), Value::String(format!("v{i}")));
+                    }
+                    if i % 7 == 0 {
+                        m.insert("z".to_string(), Value::Null);
+                    }
+                    m
+                })
+                .collect();
+            let ids = store.ingest_fields_batch(rows).unwrap();
+            assert_eq!(ids.len(), n as usize);
+            store.delete(ids[42]).unwrap();
+            for id in &ids {
+                if let Some(r) = store.get(*id) {
+                    before.push((*id, r.fields_iter().map(|(k, v)| (k.to_string(), v.clone())).collect()));
+                }
+            }
+            // simulated crash: drop without checkpoint
+        }
+        let store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+        assert_eq!(store.len(), n as usize - 1);
+        for (id, fields) in &before {
+            let r = store.get(*id).expect("record replayed");
+            let got: HashMap<String, Value> = r.fields_iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
+            assert_eq!(&got, fields, "record {id}");
+        }
+        assert_eq!(store.query_equals("i", &Value::Int(9_999)).records.len(), 1);
     }
 
     #[test]

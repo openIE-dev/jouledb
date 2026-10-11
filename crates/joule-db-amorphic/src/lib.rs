@@ -1227,27 +1227,48 @@ impl AmorphicStore {
         // Per-field work (field index, numeric B-trees, columnar) touches
         // disjoint per-field structures: gather per field in id order, then
         // fill them in parallel. Same contents as the row-at-a-time path.
+        // gather per field in parallel (one task per field name, each a
+        // pass over the batch in id order): same lists as a serial pass
+        let mut names_set: rustc_hash::FxHashSet<&str> = Default::default();
+        for (_, fields) in &rows {
+            if fields.len() != names_set.len() || fields.keys().any(|k| !names_set.contains(k.as_str())) {
+                names_set.extend(fields.keys().map(|k| k.as_str()));
+            }
+        }
+        type Gather<'a> = (&'a str, Vec<RecordId>, Vec<(OrderedFloat, RecordId)>, Vec<(RecordId, f64)>);
+        let gathered: Vec<Gather> = names_set
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|f| {
+                let (mut ids, mut nums, mut cs) = (Vec::with_capacity(rows.len()), Vec::new(), Vec::new());
+                for (id, fields) in &rows {
+                    if let Some(value) = fields.get(f) {
+                        ids.push(*id);
+                        if let Some(num) = value.as_f64() {
+                            nums.push((OrderedFloat(num), *id));
+                        }
+                        match value {
+                            Value::Int(i) => cs.push((*id, *i as f64)),
+                            Value::Float(x) => cs.push((*id, *x)),
+                            _ => {}
+                        }
+                    }
+                }
+                (f, ids, nums, cs)
+            })
+            .collect();
         let mut by_field: rustc_hash::FxHashMap<&str, Vec<RecordId>> = Default::default();
         let mut numeric: rustc_hash::FxHashMap<&str, Vec<(OrderedFloat, RecordId)>> =
             Default::default();
         let mut cols: rustc_hash::FxHashMap<&str, Vec<(RecordId, f64)>> = Default::default();
-        for (id, fields) in &rows {
-            for (field, value) in fields {
-                by_field.entry(field.as_str()).or_default().push(*id);
-                if let Some(num) = value.as_f64() {
-                    numeric
-                        .entry(field.as_str())
-                        .or_default()
-                        .push((OrderedFloat(num), *id));
-                }
-                match value {
-                    Value::Int(i) => cols
-                        .entry(field.as_str())
-                        .or_default()
-                        .push((*id, *i as f64)),
-                    Value::Float(f) => cols.entry(field.as_str()).or_default().push((*id, *f)),
-                    _ => {}
-                }
+        for (f, ids, nums, cs) in gathered {
+            by_field.insert(f, ids);
+            if !nums.is_empty() {
+                numeric.insert(f, nums);
+            }
+            if !cs.is_empty() {
+                cols.insert(f, cs);
             }
         }
         for f in by_field.keys() {
