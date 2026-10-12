@@ -85,7 +85,7 @@ impl AmorphicTableStorage {
 
     /// Get a view's query SQL and optional column aliases.
     pub fn get_view(&self, name: &str) -> Option<(String, Option<Vec<String>>)> {
-        let store = self.store.read().ok()?;
+        let store = self.store.read_columns().ok()?;
         let result = store.query_equals("__view_name__", &AmorphicValue::String(name.to_string()));
         let records = result.records();
         let record = records.first()?;
@@ -105,7 +105,7 @@ impl AmorphicTableStorage {
 
     /// List all view names.
     pub fn list_views(&self) -> Vec<String> {
-        let store = match self.store.read() {
+        let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };
@@ -145,7 +145,7 @@ impl AmorphicTableStorage {
 
     /// Get a materialized view definition: (query_sql, backing_table)
     pub fn get_materialized_view(&self, name: &str) -> QueryResult<Option<(String, String)>> {
-        let store = self.store.read().map_err(lock_error)?;
+        let store = self.store.read_columns().map_err(lock_error)?;
         let result =
             store.query_equals(MATVIEW_NAME_FIELD, &AmorphicValue::String(name.to_string()));
         for record in result.records() {
@@ -188,7 +188,7 @@ impl AmorphicTableStorage {
 
     /// List all materialized view names.
     pub fn list_materialized_views(&self) -> Vec<String> {
-        let store = match self.store.read() {
+        let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };

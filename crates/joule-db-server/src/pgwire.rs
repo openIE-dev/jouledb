@@ -1791,6 +1791,14 @@ fn copy_file(
         let p = copy_file_path(&path, false).map_err(bad)?;
         let t_read = std::time::Instant::now();
         let batches = crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
+        if conn_state.session_id.is_none() {
+            // Not in a transaction: typed columns straight into the store.
+            match executor.bulk_insert_arrow(&spec.target, &spec.columns, &batches) {
+                Some(Ok(n)) => return Ok(n),
+                Some(Err(e)) => return Err((e.code, e.message)),
+                None => {}
+            }
+        }
         let t_dec = std::time::Instant::now();
         let (file_cols, mut rows) = crate::file_formats::batches_to_values(&batches).map_err(bad)?;
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {

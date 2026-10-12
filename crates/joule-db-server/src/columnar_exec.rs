@@ -257,6 +257,203 @@ impl TableColumns {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Cell<'a> {
+    Null,
+    I(i64),
+    F(f64),
+    S(&'a str),
+    B,
+}
+
+fn cell<'a>(c: Option<&'a joule_db_amorphic::column_batch::BatchColumn>, i: usize) -> Cell<'a> {
+    use joule_db_amorphic::column_batch::ColData;
+    let Some(c) = c else { return Cell::Null };
+    if c.is_null(i) {
+        return Cell::Null;
+    }
+    match &c.data {
+        ColData::Int(v) => Cell::I(v[i]),
+        ColData::Float(v) => Cell::F(v[i]),
+        ColData::Bool(_) => Cell::B,
+        ColData::Str { .. } => Cell::S(c.str_at(i)),
+    }
+}
+
+impl TableColumns {
+    /// Snapshot of a table whose only rows are `batch` (same column typing
+    /// as `build` over the materialized records).
+    pub fn from_batch(columns: &[String], batch: &joule_db_amorphic::column_batch::ColumnBatch) -> Self {
+        use joule_db_amorphic::column_batch::ColData;
+        use rayon::prelude::*;
+        let n = batch.len;
+        let built: Vec<(String, Col)> = columns
+            .par_iter()
+            .map(|c| {
+                let bc = batch.cols.iter().find(|b| &b.name == c);
+                let any = bc.is_some_and(|b| (0..n).any(|i| !b.is_null(i)));
+                let nulls_of = |b: &joule_db_amorphic::column_batch::BatchColumn| match &b.valid {
+                    Some(v) if v.iter().any(|x| !x) => v.iter().map(|x| !x).collect(),
+                    _ => Vec::new(),
+                };
+                let col = match bc {
+                    Some(b) if any => match &b.data {
+                        ColData::Int(v) => Col::Int(
+                            (0..n).map(|i| if b.is_null(i) { 0 } else { v[i] }).collect(),
+                            nulls_of(b),
+                        ),
+                        ColData::Float(v) => Col::Float(
+                            (0..n).map(|i| if b.is_null(i) { 0.0 } else { v[i] }).collect(),
+                            nulls_of(b),
+                        ),
+                        ColData::Bool(_) => Col::Other,
+                        ColData::Str { .. } => {
+                            let mut codes_of: HashMap<&str, u32> = HashMap::new();
+                            let mut dict: Vec<Arc<str>> = Vec::new();
+                            let codes = (0..n)
+                                .map(|i| {
+                                    if b.is_null(i) {
+                                        return NULL_CODE;
+                                    }
+                                    let s = b.str_at(i);
+                                    *codes_of.entry(s).or_insert_with(|| {
+                                        dict.push(Arc::from(s));
+                                        (dict.len() - 1) as u32
+                                    })
+                                })
+                                .collect();
+                            Col::Text(codes, dict)
+                        }
+                    },
+                    // all-null (or absent): build() types these as Int
+                    _ => Col::Int(vec![0; n], vec![true; n]),
+                };
+                (c.clone(), col)
+            })
+            .collect();
+        let mut t = Self {
+            len: n,
+            cols: built.into_iter().collect(),
+            text_index: HashMap::new(),
+            zones: HashMap::new(),
+        };
+        t.refresh_zones(0);
+        t
+    }
+
+    /// `append` for a columnar batch (rows after every row already here).
+    /// False when a value does not fit the column's type (caller drops the
+    /// snapshot, as for `append`).
+    pub fn append_batch(&mut self, batch: &joule_db_amorphic::column_batch::ColumnBatch) -> bool {
+        use rayon::prelude::*;
+        let old = self.len;
+        let n = batch.len;
+        let mut idxs = std::mem::take(&mut self.text_index);
+        let mut work: Vec<(&String, &mut Col, Option<FxMap<Arc<str>, u32>>)> = self
+            .cols
+            .iter_mut()
+            .map(|(name, col)| {
+                let idx = match col {
+                    Col::Text(_, dict) => Some(idxs.remove(name).unwrap_or_else(|| {
+                        dict.iter().enumerate().map(|(i, d)| (d.clone(), i as u32)).collect()
+                    })),
+                    _ => None,
+                };
+                (name, col, idx)
+            })
+            .collect();
+        let ok = work
+            .par_iter_mut()
+            .map(|(name, col, idx)| {
+                let bc = batch.cols.iter().find(|b| &b.name == *name);
+                match col {
+                    Col::Int(v, nulls) => {
+                        v.reserve(n);
+                        for i in 0..n {
+                            match cell(bc, i) {
+                                Cell::I(x) => {
+                                    v.push(x);
+                                    if !nulls.is_empty() {
+                                        nulls.push(false);
+                                    }
+                                }
+                                Cell::Null => {
+                                    if nulls.is_empty() {
+                                        *nulls = vec![false; old + i];
+                                    }
+                                    v.push(0);
+                                    nulls.push(true);
+                                }
+                                _ => return false,
+                            }
+                        }
+                    }
+                    Col::Float(v, nulls) => {
+                        v.reserve(n);
+                        for i in 0..n {
+                            let x = match cell(bc, i) {
+                                Cell::F(f) => f,
+                                Cell::I(x) => x as f64,
+                                Cell::Null => {
+                                    if nulls.is_empty() {
+                                        *nulls = vec![false; old + i];
+                                    }
+                                    v.push(0.0);
+                                    nulls.push(true);
+                                    continue;
+                                }
+                                _ => return false,
+                            };
+                            v.push(x);
+                            if !nulls.is_empty() {
+                                nulls.push(false);
+                            }
+                        }
+                    }
+                    Col::Text(codes, dict) => {
+                        let Some(idx) = idx.as_mut() else { return false };
+                        codes.reserve(n);
+                        for i in 0..n {
+                            match cell(bc, i) {
+                                Cell::S(s) => {
+                                    let code = match idx.get(s) {
+                                        Some(&c) => c,
+                                        None => {
+                                            let a: Arc<str> = Arc::from(s);
+                                            dict.push(a.clone());
+                                            let c = (dict.len() - 1) as u32;
+                                            idx.insert(a, c);
+                                            c
+                                        }
+                                    };
+                                    codes.push(code);
+                                }
+                                Cell::Null => codes.push(NULL_CODE),
+                                _ => return false,
+                            }
+                        }
+                    }
+                    Col::Other => {}
+                }
+                true
+            })
+            .collect::<Vec<bool>>()
+            .into_iter()
+            .all(|b| b);
+        for (name, _, idx) in work {
+            if let Some(i) = idx {
+                idxs.insert(name.clone(), i);
+            }
+        }
+        self.text_index = idxs;
+        self.len = old + n;
+        if ok {
+            self.refresh_zones(old);
+        }
+        ok
+    }
+}
+
 /// A row's field lookup: stored records, or (id, fields) pairs of a batch
 /// that is being committed (column snapshot appended alongside the store).
 pub trait FieldGet {

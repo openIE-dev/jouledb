@@ -222,6 +222,15 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
         self.inner.bulk_insert_values(table, columns, rows)
     }
 
+    fn bulk_insert_arrow(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: &[arrow::record_batch::RecordBatch],
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.inner.bulk_insert_arrow(table, columns, batches)
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let t_all = std::time::Instant::now();
         // Classify the SQL statement for energy tracking

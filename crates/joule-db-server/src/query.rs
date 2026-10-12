@@ -220,6 +220,17 @@ pub trait QueryExecutor: Send + Sync {
     ) -> Option<Result<usize, QueryErrorResponse>> {
         None
     }
+
+    /// Columnar-first bulk insert of Arrow batches (file COPY outside a
+    /// transaction). `None` = not eligible; the caller takes the row path.
+    fn bulk_insert_arrow(
+        &self,
+        _table: &str,
+        _columns: &[String],
+        _batches: &[arrow::record_batch::RecordBatch],
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        None
+    }
 }
 
 /// Rows per validated insert batch in bulk COPY / file import (one store
@@ -786,6 +797,40 @@ impl QueryExecutor for SimpleQueryExecutor {
         }
         let insert_columns = if columns.is_empty() { table_columns } else { columns.to_vec() };
         Some(self.bulk_insert_core(table, insert_columns, column_defs, std::mem::take(rows)))
+    }
+
+    fn bulk_insert_arrow(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: &[arrow::record_batch::RecordBatch],
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        let batch = self.column_batch_for(table, columns, batches)?;
+        if batch.len == 0 {
+            return None;
+        }
+        self.fire_triggers(table, "BEFORE", "INSERT");
+        crate::amorphic_adapter::take_commit_error();
+        let r = self.amorphic.insert_column_batch(table, batch);
+        let r = match (r, crate::amorphic_adapter::take_commit_error()) {
+            (_, Some(e)) => Err(QueryErrorResponse::execution_error(&e)),
+            (Err(e), None) => Err(QueryErrorResponse::execution_error(&e.to_string())),
+            (Ok(n), None) => Ok(n),
+        };
+        if let Ok(n) = r {
+            if n > 0 {
+                self.fire_triggers(table, "AFTER", "INSERT");
+                self.broadcast_replication(
+                    crate::replication::ReplicationOp::Put,
+                    table,
+                    Some(&format!(
+                        "{{\"__op__\":\"INSERT\",\"__table__\":\"{}\",\"__count__\":{}}}",
+                        table, n
+                    )),
+                );
+            }
+        }
+        Some(r)
     }
 
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
@@ -6440,6 +6485,88 @@ impl SimpleQueryExecutor {
                 })
             }
         }
+    }
+
+    /// The Arrow batches as one columnar ingest batch, when the row path
+    /// would store exactly these values: bulk-eligible table, every table
+    /// column given once, no type coercion for any column type pair, no
+    /// NULL in a NOT NULL column, no reserved names. `None` otherwise.
+    fn column_batch_for(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: &[arrow::record_batch::RecordBatch],
+    ) -> Option<joule_db_amorphic::column_batch::ColumnBatch> {
+        use joule_db_amorphic::column_batch::{ColData, ColumnBatch};
+        if table.starts_with('_')
+            || table == "holographic"
+            || table == "kv"
+            || self.amorphic.get_view(table).is_some()
+        {
+            return None;
+        }
+        let table_columns = self.amorphic.columns(table).ok()?;
+        let defs = self.amorphic.get_column_defs(table).unwrap_or_default();
+        if !self.bulk_insert_eligible(table, &defs) {
+            return None;
+        }
+        let (file_cols, mut cols, len) = crate::file_formats::batches_to_columns(batches)?;
+        let names = if columns.is_empty() { file_cols } else { columns.to_vec() };
+        if names.len() != cols.len() {
+            return None;
+        }
+        let mut seen = std::collections::HashSet::new();
+        for (c, n) in cols.iter_mut().zip(&names) {
+            if n.starts_with('_') || !seen.insert(n.clone()) || !table_columns.contains(n) {
+                return None;
+            }
+            c.name = n.clone();
+        }
+        if !defs.is_empty() {
+            for d in &defs {
+                let Some(c) = cols.iter().find(|c| c.name == d.name) else {
+                    // a missing column gets its default, or is absent (NULL)
+                    if d.default_value.is_some() || !d.nullable {
+                        return None;
+                    }
+                    continue;
+                };
+                if !d.nullable && c.valid.as_ref().is_some_and(|v| v.iter().any(|x| !x)) {
+                    return None;
+                }
+                let t = d.data_type.to_uppercase();
+                let coerced = match &c.data {
+                    ColData::Int(_) => matches!(
+                        &t[..],
+                        "FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL" | "BOOLEAN" | "BOOL"
+                            | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
+                    ),
+                    ColData::Float(_) => matches!(
+                        &t[..],
+                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
+                    ),
+                    ColData::Str { .. } => matches!(
+                        &t[..],
+                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "FLOAT" | "DOUBLE" | "REAL"
+                            | "NUMERIC" | "DECIMAL" | "BOOLEAN" | "BOOL"
+                    ),
+                    ColData::Bool(_) => false,
+                };
+                if coerced {
+                    return None;
+                }
+            }
+        }
+        let batch = ColumnBatch {
+            table_field: crate::amorphic_adapter::TABLE_FIELD_NAME.to_string(),
+            table: table.to_string(),
+            first_id: 0,
+            len,
+            cols,
+        };
+        // non-finite floats etc.: the row path stores those differently
+        batch.validate().ok()?;
+        Some(batch)
     }
 
     /// Whether a multi-row INSERT into `table` can take the batch path: no
@@ -142263,4 +142390,193 @@ mod tests {
 pub(crate) fn lat_trace() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("JOULEDB_LAT_TRACE").is_some())
+}
+
+/// Columnar-first bulk ingest (`bulk_insert_arrow`): every query path sees
+/// exactly what the row path (`bulk_insert_values`) stores, before and after
+/// background materialization, and after a crash part way through it.
+#[cfg(test)]
+mod columnar_ingest_tests {
+    use super::*;
+    use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
+    use arrow::record_batch::RecordBatch;
+    use std::sync::atomic::Ordering;
+
+    const N: i64 = 20_000;
+
+    fn q(e: &SimpleQueryExecutor, sql: &str) -> Vec<Vec<serde_json::Value>> {
+        let request = QueryRequest {
+            sql: sql.to_string(),
+            params: Default::default(),
+            args: Vec::new(),
+            explain: false,
+            limit: None,
+            session_id: None,
+            query_timeout_ms: None,
+            branch_id: None,
+            tenant_id: None,
+        };
+        e.execute(&request).unwrap_or_else(|err| panic!("{sql}: {}", err.message)).rows
+    }
+
+    fn batches(from: i64, to: i64) -> Vec<RecordBatch> {
+        let mut out = Vec::new();
+        let mut s = from;
+        while s < to {
+            let e = (s + 7_000).min(to);
+            let id: ArrayRef = Arc::new(Int64Array::from_iter_values(s..e));
+            let k: ArrayRef = Arc::new(Int32Array::from_iter((s..e).map(|i| {
+                if i % 11 == 0 { None } else { Some((i % 97) as i32) }
+            })));
+            let f: ArrayRef = Arc::new(Float64Array::from_iter((s..e).map(|i| {
+                if i % 13 == 0 { None } else { Some(i as f64 * 0.1 + 1e-7) }
+            })));
+            let t: ArrayRef = Arc::new(StringArray::from_iter((s..e).map(|i| {
+                if i % 17 == 0 { None } else { Some(format!("s{}", i % 50)) }
+            })));
+            let b: ArrayRef = Arc::new(BooleanArray::from_iter((s..e).map(|i| {
+                if i % 19 == 0 { None } else { Some(i % 2 == 0) }
+            })));
+            out.push(
+                RecordBatch::try_from_iter(vec![("id", id), ("k", k), ("f", f), ("t", t), ("b", b)])
+                    .unwrap(),
+            );
+            s = e;
+        }
+        out
+    }
+
+    fn create(e: &SimpleQueryExecutor) {
+        q(e, "CREATE TABLE ci (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN)");
+    }
+
+    fn load_rows(e: &SimpleQueryExecutor, from: i64, to: i64) {
+        let bs = batches(from, to);
+        let (cols, mut rows) = crate::file_formats::batches_to_values(&bs).unwrap();
+        e.bulk_insert_values("ci", &cols, &mut rows).unwrap().unwrap();
+    }
+
+    fn load_cols(e: &SimpleQueryExecutor, from: i64, to: i64) {
+        let n = e.bulk_insert_arrow("ci", &[], &batches(from, to)).expect("eligible").unwrap();
+        assert_eq!(n as i64, to - from);
+    }
+
+    const QUERIES: &[&str] = &[
+        "SELECT * FROM ci ORDER BY id",
+        "SELECT count(*) FROM ci",
+        "SELECT * FROM ci WHERE id = 12345",
+        "SELECT id, t FROM ci WHERE id = 7",
+        "SELECT * FROM ci WHERE t = 's7' ORDER BY id",
+        "SELECT id FROM ci WHERE f IS NULL ORDER BY id",
+        "SELECT id FROM ci WHERE b = true AND k > 90 ORDER BY id",
+        "SELECT k, count(*), sum(f), min(id), max(id) FROM ci GROUP BY k ORDER BY k",
+        "SELECT t, avg(f) FROM ci GROUP BY t ORDER BY t",
+        "SELECT sum(id), min(f), max(f), count(t), count(b) FROM ci",
+        "SELECT * FROM ci WHERE id BETWEEN 19990 AND 20005 ORDER BY id",
+    ];
+
+    fn assert_same(a: &SimpleQueryExecutor, b: &SimpleQueryExecutor, when: &str) {
+        for sql in QUERIES {
+            assert_eq!(q(a, sql), q(b, sql), "{when}: {sql}");
+        }
+    }
+
+    /// Queries while rows are only columns (first query of each kind runs
+    /// before any materialization: aggregates from the column snapshot,
+    /// lookups settle), then after partial and full materialization, then
+    /// row writes on top of columnar rows.
+    #[test]
+    fn test_columnar_ingest_matches_row_path_on_every_query() {
+        let _g = PAUSE_BG.lock().unwrap_or_else(|p| p.into_inner());
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(true, Ordering::Relaxed);
+        let (row, col) = (SimpleQueryExecutor::new(), SimpleQueryExecutor::new());
+        create(&row);
+        create(&col);
+        load_rows(&row, 0, N);
+        load_cols(&col, 0, N);
+        assert_eq!(col.amorphic.pending_column_rows(), N as usize);
+        // column-snapshot aggregates answer without materializing
+        let agg = "SELECT k, count(*), sum(f), min(id), max(id) FROM ci GROUP BY k ORDER BY k";
+        assert_eq!(q(&row, agg), q(&col, agg));
+        assert_eq!(col.amorphic.pending_column_rows(), N as usize, "aggregate materialized rows");
+        assert_same(&row, &col, "after first load");
+        // second load: one queued, the snapshot appended
+        load_rows(&row, N, 2 * N);
+        load_cols(&col, N, 2 * N);
+        assert_eq!(q(&row, agg), q(&col, agg));
+        col.amorphic.materialize_columns(5_000);
+        assert_same(&row, &col, "partly materialized");
+        // row writes over columnar rows
+        load_rows(&row, 2 * N, 3 * N);
+        load_cols(&col, 2 * N, 3 * N);
+        for e in [&row, &col] {
+            q(e, "UPDATE ci SET t = 'upd' WHERE id = 45001");
+            q(e, "DELETE FROM ci WHERE id < 100");
+            q(e, "INSERT INTO ci (id, k, f, t, b) VALUES (999999, 1, 2.5, 'x', false)");
+        }
+        assert_same(&row, &col, "after row writes");
+        assert_eq!(col.amorphic.pending_column_rows(), 0);
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(false, Ordering::Relaxed);
+    }
+
+    /// Background materialization drains the queue on its own.
+    #[test]
+    fn test_columnar_ingest_background_materializes() {
+        let _g = PAUSE_BG.lock().unwrap_or_else(|p| p.into_inner());
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(false, Ordering::Relaxed);
+        let (row, col) = (SimpleQueryExecutor::new(), SimpleQueryExecutor::new());
+        create(&row);
+        create(&col);
+        load_rows(&row, 0, N);
+        load_cols(&col, 0, N);
+        let t = std::time::Instant::now();
+        while col.amorphic.pending_column_rows() > 0 {
+            assert!(t.elapsed() < std::time::Duration::from_secs(60), "never materialized");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_same(&row, &col, "after background");
+    }
+
+    /// Crash after the batch committed and part (or none, or all) of it
+    /// was materialized: recovery rebuilds every row and index from the WAL.
+    #[test]
+    fn test_columnar_ingest_crash_mid_materialization_recovers() {
+        let _g = PAUSE_BG.lock().unwrap_or_else(|p| p.into_inner());
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(true, Ordering::Relaxed);
+        let row = SimpleQueryExecutor::new();
+        create(&row);
+        load_rows(&row, 0, 2 * N);
+        for done in [0usize, 12_345, 2 * N as usize] {
+            let dir = tempfile::tempdir().unwrap();
+            {
+                let col = SimpleQueryExecutor::open(dir.path());
+                create(&col);
+                load_cols(&col, 0, N);
+                load_cols(&col, N, 2 * N);
+                col.amorphic.materialize_columns(done);
+                assert_eq!(col.amorphic.pending_column_rows(), 2 * N as usize - done);
+                // dropped without a checkpoint: the "crash"
+            }
+            let col = SimpleQueryExecutor::open(dir.path());
+            assert_eq!(col.amorphic.pending_column_rows(), 0);
+            assert_same(&row, &col, &format!("recovered after {done} materialized"));
+        }
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(false, Ordering::Relaxed);
+    }
+
+    /// Not eligible (coercion, NOT NULL with NULLs, reserved names): `None`,
+    /// the caller takes the row path.
+    #[test]
+    fn test_columnar_ingest_ineligible_falls_back() {
+        let e = SimpleQueryExecutor::new();
+        q(&e, "CREATE TABLE cf (id DOUBLE, k INT, f DOUBLE, t TEXT, b BOOLEAN)");
+        assert!(e.bulk_insert_arrow("cf", &[], &batches(0, 10)).is_none());
+        q(&e, "CREATE TABLE cn (id BIGINT, k INT NOT NULL, f DOUBLE, t TEXT, b BOOLEAN)");
+        assert!(e.bulk_insert_arrow("cn", &[], &batches(0, 30)).is_none());
+        q(&e, "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN)");
+        assert!(e.bulk_insert_arrow("cp", &[], &batches(0, 10)).is_none());
+    }
+
+    /// Serializes the tests that toggle the global background pause.
+    static PAUSE_BG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 }

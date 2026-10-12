@@ -287,6 +287,114 @@ pub fn batches_to_values(
     Ok((columns, rows))
 }
 
+/// Arrow batches -> typed columns for columnar-first ingest, with the
+/// values `batches_to_values` would give (ints widened to i64, f32 to f64,
+/// UTF-8 text, booleans). `None` when any column has another type (the
+/// caller takes the row path).
+pub fn batches_to_columns(
+    batches: &[RecordBatch],
+) -> Option<(Vec<String>, Vec<joule_db_amorphic::column_batch::BatchColumn>, usize)> {
+    use arrow::array::AsArray;
+    use arrow::datatypes::*;
+    use joule_db_amorphic::column_batch::{BatchColumn, ColData};
+    use rayon::prelude::*;
+    let first = batches.first()?;
+    let schema = first.schema();
+    if batches.iter().any(|b| b.schema() != schema) {
+        return None;
+    }
+    let names: Vec<String> = schema.fields().iter().map(|f| f.name().clone()).collect();
+    let total: usize = batches.iter().map(|b| b.num_rows()).sum();
+    let cols: Option<Vec<BatchColumn>> = (0..names.len())
+        .into_par_iter()
+        .map(|ci| {
+            let dt = schema.field(ci).data_type().clone();
+            let arrays: Vec<&dyn Array> = batches.iter().map(|b| b.column(ci).as_ref()).collect();
+            let nulls: usize = arrays.iter().map(|a| a.null_count()).sum();
+            let valid = (nulls > 0).then(|| {
+                let mut v = Vec::with_capacity(total);
+                for a in &arrays {
+                    v.extend((0..a.len()).map(|i| !a.is_null(i)));
+                }
+                v
+            });
+            macro_rules! ints {
+                ($t:ty) => {{
+                    let mut v = Vec::with_capacity(total);
+                    for a in &arrays {
+                        v.extend(a.as_primitive::<$t>().values().iter().map(|&x| x as i64));
+                    }
+                    ColData::Int(v)
+                }};
+            }
+            let data = match dt {
+                DataType::Int8 => ints!(Int8Type),
+                DataType::Int16 => ints!(Int16Type),
+                DataType::Int32 => ints!(Int32Type),
+                DataType::Int64 => ints!(Int64Type),
+                DataType::UInt8 => ints!(UInt8Type),
+                DataType::UInt16 => ints!(UInt16Type),
+                DataType::UInt32 => ints!(UInt32Type),
+                DataType::Float32 => {
+                    let mut v = Vec::with_capacity(total);
+                    for a in &arrays {
+                        v.extend(a.as_primitive::<Float32Type>().values().iter().map(|&x| x as f64));
+                    }
+                    ColData::Float(v)
+                }
+                DataType::Float64 => {
+                    let mut v = Vec::with_capacity(total);
+                    for a in &arrays {
+                        v.extend_from_slice(a.as_primitive::<Float64Type>().values());
+                    }
+                    ColData::Float(v)
+                }
+                DataType::Boolean => {
+                    let mut v = Vec::with_capacity(total);
+                    for a in &arrays {
+                        let b = a.as_boolean();
+                        v.extend((0..b.len()).map(|i| b.value(i)));
+                    }
+                    ColData::Bool(v)
+                }
+                DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
+                    let mut offsets = Vec::with_capacity(total + 1);
+                    let mut bytes: Vec<u8> = Vec::new();
+                    offsets.push(0u32);
+                    for a in &arrays {
+                        let mut push = |s: &str| {
+                            bytes.extend_from_slice(s.as_bytes());
+                            offsets.push(bytes.len() as u32);
+                        };
+                        // NULL cells: empty (masked by `valid`)
+                        match a.data_type() {
+                            DataType::Utf8 => {
+                                let s = a.as_string::<i32>();
+                                (0..s.len()).for_each(|i| push(if s.is_null(i) { "" } else { s.value(i) }));
+                            }
+                            DataType::LargeUtf8 => {
+                                let s = a.as_string::<i64>();
+                                (0..s.len()).for_each(|i| push(if s.is_null(i) { "" } else { s.value(i) }));
+                            }
+                            _ => {
+                                let s = a.as_string_view();
+                                (0..s.len()).for_each(|i| push(if s.is_null(i) { "" } else { s.value(i) }));
+                            }
+                        }
+                        if bytes.len() > u32::MAX as usize / 2 {
+                            return None;
+                        }
+                    }
+                    ColData::Str { offsets, bytes }
+                }
+                _ => return None,
+            };
+            Some(BatchColumn { name: names[ci].clone(), data, valid })
+        })
+        .collect();
+    Some((names, cols?, total))
+}
+
 fn array_values(a: &dyn Array) -> Result<Vec<joule_db_query::ast::Value>, String> {
     use arrow::array::AsArray;
     use arrow::datatypes::*;

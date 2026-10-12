@@ -37,6 +37,8 @@ pub use conversions::{ast_to_amorphic_value, ast_to_json, expression_to_sql};
 
 /// Reserved field name that identifies which SQL table a record belongs to
 pub(super) const TABLE_FIELD: &str = "__table__";
+/// The table tag field (columnar ingest batches carry it).
+pub const TABLE_FIELD_NAME: &str = TABLE_FIELD;
 /// Reserved table name for sequence metadata (auto-increment counters)
 pub(super) const SEQUENCE_TABLE: &str = "__sequences__";
 /// Field for sequence name (table.column)
@@ -227,6 +229,12 @@ pub(crate) struct HoloLock {
     /// under a shared lock, stops at its next slice so a bulk batch is not
     /// held behind a whole catch-up step.
     writers_waiting: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// Columnar bulk batches committed but not yet row records (see
+    /// `DurableAmorphicStore::materialize_pending`). Every lock handed out
+    /// here except `write_bulk()`/`read_columns()` materializes them first,
+    /// so row readers and writers always see every committed row; the
+    /// background thread materializes them once writes go idle.
+    cols_pending: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Small pool (a quarter of the cores, at least one) for background
@@ -316,12 +324,55 @@ pub fn take_commit_error() -> Option<String> {
     COMMIT_ERROR.with(|c| c.borrow_mut().take())
 }
 
+/// Tests: hold background materialization of columnar rows (readers and
+/// writers still materialize what they need).
+pub(crate) static PAUSE_BG_MATERIALIZE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+thread_local! {
+    /// Store read guards this thread holds (see `HoloLock::settle_columns`).
+    static READS_HELD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Read guard of the store (counts held guards per thread).
+pub(crate) struct StoreReadGuard<'a> {
+    guard: std::sync::RwLockReadGuard<'a, DurableAmorphicStore>,
+}
+
+impl std::ops::Deref for StoreReadGuard<'_> {
+    type Target = DurableAmorphicStore;
+    fn deref(&self) -> &DurableAmorphicStore {
+        &self.guard
+    }
+}
+
+impl Drop for StoreReadGuard<'_> {
+    fn drop(&mut self) {
+        READS_HELD.with(|c| c.set(c.get().saturating_sub(1)));
+    }
+}
+
+fn wrap_read(
+    r: std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>>,
+) -> std::sync::LockResult<StoreReadGuard<'_>> {
+    let wrap = |guard| {
+        READS_HELD.with(|c| c.set(c.get() + 1));
+        StoreReadGuard { guard }
+    };
+    match r {
+        Ok(g) => Ok(wrap(g)),
+        Err(p) => Err(std::sync::PoisonError::new(wrap(p.into_inner()))),
+    }
+}
+
 /// fsync failures seen by commit guards (metric; also sticky in GroupSync)
 pub static SYNC_FAILURES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 impl HoloLock {
     /// Records per background catch-up step (bounds how long it holds the lock).
     const STEP: usize = 2_048;
+    /// Columnar rows materialized per background step.
+    const MATERIALIZE_STEP: usize = 16_384;
     /// Write-idle gap before the background catch-up runs.
     const IDLE_MS: u64 = 25;
 
@@ -343,6 +394,8 @@ impl HoloLock {
         let flag = pending.clone();
         let last_bulk_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let last = last_bulk_ms.clone();
+        let cols_pending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let cols_flag = cols_pending.clone();
         let writers_waiting = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let waiting = writers_waiting.clone();
         let epoch = std::time::Instant::now();
@@ -352,6 +405,27 @@ impl HoloLock {
                 loop {
                     std::thread::sleep(std::time::Duration::from_millis(5));
                     let Some(lock) = weak.upgrade() else { return };
+                    // columnar rows -> row records first (bounded steps,
+                    // only when bulk writes are idle)
+                    if cols_flag.load(std::sync::atomic::Ordering::Acquire)
+                        && !PAUSE_BG_MATERIALIZE.load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        let now = epoch.elapsed().as_millis() as u64;
+                        if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
+                            >= Self::IDLE_MS
+                        {
+                            if let Ok(mut g) = lock.try_write() {
+                                let _ = g.materialize_pending(Self::MATERIALIZE_STEP);
+                                if g.pending_rows() == 0 {
+                                    cols_flag.store(false, std::sync::atomic::Ordering::Release);
+                                }
+                                if g.pending_holograms() > 0 {
+                                    flag.store(true, std::sync::atomic::Ordering::Release);
+                                }
+                            }
+                        }
+                        continue;
+                    }
                     if !flag.load(std::sync::atomic::Ordering::Acquire) {
                         continue;
                     }
@@ -420,10 +494,71 @@ impl HoloLock {
             epoch,
             sync,
             writers_waiting,
+            cols_pending,
         }
     }
 
+    /// Materialize queued columnar rows (exclusive lock) if there are any.
+    /// A thread that already holds a read guard of this store cannot wait
+    /// for the write lock (it would wait on itself); its outer acquisition
+    /// already settled, so it only settles if the lock is free.
+    fn settle_columns(&self) {
+        if self.cols_pending.load(std::sync::atomic::Ordering::Acquire) {
+            if READS_HELD.with(|c| c.get()) > 0 {
+                if let Ok(mut g) = self.inner.try_write() {
+                    self.settle_locked(&mut g);
+                }
+            } else if let Ok(mut g) = self.inner.write() {
+                self.settle_locked(&mut g);
+            }
+        }
+    }
+
+    fn settle_locked(&self, g: &mut DurableAmorphicStore) {
+        if g.pending_rows() > 0 {
+            if let Err(e) = g.settle_pending() {
+                tracing::error!("materializing bulk rows: {e}");
+                return;
+            }
+            if g.pending_holograms() > 0 {
+                self.pending.store(true, std::sync::atomic::Ordering::Release);
+            }
+        }
+        self.cols_pending
+            .store(false, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Write lock for columnar bulk ingest: queued columnar rows stay queued
+    /// (the new batch queues behind them).
+    pub(crate) fn write_bulk(&self) -> std::sync::LockResult<SyncWriteGuard<'_>> {
+        self.write_inner(false)
+    }
+
+    /// Note that columnar ingest queued rows (call with the bulk lock held).
+    pub(crate) fn mark_columns_pending(&self) {
+        self.last_bulk_ms.store(
+            self.epoch.elapsed().as_millis() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        self.cols_pending
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Read lock that does not materialize queued columnar rows: only for
+    /// readers that never look at row records of user tables (column
+    /// snapshots keyed by `generation()`, which counts queued rows; schema
+    /// metadata, which is always written through the row path).
+    pub(crate) fn read_columns(
+        &self,
+    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+        wrap_read(self.inner.read())
+    }
+
     pub(crate) fn write(&self) -> std::sync::LockResult<SyncWriteGuard<'_>> {
+        self.write_inner(true)
+    }
+
+    fn write_inner(&self, settle: bool) -> std::sync::LockResult<SyncWriteGuard<'_>> {
         let sync = self.sync.as_deref();
         self.writers_waiting
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -436,7 +571,12 @@ impl HoloLock {
             Ok(g) if sync.is_some_and(|s| s.has_failed()) => Err(std::sync::PoisonError::new(
                 SyncWriteGuard { guard: Some(g), sync: None },
             )),
-            Ok(g) => Ok(SyncWriteGuard { guard: Some(g), sync }),
+            Ok(mut g) => {
+                if settle && self.cols_pending.load(std::sync::atomic::Ordering::Acquire) {
+                    self.settle_locked(&mut g);
+                }
+                Ok(SyncWriteGuard { guard: Some(g), sync })
+            }
             Err(p) => Err(std::sync::PoisonError::new(SyncWriteGuard {
                 guard: Some(p.into_inner()),
                 sync,
@@ -455,15 +595,17 @@ impl HoloLock {
     /// catch-up put ~7 ms on every query until a 1M-row backlog drained).
     pub(crate) fn read(
         &self,
-    ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
-        self.inner.read()
+    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+        self.settle_columns();
+        wrap_read(self.inner.read())
     }
 
     /// Read lock for hypervector consumers (similarity search): finishes any
     /// queued hypervector work first so results cover every committed row.
     pub(crate) fn read_indexed(
         &self,
-    ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
+    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+        self.settle_columns();
         if self.pending.load(std::sync::atomic::Ordering::Acquire) {
             if let Ok(mut g) = self.inner.write() {
                 g.catch_up_holograms(usize::MAX);
@@ -471,13 +613,14 @@ impl HoloLock {
                     .store(false, std::sync::atomic::Ordering::Release);
             }
         }
-        self.inner.read()
+        wrap_read(self.inner.read())
     }
 
     pub(crate) fn read_primary(
         &self,
-    ) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, DurableAmorphicStore>> {
-        self.inner.read()
+    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+        self.settle_columns();
+        wrap_read(self.inner.read())
     }
 
     /// Note that bulk ingest queued hypervector work.
@@ -518,6 +661,18 @@ impl AmorphicTableStorage {
         }
     }
 
+    /// Columnar rows not yet row records (tests and diagnostics).
+    pub fn pending_column_rows(&self) -> usize {
+        self.store.read_columns().map(|s| s.pending_rows()).unwrap_or(0)
+    }
+
+    /// Materialize up to `max` queued columnar rows now (tests).
+    #[cfg(test)]
+    pub(crate) fn materialize_columns(&self, max: usize) -> usize {
+        let mut g = self.store.write_bulk().unwrap();
+        g.materialize_pending(max).unwrap()
+    }
+
     /// Typed column vectors for `table`, rebuilt only when the store changed.
     /// `None` for views and unknown tables (callers use the general executor).
     pub fn table_columns(
@@ -526,6 +681,17 @@ impl AmorphicTableStorage {
     ) -> Option<std::sync::Arc<crate::columnar_exec::TableColumns>> {
         if self.get_view(table).is_some() {
             return None;
+        }
+        // A current snapshot covers queued columnar rows too (generation
+        // counts them), so a hit does not materialize them.
+        {
+            let store = self.store.read_columns().ok()?;
+            let generation = store.generation();
+            if let Some((g, t)) = self.col_cache.lock().ok()?.get(table) {
+                if *g == generation {
+                    return Some(t.clone());
+                }
+            }
         }
         let store = self.store.read_primary().ok()?;
         let generation = store.generation();
@@ -614,7 +780,7 @@ impl AmorphicTableStorage {
 
     /// List all user-created table names (from schema metadata).
     pub fn list_tables(&self) -> Vec<String> {
-        let store = match self.store.read() {
+        let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };
@@ -690,7 +856,7 @@ impl TableStorage for AmorphicTableStorage {
     }
 
     fn columns(&self, table: &str) -> QueryResult<Vec<String>> {
-        let store = self.store.read().map_err(conversions::lock_error)?;
+        let store = self.store.read_columns().map_err(conversions::lock_error)?;
         self.get_schema_columns(&store, table)
     }
 
@@ -768,7 +934,7 @@ impl TableStorage for AmorphicTableStorage {
     }
 
     fn table_exists(&self, table: &str) -> QueryResult<bool> {
-        let store = self.store.read().map_err(conversions::lock_error)?;
+        let store = self.store.read_columns().map_err(conversions::lock_error)?;
         let result =
             store.query_equals(SCHEMA_NAME_FIELD, &AmorphicValue::String(table.to_string()));
         Ok(result

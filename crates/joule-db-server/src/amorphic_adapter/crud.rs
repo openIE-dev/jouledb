@@ -543,6 +543,64 @@ impl AmorphicTableStorage {
         Ok(ids)
     }
 
+    /// Columnar-first bulk ingest: `batch` (validated typed columns, the
+    /// rows the row path would store) is logged to the WAL and committed
+    /// (group fsync after the lock is released), appended to the table's
+    /// column snapshot, and queued. Row records and indexes are built in
+    /// the background, or before any reader or writer that needs them.
+    pub fn insert_column_batch(
+        &self,
+        table: &str,
+        mut batch: joule_db_amorphic::column_batch::ColumnBatch,
+    ) -> QueryResult<usize> {
+        let t_lock = std::time::Instant::now();
+        let mut store = self.store.write_bulk().map_err(lock_error)?;
+        let lock_wait = t_lock.elapsed();
+        let columns = self.get_schema_columns(&store, table)?;
+        let t0 = std::time::Instant::now();
+        batch.table_field = TABLE_FIELD.to_string();
+        batch.table = table.to_string();
+        let gen_before = store.generation();
+        let snap = self.col_cache.lock().ok().and_then(|mut c| match c.get(table) {
+            Some((g, _)) if *g == gen_before => c.remove(table).map(|(_, t)| t),
+            _ => None,
+        });
+        // no snapshot: an empty table's snapshot is just this batch
+        let fresh = snap.is_none()
+            && store.pending_rows() == 0
+            && store
+                .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
+                .is_empty();
+        let n = batch.len;
+        let (_, snap) = store
+            .ingest_column_batch_with(batch, move |b| match snap {
+                Some(mut t) => std::sync::Arc::make_mut(&mut t).append_batch(b).then_some(t),
+                None if fresh => Some(std::sync::Arc::new(
+                    crate::columnar_exec::TableColumns::from_batch(&columns, b),
+                )),
+                None => None,
+            })
+            .map_err(amorphic_error)?;
+        if let Some(t) = snap {
+            if let Ok(mut c) = self.col_cache.lock() {
+                if c.len() > 64 {
+                    c.clear();
+                }
+                c.insert(table.to_string(), (store.generation(), t));
+            }
+        }
+        self.store.mark_columns_pending();
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!(
+                "insert_columns n={} lock={:?} store+colcache={:?}",
+                n,
+                lock_wait,
+                t0.elapsed()
+            );
+        }
+        Ok(n)
+    }
+
     pub fn insert_returning_id(&self, table: &str, row: &RowData) -> QueryResult<u64> {
         let mut store = self.store.write().map_err(lock_error)?;
 

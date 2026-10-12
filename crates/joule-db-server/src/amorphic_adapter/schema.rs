@@ -254,7 +254,7 @@ impl AmorphicTableStorage {
 
     /// Get full column definitions for a table (returns empty vec if not stored)
     pub fn get_column_defs(&self, table: &str) -> QueryResult<Vec<ColumnDefInfo>> {
-        let store = self.store.read().map_err(lock_error)?;
+        let store = self.store.read_columns().map_err(lock_error)?;
         self.get_column_defs_from_store(&store, table)
     }
 
@@ -392,7 +392,7 @@ impl AmorphicTableStorage {
 
     /// Get column families for a table (returns empty vec if not defined).
     pub fn get_column_families(&self, table: &str) -> QueryResult<Vec<String>> {
-        let store = self.store.read().map_err(lock_error)?;
+        let store = self.store.read_columns().map_err(lock_error)?;
         let result =
             store.query_equals(SCHEMA_NAME_FIELD, &AmorphicValue::String(table.to_string()));
         for record in result.records() {

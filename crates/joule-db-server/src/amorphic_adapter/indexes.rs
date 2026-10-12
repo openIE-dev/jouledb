@@ -89,7 +89,7 @@ impl AmorphicTableStorage {
         &self,
         table: &str,
     ) -> QueryResult<Vec<(String, Vec<String>, bool, String)>> {
-        let store = self.store.read().map_err(lock_error)?;
+        let store = self.store.read_columns().map_err(lock_error)?;
         let result = store.query_equals(INDEX_TABLE_REF, &AmorphicValue::String(table.to_string()));
         let mut indexes = Vec::new();
 

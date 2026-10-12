@@ -104,7 +104,7 @@ impl AmorphicTableStorage {
 
     /// List all triggers (returned from the list_triggers method).
     pub fn list_triggers(&self) -> Vec<TriggerInfo> {
-        let store = match self.store.read() {
+        let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };
@@ -149,7 +149,7 @@ impl AmorphicTableStorage {
 
     /// Get all triggers for a given table, timing, and event.
     pub fn get_triggers(&self, table: &str, timing: &str, event: &str) -> Vec<TriggerInfo> {
-        let store = match self.store.read() {
+        let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };

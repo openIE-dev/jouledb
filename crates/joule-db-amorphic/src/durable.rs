@@ -875,7 +875,7 @@ impl DurableAmorphicStore {
         while done < max_rows {
             let Some(b) = self.pending.front().cloned() else { break };
             let from = self.pending_off;
-            let to = b.len.min(from + (max_rows - done));
+            let to = b.len.min(from.saturating_add(max_rows - done));
             if to > from {
                 let rows = b.rows(from, to);
                 let before = self.store.generation();

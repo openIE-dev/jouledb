@@ -151,7 +151,7 @@ impl AmorphicTableStorage {
 
     /// Get fulltext index metadata: (table, columns) for a given index name.
     pub fn get_fulltext_index(&self, name: &str) -> QueryResult<Option<(String, Vec<String>)>> {
-        let store = self.store.read().map_err(lock_error)?;
+        let store = self.store.read_columns().map_err(lock_error)?;
         let result = store.query_equals(INDEX_NAME_FIELD, &AmorphicValue::String(name.to_string()));
 
         for record in result.records() {
@@ -183,7 +183,7 @@ impl AmorphicTableStorage {
 
     /// List all fulltext indexes, returning (name, table, columns).
     pub fn list_fulltext_indexes(&self) -> QueryResult<Vec<(String, String, Vec<String>)>> {
-        let store = self.store.read().map_err(lock_error)?;
+        let store = self.store.read_columns().map_err(lock_error)?;
         let result = store.query_equals(
             "__index_type__",
             &AmorphicValue::String("fulltext".to_string()),
