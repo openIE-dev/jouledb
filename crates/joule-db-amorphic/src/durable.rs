@@ -304,6 +304,25 @@ impl DurableAmorphicStore {
     }
 
     /// Hypervector work still queued from bulk ingest.
+    /// See `AmorphicStore::plan_catch_up` (shared-borrow encode phase).
+    #[allow(clippy::type_complexity)]
+    pub fn plan_catch_up(
+        &self,
+        max: usize,
+        run: impl FnOnce(&(dyn Fn() -> Vec<Option<joule_db_hdc::BinaryHV>> + Sync)) -> Vec<Option<joule_db_hdc::BinaryHV>>,
+    ) -> Option<(Vec<RecordId>, Vec<Option<joule_db_hdc::BinaryHV>>)> {
+        self.store.plan_catch_up(max, run)
+    }
+
+    /// See `AmorphicStore::apply_catch_up_plan`.
+    pub fn apply_catch_up_plan(
+        &mut self,
+        ids: Vec<RecordId>,
+        holos: Vec<Option<joule_db_hdc::BinaryHV>>,
+    ) -> bool {
+        self.store.apply_catch_up_plan(ids, holos)
+    }
+
     pub fn pending_holograms(&self) -> usize {
         self.store.pending_holograms()
     }

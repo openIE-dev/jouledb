@@ -1470,6 +1470,61 @@ impl AmorphicStore {
                 })
                 .collect()
         };
+        self.apply_catch_up(ids, holos)
+    }
+
+    /// Phase 1 of a split catch-up, under a *shared* borrow (readers keep
+    /// running): the next `max` deferred ids and their encodings. Returns
+    /// None when a field vector must be created first (needs `&mut`; use
+    /// `catch_up_holograms`). `run` executes the parallel encode, e.g.
+    /// inside a small low-priority pool.
+    pub fn plan_catch_up(
+        &self,
+        max: usize,
+        run: impl FnOnce(&(dyn Fn() -> Vec<Option<BinaryHV>> + Sync)) -> Vec<Option<BinaryHV>>,
+    ) -> Option<(Vec<RecordId>, Vec<Option<BinaryHV>>)> {
+        use rayon::prelude::*;
+        let ids: Vec<RecordId> = self.deferred.iter().take(max).copied().collect();
+        if ids.is_empty() {
+            return Some((ids, Vec::new()));
+        }
+        for id in &ids {
+            if let Some(r) = self.records.get(id) {
+                if r.fields.keys().any(|f| !self.field_vectors.contains_key(f)) {
+                    return None;
+                }
+            }
+        }
+        let enc = || -> Vec<Option<BinaryHV>> {
+            ids.par_iter()
+                .map(|id| match self.records.get(id) {
+                    Some(r) if r.fields.len() <= MAX_FIELDS_WARNING => self.encode_record_pure(&r.fields),
+                    _ => None,
+                })
+                .collect()
+        };
+        let holos = run(&enc);
+        Some((ids, holos))
+    }
+
+    /// Phase 2: apply a plan if the deferred queue still starts with its ids
+    /// (otherwise nothing is applied and false is returned).
+    pub fn apply_catch_up_plan(&mut self, ids: Vec<RecordId>, holos: Vec<Option<BinaryHV>>) -> bool {
+        if ids.is_empty() || !self.deferred.iter().take(ids.len()).eq(ids.iter()) {
+            return false;
+        }
+        self.deferred.drain(..ids.len());
+        let (ids, holos): (Vec<_>, Vec<_>) = ids
+            .into_iter()
+            .zip(holos)
+            .filter(|(id, _)| self.records.contains_key(id))
+            .unzip();
+        self.apply_catch_up(ids, holos);
+        true
+    }
+
+    fn apply_catch_up(&mut self, ids: Vec<RecordId>, holos: Vec<Option<BinaryHV>>) -> usize {
+        use rayon::prelude::*;
         let gen_before = self.hologram.generation();
         let mut built: Vec<(RecordId, BinaryHV)> = Vec::with_capacity(ids.len());
         for (id, holo) in ids.into_iter().zip(holos) {
@@ -3647,6 +3702,49 @@ impl Default for AmorphicStore {
 
 #[cfg(test)]
 mod tests {
+    /// Split catch-up (plan under &self, apply under &mut) builds the same
+    /// holograms as the one-shot catch-up.
+    #[test]
+    fn split_catch_up_matches_one_shot() {
+        let mk = || {
+            let mut st = AmorphicStore::new();
+            let mut rows = Vec::new();
+            for i in 0..3000i64 {
+                let f = HashMap::from([
+                    ("a".to_string(), Value::Int(i % 17)),
+                    ("b".to_string(), Value::String(format!("s{}", i % 5))),
+                ]);
+                rows.push(st.prepare_fields_ingest(f).unwrap());
+            }
+            st.apply_prepared_ingest_batch(rows).unwrap();
+            st
+        };
+        let mut a = mk();
+        a.catch_up_holograms(usize::MAX);
+        let mut b = mk();
+        let mut guard = 0;
+        while b.pending_holograms() > 0 && guard < 100 {
+            guard += 1;
+            match b.plan_catch_up(700, |f| f()) {
+                Some((ids, h)) => assert!(b.apply_catch_up_plan(ids, h)),
+                None => {
+                    b.catch_up_holograms(1);
+                }
+            }
+        }
+        assert_eq!(b.pending_holograms(), 0);
+        for id in 1..=3000u64 {
+            assert_eq!(a.get(id).unwrap().hologram.as_words(), b.get(id).unwrap().hologram.as_words(), "id {id}");
+        }
+        // a stale plan (queue moved on) is refused
+        let mut c = mk();
+        let plan = c.plan_catch_up(10, |f| f());
+        c.catch_up_holograms(5);
+        if let Some((ids, h)) = plan {
+            assert!(!c.apply_catch_up_plan(ids, h));
+        }
+    }
+
     use super::*;
 
     #[test]

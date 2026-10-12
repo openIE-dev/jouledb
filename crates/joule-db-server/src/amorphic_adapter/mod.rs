@@ -225,6 +225,32 @@ pub(crate) struct HoloLock {
     sync: Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
 }
 
+/// Small pool (a quarter of the cores, at least one) for background
+/// hologram catch-up, so it never takes every core from queries; its threads
+/// run at a lower OS priority on Unix.
+fn catchup_pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        let n = (std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4) / 4).max(1);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(n)
+            .thread_name(|i| format!("jouledb-holo-{i}"))
+            .start_handler(|_| {
+                #[cfg(target_os = "linux")]
+                unsafe {
+                    // per-thread nice on Linux (tid as PRIO_PROCESS target)
+                    libc::setpriority(libc::PRIO_PROCESS, libc::gettid() as libc::id_t, 10);
+                }
+                #[cfg(target_os = "macos")]
+                unsafe {
+                    libc::pthread_set_qos_class_self_np(libc::qos_class_t::QOS_CLASS_UTILITY, 0);
+                }
+            })
+            .build()
+            .expect("catch-up pool")
+    })
+}
+
 /// `JOULEDB_SYNC_COMMIT`: `on` (default) makes every commit power-loss
 /// durable before it is acknowledged; `off` acknowledges once the WAL is in
 /// the OS page cache (survives a process crash, not a power loss).
@@ -329,6 +355,38 @@ impl HoloLock {
                     {
                         continue;
                     }
+                    // Encode the next step under a *read* lock in a small
+                    // low-priority pool (queries keep running and keep their
+                    // cores), then take the write lock only to apply it.
+                    let plan = match lock.read() {
+                        Ok(g) => g.plan_catch_up(Self::STEP, |f| catchup_pool().install(f)),
+                        Err(_) => None,
+                    };
+                    if let Some((ids, holos)) = plan {
+                        if ids.is_empty() {
+                            flag.store(false, std::sync::atomic::Ordering::Release);
+                            continue;
+                        }
+                        let mut plan = Some((ids, holos));
+                        for _ in 0..20 {
+                            if let Ok(mut g) = lock.try_write() {
+                                let now = epoch.elapsed().as_millis() as u64;
+                                if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
+                                    >= Self::IDLE_MS
+                                {
+                                    let (ids, holos) = plan.take().unwrap();
+                                    g.apply_catch_up_plan(ids, holos);
+                                    if g.pending_holograms() == 0 {
+                                        flag.store(false, std::sync::atomic::Ordering::Release);
+                                    }
+                                }
+                                break;
+                            }
+                            std::thread::sleep(std::time::Duration::from_micros(500));
+                        }
+                        continue;
+                    }
+                    // a field vector must be created first: one exclusive step.
                     // try_write: never queue behind a streaming bulk write and
                     // then grab the lock in the gap between its batches.
                     if let Ok(mut g) = lock.try_write() {
