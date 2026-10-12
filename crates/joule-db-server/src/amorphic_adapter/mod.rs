@@ -223,6 +223,10 @@ pub(crate) struct HoloLock {
     /// Group commit (fsync per commit, shared by concurrent writers) unless
     /// JOULEDB_SYNC_COMMIT=off. None = relaxed (flush to OS only).
     sync: Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
+    /// Writers blocked in `write()`: the background catch-up, which encodes
+    /// under a shared lock, stops at its next slice so a bulk batch is not
+    /// held behind a whole catch-up step.
+    writers_waiting: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 /// Small pool (a quarter of the cores, at least one) for background
@@ -339,6 +343,8 @@ impl HoloLock {
         let flag = pending.clone();
         let last_bulk_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let last = last_bulk_ms.clone();
+        let writers_waiting = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let waiting = writers_waiting.clone();
         let epoch = std::time::Instant::now();
         let _ = std::thread::Builder::new()
             .name("jouledb-holo-catchup".into())
@@ -359,7 +365,11 @@ impl HoloLock {
                     // low-priority pool (queries keep running and keep their
                     // cores), then take the write lock only to apply it.
                     let plan = match lock.read() {
-                        Ok(g) => g.plan_catch_up(Self::STEP, |f| catchup_pool().install(f)),
+                        Ok(g) => g.plan_catch_up_until(
+                            Self::STEP,
+                            &|| waiting.load(std::sync::atomic::Ordering::Relaxed) > 0,
+                            |f| catchup_pool().install(f),
+                        ),
                         Err(_) => None,
                     };
                     if let Some((ids, holos)) = plan {
@@ -409,12 +419,18 @@ impl HoloLock {
             last_bulk_ms,
             epoch,
             sync,
+            writers_waiting,
         }
     }
 
     pub(crate) fn write(&self) -> std::sync::LockResult<SyncWriteGuard<'_>> {
         let sync = self.sync.as_deref();
-        match self.inner.write() {
+        self.writers_waiting
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let w = self.inner.write();
+        self.writers_waiting
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        match w {
             // after an fsync failure, refuse further writes (nothing more is
             // acknowledged on a WAL that may not be durable)
             Ok(g) if sync.is_some_and(|s| s.has_failed()) => Err(std::sync::PoisonError::new(

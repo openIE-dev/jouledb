@@ -1537,8 +1537,22 @@ impl AmorphicStore {
         max: usize,
         run: impl FnOnce(&(dyn Fn() -> Vec<Option<BinaryHV>> + Sync)) -> Vec<Option<BinaryHV>>,
     ) -> Option<(Vec<RecordId>, Vec<Option<BinaryHV>>)> {
+        self.plan_catch_up_until(max, &|| false, run)
+    }
+
+    /// `plan_catch_up` that encodes in slices of `CATCH_UP_SLICE` records and
+    /// stops after the current slice once `stop()` is true (e.g. a writer is
+    /// waiting for the lock the caller holds shared). The plan is then the
+    /// encoded prefix, which `apply_catch_up_plan` accepts as usual.
+    pub fn plan_catch_up_until(
+        &self,
+        max: usize,
+        stop: &(dyn Fn() -> bool + Sync),
+        run: impl FnOnce(&(dyn Fn() -> Vec<Option<BinaryHV>> + Sync)) -> Vec<Option<BinaryHV>>,
+    ) -> Option<(Vec<RecordId>, Vec<Option<BinaryHV>>)> {
         use rayon::prelude::*;
-        let ids: Vec<RecordId> = self.deferred.iter().take(max).copied().collect();
+        const CATCH_UP_SLICE: usize = 256;
+        let mut ids: Vec<RecordId> = self.deferred.iter().take(max).copied().collect();
         if ids.is_empty() {
             return Some((ids, Vec::new()));
         }
@@ -1550,14 +1564,20 @@ impl AmorphicStore {
             }
         }
         let enc = || -> Vec<Option<BinaryHV>> {
-            ids.par_iter()
-                .map(|id| match self.records.get(id) {
+            let mut out = Vec::with_capacity(ids.len());
+            for slice in ids.chunks(CATCH_UP_SLICE) {
+                if !out.is_empty() && stop() {
+                    break;
+                }
+                out.par_extend(slice.par_iter().map(|id| match self.records.get(id) {
                     Some(r) if r.fields.len() <= MAX_FIELDS_WARNING => self.encode_record_pure(&r.fields),
                     _ => None,
-                })
-                .collect()
+                }));
+            }
+            out
         };
         let holos = run(&enc);
+        ids.truncate(holos.len());
         Some((ids, holos))
     }
 

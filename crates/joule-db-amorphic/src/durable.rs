@@ -314,6 +314,16 @@ impl DurableAmorphicStore {
         self.store.plan_catch_up(max, run)
     }
 
+    /// See `AmorphicStore::plan_catch_up_until`.
+    pub fn plan_catch_up_until(
+        &self,
+        max: usize,
+        stop: &(dyn Fn() -> bool + Sync),
+        run: impl FnOnce(&(dyn Fn() -> Vec<Option<joule_db_hdc::BinaryHV>> + Sync)) -> Vec<Option<joule_db_hdc::BinaryHV>>,
+    ) -> Option<(Vec<RecordId>, Vec<Option<joule_db_hdc::BinaryHV>>)> {
+        self.store.plan_catch_up_until(max, stop, run)
+    }
+
     /// See `AmorphicStore::apply_catch_up_plan`.
     pub fn apply_catch_up_plan(
         &mut self,
