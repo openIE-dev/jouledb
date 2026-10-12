@@ -4082,6 +4082,7 @@ name = "joule-db-amorphic"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "crc32fast",
  "criterion",
  "joule-db-core",
  "joule-db-gpu",

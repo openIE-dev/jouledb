@@ -180,8 +180,21 @@ impl DurableAmorphicStore {
         sorted_pages.sort_by_key(|(page_id, _)| *page_id);
 
         for (_page_id, data) in sorted_pages {
-            // Try new tagged WalOperation format first, fall back to legacy WalRecordData
-            if let Ok(op) = serde_json::from_slice::<WalOperation>(data) {
+            // Binary columnar batch (JWB1) first, then the JSON formats
+            // older databases wrote (tagged WalOperation, legacy WalRecordData)
+            if crate::wal_codec::is_binary(data) {
+                match crate::wal_codec::decode_chunk(data) {
+                    Ok(rows) => {
+                        for (id, fields) in rows {
+                            store.apply_recovered_record(id, fields, vec![], None)?;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("⚠ Skipping corrupt binary WAL record during recovery: {e}");
+                        continue;
+                    }
+                }
+            } else if let Ok(op) = serde_json::from_slice::<WalOperation>(data) {
                 match op {
                     WalOperation::Ingest {
                         id,
@@ -324,42 +337,14 @@ impl DurableAmorphicStore {
             .store
             .apply_prepared_ingest_batch_with(prepared, |rows| {
                 use rayon::prelude::*;
-                // compact chunk records: column names once per chunk, one
-                // WAL entry per CHUNK rows (page id = first record id, so
-                // replay order and dedup stay per id range)
+                // binary columnar chunk records (JWB1: typed column blocks,
+                // crc32), one WAL entry per CHUNK rows; page id = first
+                // record id, so replay order and dedup stay per id range
                 const CHUNK: usize = 4096;
-                #[derive(serde::Serialize)]
-                #[serde(tag = "op", rename = "ingest_chunk")]
-                struct Chunk<'a> {
-                    ids: Vec<RecordId>,
-                    columns: Vec<&'a str>,
-                    rows: Vec<Vec<Option<&'a Value>>>,
-                }
                 let writes: Vec<(RecordId, Vec<u8>)> = rows
                     .par_chunks(CHUNK)
-                    .map(|chunk| {
-                        let mut columns: Vec<&str> = Vec::new();
-                        for (_, f) in chunk {
-                            for k in f.keys() {
-                                if !columns.contains(&k.as_str()) {
-                                    columns.push(k.as_str());
-                                }
-                            }
-                        }
-                        let c = Chunk {
-                            ids: chunk.iter().map(|(id, _)| *id).collect(),
-                            rows: chunk
-                                .iter()
-                                .map(|(_, f)| columns.iter().map(|k| f.get(*k)).collect())
-                                .collect(),
-                            columns,
-                        };
-                        serde_json::to_vec(&c).map(|b| (chunk[0].0, b))
-                    })
-                    .collect::<Result<_, _>>()
-                    .map_err(|e| {
-                        AmorphicError::IngestionError(format!("Serialization failed: {}", e))
-                    })?;
+                    .map(|chunk| (chunk[0].0, crate::wal_codec::encode_chunk(chunk)))
+                    .collect();
                 wal.log_page_writes_owned(tx_id, writes)
                     .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
             })?;
@@ -1018,6 +1003,61 @@ mod tests {
         for id in &ids {
             assert!(store.get(*id).is_some(), "record {id} durable");
         }
+    }
+
+    /// Mixed log: JSON entries written by older versions (an `ingest_chunk`
+    /// record and single-row ingests) followed by binary JWB1 batches all
+    /// replay after a crash.
+    #[test]
+    fn test_mixed_json_and_binary_wal_recovery() {
+        let temp_dir = TempDir::new().unwrap();
+        let old_ids;
+        let new_ids;
+        {
+            let mut store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+            // a new binary batch
+            let rows: Vec<HashMap<String, Value>> = (0..10_000i64)
+                .map(|i| {
+                    let mut m = HashMap::from([("k".to_string(), Value::Int(i))]);
+                    if i % 2 == 0 {
+                        m.insert("s".into(), Value::String(format!("n{i}")));
+                    }
+                    if i % 9 == 0 {
+                        m.insert("f".into(), Value::Float(i as f64 * 0.5));
+                    }
+                    m
+                })
+                .collect();
+            new_ids = store.ingest_fields_batch(rows).unwrap();
+            // then an old-format JSON chunk (ids right after the batch, so the
+            // dense id space stays small)
+            let last = *new_ids.iter().max().unwrap();
+            old_ids = [last + 1, last + 2];
+            let tx = store.next_tx_id();
+            let op = WalOperation::IngestChunk {
+                ids: old_ids.to_vec(),
+                columns: vec!["k".into(), "s".into()],
+                rows: vec![
+                    vec![Some(Value::Int(-7)), Some(Value::String("old".into()))],
+                    vec![Some(Value::Int(-8)), None],
+                ],
+            };
+            let bytes = serde_json::to_vec(&op).unwrap();
+            assert_eq!(bytes[0], b'{');
+            store.wal.log_page_writes_owned(tx, vec![(old_ids[0], bytes)]).unwrap();
+            store.wal.log_commit(tx).unwrap();
+            std::mem::forget(store);
+        }
+        let store = DurableAmorphicStore::open(temp_dir.path()).unwrap();
+        let r = store.get(old_ids[0]).expect("old JSON chunk replayed");
+        assert_eq!(r.get("s"), Some(&Value::String("old".into())));
+        assert!(store.get(old_ids[1]).is_some());
+        for (i, id) in new_ids.iter().enumerate() {
+            let r = store.get(*id).expect("binary chunk replayed");
+            assert_eq!(r.get("k"), Some(&Value::Int(i as i64)));
+            assert_eq!(r.get("s").is_some(), i % 2 == 0);
+        }
+        assert_eq!(store.len(), 10_002);
     }
 
     #[test]

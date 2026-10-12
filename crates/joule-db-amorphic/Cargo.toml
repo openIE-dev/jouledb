@@ -8,12 +8,13 @@ description = "Amorphic Database - Just-in-time structure materialization via HD
 
 [features]
 default = []
-durable = ["dep:joule-db-local"]
+durable = ["dep:joule-db-local", "dep:crc32fast"]
 flowr = []  # Marker feature; real executor injected at app layer
 
 [dependencies]
 rustc-hash = { workspace = true }
 rayon = { workspace = true }
+crc32fast = { version = "1.4", optional = true }
 joule-db-hdc = { workspace = true, features = ["holographic", "hyperdimensional", "sdm", "manifold"] }
 joule-db-gpu = { workspace = true }
 joule-db-local = { workspace = true, optional = true }

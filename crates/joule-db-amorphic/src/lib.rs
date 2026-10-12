@@ -247,6 +247,8 @@ pub use sql::{
 #[cfg(feature = "durable")]
 pub mod durable;
 #[cfg(feature = "durable")]
+pub mod wal_codec;
+#[cfg(feature = "durable")]
 pub use durable::DurableAmorphicStore;
 
 // MVCC transaction module (requires "durable" feature for full functionality)
