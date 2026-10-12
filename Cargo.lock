@@ -4257,6 +4257,7 @@ dependencies = [
 name = "joule-db-local"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
  "fs2",
  "joule-db-core",
  "joule-db-energy",

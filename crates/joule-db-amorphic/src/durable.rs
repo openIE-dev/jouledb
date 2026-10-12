@@ -360,11 +360,17 @@ impl DurableAmorphicStore {
                 // crc32), one WAL entry per CHUNK rows; page id = first
                 // record id, so replay order and dedup stay per id range
                 const CHUNK: usize = 4096;
+                let t_enc = std::time::Instant::now();
                 let writes: Vec<(RecordId, Vec<u8>)> = rows
                     .par_chunks(CHUNK)
                     .map(|chunk| (chunk[0].0, crate::wal_codec::encode_chunk(chunk)))
                     .collect();
-                wal.log_page_writes_owned(tx_id, writes)
+                let t_log = std::time::Instant::now();
+                let r = wal.log_page_writes_owned(tx_id, writes);
+                if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                    eprintln!("wal encode={:?} frame+write={:?}", t_log - t_enc, t_log.elapsed());
+                }
+                r
                     .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
             })?;
         wal_result?;

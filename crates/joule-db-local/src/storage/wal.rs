@@ -663,10 +663,12 @@ impl WalManager {
             return Ok(());
         }
         let first = self.current_lsn.fetch_add(writes.len() as u64, Ordering::SeqCst);
-        const CHUNK: usize = 2048;
+        // a few large entries (batch records) encode one per task; many
+        // small ones in groups
+        let chunk_len = (writes.len() / (rayon::current_num_threads() * 2)).clamp(1, 2048);
         let mut indexed: Vec<(usize, (PageId, Vec<u8>))> = writes.into_iter().enumerate().collect();
         let chunks: Vec<Vec<u8>> = indexed
-            .par_chunks_mut(CHUNK)
+            .par_chunks_mut(chunk_len)
             .map(|chunk| -> Result<Vec<u8>, StorageError> {
                 let mut buf = Vec::with_capacity(chunk.iter().map(|(_, (_, d))| d.len() + 64).sum());
                 for (i, (page, data)) in chunk.iter_mut() {
@@ -1084,20 +1086,10 @@ pub struct RecoveryResult {
     pub last_lsn: u64,
 }
 
-/// CRC32 calculation (simple implementation)
+/// CRC-32 (IEEE, reflected 0xEDB88320) — same values as the old bitwise
+/// loop, so existing logs verify; crc32fast uses SSE4.2/PCLMUL/ARMv8 CRC.
 fn crc32(data: &[u8]) -> u32 {
-    let mut crc: u32 = 0xFFFFFFFF;
-    for byte in data {
-        crc ^= *byte as u32;
-        for _ in 0..8 {
-            if crc & 1 != 0 {
-                crc = (crc >> 1) ^ 0xEDB88320;
-            } else {
-                crc >>= 1;
-            }
-        }
-    }
-    !crc
+    crc32fast::hash(data)
 }
 
 #[cfg(test)]
@@ -1270,5 +1262,28 @@ mod tests {
         let data = b"123456789";
         let crc = crc32(data);
         assert_eq!(crc, 0xCBF43926);
+    }
+}
+
+#[cfg(test)]
+mod crc_compat_tests {
+    /// crc32fast must match the bitwise IEEE CRC the WAL used before, or
+    /// existing logs would fail verification.
+    #[test]
+    fn crc_matches_legacy_bitwise() {
+        fn legacy(data: &[u8]) -> u32 {
+            let mut crc: u32 = 0xFFFF_FFFF;
+            for b in data {
+                crc ^= *b as u32;
+                for _ in 0..8 {
+                    crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+                }
+            }
+            !crc
+        }
+        let data: Vec<u8> = (0..100_000u32).map(|i| (i.wrapping_mul(2654435761) >> 13) as u8).collect();
+        for n in [0, 1, 7, 64, 1000, 100_000] {
+            assert_eq!(super::crc32(&data[..n]), legacy(&data[..n]));
+        }
     }
 }
