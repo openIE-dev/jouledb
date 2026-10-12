@@ -665,24 +665,29 @@ impl SimpleQueryExecutor {
         rows: Vec<Vec<AstValue>>,
     ) -> Result<usize, QueryErrorResponse> {
         self.fire_triggers(table, "BEFORE", "INSERT");
+        type Maps = Vec<HashMap<String, joule_db_amorphic::Value>>;
+        // Validate + build the record maps of chunk k+1 (no store lock)
+        // while chunk k is applied to the store: the two stages overlap,
+        // chunks still commit in order, one WAL group commit each.
+        let trace = std::env::var_os("JOULEDB_INGEST_TRACE").is_some();
         let mut inserted = 0usize;
         let mut rows_it = rows.into_iter();
-        loop {
+        let mut offset = 0usize;
+        let mut prepare = |offset: usize| -> Option<Result<(Maps, std::time::Duration), QueryErrorResponse>> {
             let chunk: Vec<Vec<AstValue>> = rows_it.by_ref().take(BULK_CHUNK_ROWS).collect();
             if chunk.is_empty() {
-                break;
+                return None;
             }
             let t_val = std::time::Instant::now();
             use rayon::prelude::*;
-            let n_chunk = chunk.len();
-            let validated: Vec<Result<RowData, String>> = chunk
+            let validated: Result<Vec<RowData>, String> = chunk
                 .into_par_iter()
                 .enumerate()
                 .map(|(i, r)| {
                     if r.len() != insert_columns.len() {
                         return Err(format!(
                             "COPY row {}: expected {} columns, got {}",
-                            inserted + i + 1,
+                            offset + i + 1,
                             insert_columns.len(),
                             r.len()
                         ));
@@ -690,26 +695,32 @@ impl SimpleQueryExecutor {
                     apply_defaults_and_validate(insert_columns.clone(), r, &column_defs)
                 })
                 .collect();
-            let mut batch = Vec::with_capacity(n_chunk);
-            for v in validated {
-                match v {
-                    Ok(row) => batch.push(row),
-                    Err(e) => return Err(QueryErrorResponse::execution_error(&e)),
-                }
-            }
+            Some(match validated {
+                Ok(batch) => Ok((
+                    crate::amorphic_adapter::AmorphicTableStorage::rows_to_field_maps(table, batch),
+                    t_val.elapsed(),
+                )),
+                Err(e) => Err(QueryErrorResponse::execution_error(&e)),
+            })
+        };
+        let mut next = prepare(offset);
+        while let Some(cur) = next.take() {
+            let (maps, prep) = cur?;
+            let n = maps.len();
+            offset += n;
             let t_ins = std::time::Instant::now();
-            let r = self.amorphic.insert_rows(table, &batch);
-            if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-                eprintln!(
-                    "bulk_copy validate={:?} insert_rows={:?}",
-                    t_ins - t_val,
-                    t_ins.elapsed()
-                );
+            let (r, nx) = rayon::join(
+                || self.amorphic.insert_field_maps(table, maps, prep),
+                || prepare(offset),
+            );
+            if trace {
+                eprintln!("bulk_copy prep(validate+maps)={:?} insert+next_prep={:?}", prep, t_ins.elapsed());
             }
             match r {
                 Ok(ids) => inserted += ids.len(),
                 Err(e) => return Err(QueryErrorResponse::execution_error(&e.to_string())),
             }
+            next = nx;
         }
         if inserted > 0 {
             self.fire_triggers(table, "AFTER", "INSERT");

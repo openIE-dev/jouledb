@@ -52,6 +52,24 @@ pub(super) fn ast_to_amorphic(v: &AstValue) -> AmorphicValue {
 }
 
 /// Convert AST Value to serde_json::Value
+/// AST value -> store value, same result as
+/// `AmorphicValue::from_json(&ast_to_json(&v))` (non-finite floats become
+/// Null, bytes hex text, timestamps ints) without the JSON detour; scalars
+/// move their payload.
+pub fn ast_into_amorphic(v: AstValue) -> joule_db_amorphic::Value {
+    use joule_db_amorphic::Value as A;
+    match v {
+        AstValue::Null => A::Null,
+        AstValue::Bool(b) => A::Bool(b),
+        AstValue::Int(i) => A::Int(i),
+        AstValue::Float(f) if f.is_finite() => A::Float(f),
+        AstValue::Float(_) => A::Null,
+        AstValue::String(s) | AstValue::Uuid(s) => A::String(s),
+        AstValue::Timestamp(t) => A::Int(t),
+        other => A::from_json(&ast_to_json(&other)),
+    }
+}
+
 pub fn ast_to_json(v: &AstValue) -> serde_json::Value {
     match v {
         AstValue::Null => serde_json::Value::Null,

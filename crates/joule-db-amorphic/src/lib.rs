@@ -1234,16 +1234,31 @@ impl AmorphicStore {
         let t_res = t_start.elapsed();
         // field names (few): a linear list, extended only by rows that bring
         // a new key
+        // Fast path (bulk loads: every row has the first row's key set):
+        // one parallel all-rows check against a hashed name set. Otherwise
+        // the serial scan below, in first-seen order as before.
         let mut names: Vec<&str> = Vec::new();
-        for (_, fields) in &rows {
-            if fields.len() != names.len() || fields.keys().any(|k| !names.contains(&k.as_str())) {
+        let mut name_pos: rustc_hash::FxHashMap<&str, usize> = Default::default();
+        if let Some((_, first)) = rows.first() {
+            for k in first.keys() {
+                name_pos.insert(k.as_str(), names.len());
+                names.push(k.as_str());
+            }
+        }
+        let uniform = rows.par_iter().all(|(_, f)| {
+            f.len() == names.len() && f.keys().all(|k| name_pos.contains_key(k.as_str()))
+        });
+        if !uniform {
+            for (_, fields) in &rows {
                 for k in fields.keys() {
-                    if !names.contains(&k.as_str()) {
+                    if !name_pos.contains_key(k.as_str()) {
+                        name_pos.insert(k.as_str(), names.len());
                         names.push(k.as_str());
                     }
                 }
             }
         }
+        let name_pos = &name_pos;
         // one pass per row chunk in parallel: each row's map is walked once
         // and scattered to its field's lists (no per-field hash lookups);
         // chunks are then concatenated in id order per field.
@@ -1263,7 +1278,7 @@ impl AmorphicStore {
                         let c = if names[hint] == k {
                             hint
                         } else {
-                            names.iter().position(|x| *x == k).expect("name gathered")
+                            name_pos[k]
                         };
                         hint = if c + 1 < nf { c + 1 } else { 0 };
                         let o = &mut out[c];

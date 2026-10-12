@@ -441,11 +441,8 @@ impl AmorphicTableStorage {
     /// INSERT). Same records as `insert_returning_id` per row, built
     /// directly from AST values (no JSON round trip).
     pub fn insert_rows(&self, table: &str, rows: &[RowData]) -> QueryResult<Vec<u64>> {
-        let t_lock = std::time::Instant::now();
-        let mut store = self.store.write().map_err(lock_error)?;
-        let lock_wait = t_lock.elapsed();
-        let _columns = self.get_schema_columns(&store, table)?;
         use rayon::prelude::*;
+        let t_prep = std::time::Instant::now();
         let batch: Vec<HashMap<String, AmorphicValue>> = rows
             .par_iter()
             .map(|row| {
@@ -455,11 +452,53 @@ impl AmorphicTableStorage {
                     AmorphicValue::String(table.to_string()),
                 );
                 for (c, v) in row.columns.iter().zip(row.values.iter()) {
-                    f.insert(c.clone(), AmorphicValue::from_json(&ast_to_json(v)));
+                    f.insert(c.clone(), ast_into_amorphic(v.clone()));
                 }
                 f
             })
             .collect();
+        self.insert_field_maps(table, batch, t_prep.elapsed())
+    }
+
+    /// `insert_rows` taking the rows by value: cells are moved into the
+    /// record maps (no clone, no JSON round trip). The maps are built before
+    /// the store write lock is taken, so readers and the previous batch's
+    /// apply are not held up by the conversion.
+    pub fn insert_rows_owned(&self, table: &str, rows: Vec<RowData>) -> QueryResult<Vec<u64>> {
+        let t_prep = std::time::Instant::now();
+        let batch = Self::rows_to_field_maps(table, rows);
+        self.insert_field_maps(table, batch, t_prep.elapsed())
+    }
+
+    /// Owned rows -> record field maps (parallel; `_table` tag added).
+    pub fn rows_to_field_maps(table: &str, rows: Vec<RowData>) -> Vec<HashMap<String, AmorphicValue>> {
+        use rayon::prelude::*;
+        rows.into_par_iter()
+            .map(|row| {
+                let mut f = HashMap::with_capacity(row.columns.len() + 1);
+                f.insert(
+                    TABLE_FIELD.to_string(),
+                    AmorphicValue::String(table.to_string()),
+                );
+                for (c, v) in row.columns.into_iter().zip(row.values) {
+                    f.insert(c, ast_into_amorphic(v));
+                }
+                f
+            })
+            .collect()
+    }
+
+    /// Store ingest of prebuilt field maps (one WAL group commit).
+    pub fn insert_field_maps(
+        &self,
+        table: &str,
+        batch: Vec<HashMap<String, AmorphicValue>>,
+        prep: std::time::Duration,
+    ) -> QueryResult<Vec<u64>> {
+        let t_lock = std::time::Instant::now();
+        let mut store = self.store.write().map_err(lock_error)?;
+        let lock_wait = t_lock.elapsed();
+        let _columns = self.get_schema_columns(&store, table)?;
         let t0 = std::time::Instant::now();
         let gen_before = store.generation();
         let ids = store.ingest_fields_batch(batch).map_err(amorphic_error)?;
@@ -470,7 +509,7 @@ impl AmorphicTableStorage {
                 "insert_rows n={} lock={:?} prep={:?} store={:?} colcache={:?}",
                 ids.len(),
                 lock_wait,
-                t0 - t_lock - lock_wait,
+                prep,
                 t_cache - t0,
                 t_cache.elapsed()
             );
