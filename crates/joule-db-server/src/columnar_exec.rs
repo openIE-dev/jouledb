@@ -798,13 +798,12 @@ fn neumaier_lanes(sum: &mut f64, comp: &mut f64, xs: &[f64]) {
     let mut it = xs.chunks_exact(L);
     for ch in &mut it {
         for l in 0..L {
+            // branch-free TwoSum: the same exact rounding error as the
+            // Neumaier branch, so identical sums, but it vectorizes
             let x = ch[l];
             let t = s[l] + x;
-            if s[l].abs() >= x.abs() {
-                c[l] += (s[l] - t) + x;
-            } else {
-                c[l] += (x - t) + s[l];
-            }
+            let bp = t - s[l];
+            c[l] += (s[l] - (t - bp)) + (x - bp);
             s[l] = t;
         }
     }
@@ -1593,6 +1592,22 @@ fn aggregate(
             let accs = &mut part.accs;
             let g = |k: usize| if gid.is_empty() { 0 } else { gid[k] as usize };
             let col = agg_cols[oi].unwrap_or(&Col::Other);
+            // sum(x) and avg(x) of one column share the same state (count +
+            // sums): reuse the earlier output's partial instead of a second
+            // pass over the column (Q3 `sum(d), avg(d)`).
+            if matches!(kind, AggKind::Sum | AggKind::Avg) && !matches!(col, Col::Other) {
+                let twin = (0..oi).find(|&oj| {
+                    matches!(kinds[oj], Some(AggKind::Sum | AggKind::Avg))
+                        && bit_base[oj].is_none()
+                        && agg_cols[oj].is_some_and(|c| std::ptr::eq(c, col))
+                });
+                if let Some(oj) = twin {
+                    for gi in 0..ng {
+                        accs[gi * nout + oi] = accs[gi * nout + oj].clone();
+                    }
+                    continue;
+                }
+            }
             match (kind, col) {
                 (AggKind::CountStar, _) => {
                     if gid.is_empty() {
