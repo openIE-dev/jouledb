@@ -46,10 +46,25 @@ pub fn encode_chunk(rows: &[(RecordId, HashMap<String, Value>)]) -> Vec<u8> {
         out.extend_from_slice(&id.to_le_bytes());
     }
     let bm_len = n.div_ceil(8);
-    for name in &columns {
+    // scatter each row's map once into per-column slots (no per-cell
+    // hash lookups; columns are few, so a linear name match is cheapest)
+    let nc = columns.len();
+    let mut cols: Vec<Vec<Option<&Value>>> = vec![vec![None; n]; nc];
+    let mut hint = 0usize;
+    for (i, (_, f)) in rows.iter().enumerate() {
+        for (k, v) in f {
+            let k = k.as_str();
+            let mut c = hint;
+            if columns[c] != k {
+                c = columns.iter().position(|x| *x == k).expect("column gathered above");
+            }
+            cols[c][i] = Some(v);
+            hint = if c + 1 < nc { c + 1 } else { 0 };
+        }
+    }
+    for (name, vals) in columns.iter().zip(cols) {
         out.extend_from_slice(&(name.len() as u16).to_le_bytes());
         out.extend_from_slice(name.as_bytes());
-        let vals: Vec<Option<&Value>> = rows.iter().map(|(_, f)| f.get(*name)).collect();
         let mut tag = None;
         for v in vals.iter().flatten() {
             let t = match v {
