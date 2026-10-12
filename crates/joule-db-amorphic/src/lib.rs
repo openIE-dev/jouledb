@@ -1231,35 +1231,72 @@ impl AmorphicStore {
         // fill them in parallel. Same contents as the row-at-a-time path.
         // gather per field in parallel (one task per field name, each a
         // pass over the batch in id order): same lists as a serial pass
-        let mut names_set: rustc_hash::FxHashSet<&str> = Default::default();
+        // field names (few): a linear list, extended only by rows that bring
+        // a new key
+        let mut names: Vec<&str> = Vec::new();
         for (_, fields) in &rows {
-            if fields.len() != names_set.len() || fields.keys().any(|k| !names_set.contains(k.as_str())) {
-                names_set.extend(fields.keys().map(|k| k.as_str()));
+            if fields.len() != names.len() || fields.keys().any(|k| !names.contains(&k.as_str())) {
+                for k in fields.keys() {
+                    if !names.contains(&k.as_str()) {
+                        names.push(k.as_str());
+                    }
+                }
             }
         }
+        // one pass per row chunk in parallel: each row's map is walked once
+        // and scattered to its field's lists (no per-field hash lookups);
+        // chunks are then concatenated in id order per field.
         type Gather<'a> = (&'a str, Vec<RecordId>, Vec<(OrderedFloat, RecordId)>, Vec<(RecordId, f64)>);
-        let gathered: Vec<Gather> = names_set
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into_par_iter()
-            .map(|f| {
-                let (mut ids, mut nums, mut cs) = (Vec::with_capacity(rows.len()), Vec::new(), Vec::new());
-                for (id, fields) in &rows {
-                    if let Some(value) = fields.get(f) {
-                        ids.push(*id);
+        type Part = (Vec<RecordId>, Vec<(OrderedFloat, RecordId)>, Vec<(RecordId, f64)>);
+        let nf = names.len();
+        let parts: Vec<Vec<Part>> = rows
+            .par_chunks(8192)
+            .map(|chunk| {
+                let mut out: Vec<Part> = (0..nf)
+                    .map(|_| (Vec::with_capacity(chunk.len()), Vec::new(), Vec::new()))
+                    .collect();
+                for (id, fields) in chunk {
+                    let mut hint = 0usize;
+                    for (k, value) in fields {
+                        let k = k.as_str();
+                        let c = if names[hint] == k {
+                            hint
+                        } else {
+                            names.iter().position(|x| *x == k).expect("name gathered")
+                        };
+                        hint = if c + 1 < nf { c + 1 } else { 0 };
+                        let o = &mut out[c];
+                        o.0.push(*id);
                         if let Some(num) = value.as_f64() {
-                            nums.push((OrderedFloat(num), *id));
+                            o.1.push((OrderedFloat(num), *id));
                         }
                         match value {
-                            Value::Int(i) => cs.push((*id, *i as f64)),
-                            Value::Float(x) => cs.push((*id, *x)),
+                            Value::Int(i) => o.2.push((*id, *i as f64)),
+                            Value::Float(x) => o.2.push((*id, *x)),
                             _ => {}
                         }
                     }
                 }
-                (f, ids, nums, cs)
+                out
             })
             .collect();
+        let gathered: Vec<Gather> = (0..nf)
+            .into_par_iter()
+            .map(|c| {
+                let (mut ids, mut nums, mut cs) = (
+                    Vec::with_capacity(parts.iter().map(|p| p[c].0.len()).sum()),
+                    Vec::new(),
+                    Vec::new(),
+                );
+                for p in &parts {
+                    ids.extend_from_slice(&p[c].0);
+                    nums.extend_from_slice(&p[c].1);
+                    cs.extend_from_slice(&p[c].2);
+                }
+                (names[c], ids, nums, cs)
+            })
+            .collect();
+        drop(parts);
         let mut by_field: rustc_hash::FxHashMap<&str, Vec<RecordId>> = Default::default();
         let mut numeric: rustc_hash::FxHashMap<&str, Vec<(OrderedFloat, RecordId)>> =
             Default::default();
