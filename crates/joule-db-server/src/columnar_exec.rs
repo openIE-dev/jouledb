@@ -2007,58 +2007,128 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
     // for the rows returned.
     let no = outs.len();
     use rayon::prelude::*;
-    let vals: Vec<Sv> = (0..ngroups)
-        .into_par_iter()
-        .flat_map_iter(|gi| {
-            let accs = &accs[gi * outs.len()..(gi + 1) * outs.len()];
-            let first = firsts.get(gi).copied().unwrap_or(0) as usize;
-            let gcols = &gcols;
-            let agg_cols = &agg_cols;
-            outs.iter()
-                .enumerate()
-                .map(move |(oi, o)| match o {
-                    OutCol::Group(g) => Sv::from_key(&key_at(gcols[*g], first)),
-                    OutCol::Agg(kind, _) => {
-                        let a = &accs[oi];
-                        let is_int = matches!(agg_cols[oi], Some(Col::Int(..)));
-                        match kind {
-                            AggKind::CountStar | AggKind::Count => Sv::U(a.count),
-                            AggKind::CountDistinct if !a.bits.is_empty() => {
-                                Sv::U(a.bits.iter().map(|w| w.count_ones() as u64).sum())
-                            }
-                            AggKind::CountDistinct => {
-                                Sv::U(a.distinct.as_ref().map_or(0, |d| d.len() as u64))
-                            }
-                            AggKind::Sum if a.count == 0 => Sv::Null,
-                            AggKind::Sum if is_int => match i64::try_from(a.isum) {
-                                Ok(v) => Sv::I(v),
-                                Err(_) => Sv::F(a.isum as f64),
-                            },
-                            AggKind::Sum => Sv::F(a.fsum + a.fcomp),
-                            AggKind::Avg if a.count == 0 => Sv::Null,
-                            AggKind::Avg => {
-                                let s = if is_int {
-                                    a.isum as f64
-                                } else {
-                                    a.fsum + a.fcomp
-                                };
-                                Sv::F(s / a.count as f64)
-                            }
-                            AggKind::Min => Sv::from_num(a.min),
-                            AggKind::Max => Sv::from_num(a.max),
-                        }
+    // one output cell (typed, cheap); JSON only for the rows returned
+    let cell = |gi: usize, oi: usize| -> Sv {
+        let accs = &accs[gi * no..(gi + 1) * no];
+        let first = firsts.get(gi).copied().unwrap_or(0) as usize;
+        let o = &outs[oi];
+        match o {
+            OutCol::Group(g) => Sv::from_key(&key_at(gcols[*g], first)),
+            OutCol::Agg(kind, _) => {
+                let a = &accs[oi];
+                let is_int = matches!(agg_cols[oi], Some(Col::Int(..)));
+                match kind {
+                    AggKind::CountStar | AggKind::Count => Sv::U(a.count),
+                    AggKind::CountDistinct if !a.bits.is_empty() => {
+                        Sv::U(a.bits.iter().map(|w| w.count_ones() as u64).sum())
                     }
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    let mut idx: Vec<usize> = (0..ngroups).collect();
+                    AggKind::CountDistinct => {
+                        Sv::U(a.distinct.as_ref().map_or(0, |d| d.len() as u64))
+                    }
+                    AggKind::Sum if a.count == 0 => Sv::Null,
+                    AggKind::Sum if is_int => match i64::try_from(a.isum) {
+                        Ok(v) => Sv::I(v),
+                        Err(_) => Sv::F(a.isum as f64),
+                    },
+                    AggKind::Sum => Sv::F(a.fsum + a.fcomp),
+                    AggKind::Avg if a.count == 0 => Sv::Null,
+                    AggKind::Avg => {
+                        let s = if is_int {
+                            a.isum as f64
+                        } else {
+                            a.fsum + a.fcomp
+                        };
+                        Sv::F(s / a.count as f64)
+                    }
+                    AggKind::Min => Sv::from_num(a.min),
+                    AggKind::Max => Sv::from_num(a.max),
+                }
+            }
+        }
+    };
     let off = query.offset.unwrap_or(0);
     let take = query.limit.map(|l| off.saturating_add(l));
-    if !order.is_empty() {
-        let cmp = |&ia: &usize, &ib: &usize| -> Ordering {
+    // Top-N over many groups: materialize only the ORDER BY cells, select
+    // the top `take` per morsel of groups in parallel, merge, then build the
+    // full rows for the winners only.
+    let small_top = !order.is_empty()
+        && take.is_some_and(|k| k > 0 && k <= 4096 && k.saturating_mul(8) < ngroups);
+    let (vals, idx, no_v): (Vec<Sv>, Vec<usize>, usize) = if small_top {
+        let k = take.unwrap();
+        let ocols: Vec<usize> = order.iter().map(|(i, _, _)| *i).collect();
+        let nv = ocols.len();
+        let ovals: Vec<Sv> = (0..ngroups)
+            .into_par_iter()
+            .flat_map_iter(|gi| ocols.iter().map(move |&oi| cell(gi, oi)).collect::<Vec<_>>())
+            .collect();
+        let order_v: Vec<(usize, bool, Option<bool>)> = order
+            .iter()
+            .enumerate()
+            .map(|(j, (_, d, n))| (j, *d, *n))
+            .collect();
+        let cmp = mk_cmp(&ovals, nv, &order_v);
+        let mut cand: Vec<usize> = (0..ngroups)
+            .collect::<Vec<_>>()
+            .par_chunks(16_384)
+            .flat_map_iter(|ch| {
+                let mut v = ch.to_vec();
+                if k < v.len() {
+                    v.select_nth_unstable_by(k - 1, &cmp);
+                    v.truncate(k);
+                }
+                v
+            })
+            .collect();
+        if k < cand.len() {
+            cand.select_nth_unstable_by(k - 1, &cmp);
+            cand.truncate(k);
+        }
+        cand.sort_unstable_by(&cmp);
+        let vals: Vec<Sv> = cand.iter().flat_map(|&gi| (0..no).map(move |oi| cell(gi, oi))).collect();
+        let n = cand.len();
+        (vals, (0..n).collect(), no)
+    } else {
+        let vals: Vec<Sv> = (0..ngroups)
+            .into_par_iter()
+            .flat_map_iter(|gi| (0..no).map(move |oi| cell(gi, oi)).collect::<Vec<_>>())
+            .collect();
+        let mut idx: Vec<usize> = (0..ngroups).collect();
+        if !order.is_empty() {
+            let cmp = mk_cmp(&vals, no, &order);
+            // top-N: partition the first `take` then sort only those
+            if let Some(k) = take.filter(|&k| k > 0 && k < idx.len()) {
+                idx.select_nth_unstable_by(k - 1, &cmp);
+                idx.truncate(k);
+            }
+            idx.sort_unstable_by(&cmp);
+        }
+        (vals, idx, no)
+    };
+    let no = no_v;
+    if std::env::var_os("JOULEDB_VEC_TRACE").is_some() {
+        eprintln!("render agg={ta:?} groups={ngroups}");
+    }
+    let end = take.unwrap_or(usize::MAX).min(idx.len());
+    let rows: Vec<Vec<serde_json::Value>> = idx[off.min(end)..end]
+        .iter()
+        .map(|&i| vals[i * no..(i + 1) * no].iter().map(Sv::json).collect())
+        .collect();
+    Some(VecResult {
+        columns: names,
+        rows,
+    })
+}
+
+/// ORDER BY comparator over row-major typed cells (`no` per row); ties
+/// break on the earlier group (stable).
+fn mk_cmp<'a>(
+    vals: &'a [Sv],
+    no: usize,
+    order: &'a [(usize, bool, Option<bool>)],
+) -> impl Fn(&usize, &usize) -> Ordering + Sync + 'a {
+    move |&ia: &usize, &ib: &usize| -> Ordering {
             let (a, b) = (&vals[ia * no..(ia + 1) * no], &vals[ib * no..(ib + 1) * no]);
-            for (i, desc, nulls_first) in &order {
+            for (i, desc, nulls_first) in order.iter() {
                 let (x, y) = (&a[*i], &b[*i]);
                 let nf = nulls_first.unwrap_or(*desc);
                 let o = match (x.is_null(), y.is_null()) {
@@ -2087,24 +2157,5 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
                 }
             }
             ia.cmp(&ib) // stable: earlier groups first on ties
-        };
-        // top-N: partition the first `take` then sort only those
-        if let Some(k) = take.filter(|&k| k > 0 && k < idx.len()) {
-            idx.select_nth_unstable_by(k - 1, cmp);
-            idx.truncate(k);
         }
-        idx.sort_unstable_by(cmp);
-    }
-    if std::env::var_os("JOULEDB_VEC_TRACE").is_some() {
-        eprintln!("render agg={ta:?} groups={ngroups}");
-    }
-    let end = take.unwrap_or(usize::MAX).min(idx.len());
-    let rows: Vec<Vec<serde_json::Value>> = idx[off.min(end)..end]
-        .iter()
-        .map(|&i| vals[i * no..(i + 1) * no].iter().map(Sv::json).collect())
-        .collect();
-    Some(VecResult {
-        columns: names,
-        rows,
-    })
 }

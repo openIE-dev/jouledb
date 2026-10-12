@@ -12972,6 +12972,30 @@ mod tests {
         assert!(matches!(bulk, Some(Err(_)) | None));
     }
 
+    /// Top-N over many groups (parallel per-morsel selection on the ORDER BY
+    /// cells only) returns exactly the head of the fully sorted result,
+    /// including ties broken by group order.
+    #[tokio::test]
+    async fn test_topn_many_groups_matches_full_sort() {
+        let executor = SimpleQueryExecutor::new();
+        zq(&executor, "CREATE TABLE tn (u INT, d FLOAT)");
+        let rows: Vec<Vec<Option<String>>> = (0..200_000i64)
+            .map(|i| vec![Some(((i * 7919) % 50_000).to_string()), Some(format!("{}.25", (i * 31) % 97))])
+            .collect();
+        executor.bulk_copy("tn", &["u".into(), "d".into()], &rows).unwrap().unwrap();
+        for (q, k) in [
+            ("SELECT u, sum(d) AS s FROM tn GROUP BY u ORDER BY s DESC, u", 10),
+            ("SELECT u, count(*) AS c FROM tn GROUP BY u ORDER BY c DESC", 25),
+            ("SELECT u, sum(d) AS s FROM tn GROUP BY u ORDER BY s", 7),
+        ] {
+            let full = zq(&executor, q);
+            let top = zq(&executor, &format!("{q} LIMIT {k}"));
+            assert_eq!(top, full[..k].to_vec(), "{q}");
+            let off = zq(&executor, &format!("{q} LIMIT {k} OFFSET 3"));
+            assert_eq!(off, full[3..3 + k].to_vec(), "{q} offset");
+        }
+    }
+
     fn zq(executor: &SimpleQueryExecutor, sql: &str) -> Vec<Vec<serde_json::Value>> {
         let request = QueryRequest {
             sql: sql.to_string(),
