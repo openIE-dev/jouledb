@@ -808,9 +808,15 @@ const VI_SHARDS: usize = 64;
 /// `value hash -> ids` split into shards by the hash's top bits. Same
 /// contents and per-key id order as one map; batch ingest updates the
 /// shards in parallel.
+/// Ids per (field, value) key. Most keys of a bulk load hold one or two
+/// ids (ids, timestamps, measurements), so they stay inline: no heap
+/// allocation per distinct value (was the bulk of value-index build time).
+pub(crate) type ValueIds = smallvec::SmallVec<[RecordId; 2]>;
+
 #[derive(Debug, Clone)]
+
 pub(crate) struct ShardedValueIndex {
-    shards: Vec<rustc_hash::FxHashMap<u64, Vec<RecordId>>>,
+    shards: Vec<rustc_hash::FxHashMap<u64, ValueIds>>,
 }
 
 impl Default for ShardedValueIndex {
@@ -829,13 +835,13 @@ impl ShardedValueIndex {
     pub(crate) fn entry(
         &mut self,
         h: u64,
-    ) -> std::collections::hash_map::Entry<'_, u64, Vec<RecordId>> {
+    ) -> std::collections::hash_map::Entry<'_, u64, ValueIds> {
         self.shards[Self::shard_of(h)].entry(h)
     }
-    pub(crate) fn get(&self, h: &u64) -> Option<&Vec<RecordId>> {
+    pub(crate) fn get(&self, h: &u64) -> Option<&ValueIds> {
         self.shards[Self::shard_of(*h)].get(h)
     }
-    pub(crate) fn get_mut(&mut self, h: &u64) -> Option<&mut Vec<RecordId>> {
+    pub(crate) fn get_mut(&mut self, h: &u64) -> Option<&mut ValueIds> {
         self.shards[Self::shard_of(*h)].get_mut(h)
     }
     pub(crate) fn reserve(&mut self, additional: usize) {
@@ -3130,7 +3136,7 @@ impl AmorphicStore {
         for (field, value) in record.fields.iter() {
             let hash = Self::hash_value(field, value);
             if let Some(ids) = self.value_index.get_mut(&hash) {
-                ids.retain(|&x| x != id);
+                ids.retain(|x| *x != id);
             }
         }
 
@@ -3402,7 +3408,7 @@ impl AmorphicStore {
                 // Remove from value index
                 let old_hash = Self::hash_value(field, old_value);
                 if let Some(ids) = self.value_index.get_mut(&old_hash) {
-                    ids.retain(|&x| x != id);
+                    ids.retain(|x| *x != id);
                 }
 
                 // Remove from numeric index

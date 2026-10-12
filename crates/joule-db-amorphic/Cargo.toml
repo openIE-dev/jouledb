@@ -12,6 +12,7 @@ durable = ["dep:joule-db-local", "dep:crc32fast"]
 flowr = []  # Marker feature; real executor injected at app layer
 
 [dependencies]
+smallvec = { workspace = true }
 rustc-hash = { workspace = true }
 rayon = { workspace = true }
 crc32fast = { version = "1.4", optional = true }
