@@ -1894,7 +1894,7 @@ pub struct VecResult {
     pub rows: Vec<Vec<serde_json::Value>>,
 }
 
-/// Tables up to this many rows run their columnar query on a private
+/// Grouped queries on tables up to this many rows run on a private
 /// one-thread pool: every parallel step then runs inline instead of waking
 /// the global workers (at 10k rows the wakeups and spinning cost more time
 /// and energy than the work itself).
@@ -1910,7 +1910,13 @@ thread_local! {
 
 /// Run `query` against `t` if it has a supported shape, else `None`.
 pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
-    if t.len <= SMALL_TABLE_ROWS && rayon::current_thread_index().is_none() {
+    // Only grouped queries gain from the handoff: ungrouped ones (COUNT(*),
+    // MIN/MAX from zone maps, filtered counts, sums) are a few microseconds
+    // of work where the cross-thread handoff itself is the cost.
+    if t.len <= SMALL_TABLE_ROWS
+        && !query.group_by.is_empty()
+        && rayon::current_thread_index().is_none()
+    {
         if let Some(r) = SMALL_POOL.with(|p| p.as_ref().map(|p| p.install(|| execute_inner(query, t)))) {
             return r;
         }
