@@ -1359,6 +1359,7 @@ impl AmorphicStore {
             let (vi, names) = (&mut self.value_index, &mut self.name_to_id);
             let rows_ref = &rows;
             let hashes_ref = &hashes;
+            let by_field_ref = &by_field;
             let (idx_out, side_out) = rayon::join(
                 || {
                     rayon::join(
@@ -1394,26 +1395,40 @@ impl AmorphicStore {
                             // (hash, row) pairs bucketed by shard in
                             // parallel; each shard then appended by its own
                             // task (ids stay in row order per key)
-                            let pairs: Vec<(u64, u32)> = hashes_ref
-                                .par_iter()
+                            // bucket by shard per row chunk in parallel;
+                            // each shard then takes its buckets in chunk
+                            // order (ids stay in row order per key)
+                            const VI_CHUNK: usize = 4096;
+                            let parts: Vec<Vec<Vec<(u64, u32)>>> = hashes_ref
+                                .par_chunks(VI_CHUNK)
                                 .enumerate()
-                                .flat_map_iter(|(r, hs)| hs.iter().map(move |&h| (h, r as u32)))
+                                .map(|(ci, ch)| {
+                                    let mut b: Vec<Vec<(u64, u32)>> = vec![Vec::new(); VI_SHARDS];
+                                    for (j, hs) in ch.iter().enumerate() {
+                                        let r = (ci * VI_CHUNK + j) as u32;
+                                        for &h in hs {
+                                            b[ShardedValueIndex::shard_of(h)].push((h, r));
+                                        }
+                                    }
+                                    b
+                                })
                                 .collect();
-                            let mut buckets: Vec<Vec<(u64, u32)>> = vec![Vec::new(); VI_SHARDS];
-                            for &(h, r) in &pairs {
-                                buckets[ShardedValueIndex::shard_of(h)].push((h, r));
-                            }
-                            vi.shards.par_iter_mut().zip(buckets).for_each(|(m, b)| {
-                                m.reserve(b.len());
-                                for (h, r) in b {
-                                    m.entry(h).or_default().push(rows_ref[r as usize].0);
+                            vi.shards.par_iter_mut().enumerate().for_each(|(si, m)| {
+                                m.reserve(parts.iter().map(|p| p[si].len()).sum());
+                                for p in &parts {
+                                    for &(h, r) in &p[si] {
+                                        m.entry(h).or_default().push(rows_ref[r as usize].0);
+                                    }
                                 }
                             });
-                            for (id, fields) in rows_ref.iter() {
-                                for (field, value) in fields.iter() {
-                                    if field == "name" || field == "_name" {
-                                        if let Value::String(name) = value {
-                                            names.insert(name.clone(), *id);
+                            // name map: only when the batch has such a field
+                            if by_field_ref.contains_key("name") || by_field_ref.contains_key("_name") {
+                                for (id, fields) in rows_ref.iter() {
+                                    for (field, value) in fields.iter() {
+                                        if field == "name" || field == "_name" {
+                                            if let Value::String(name) = value {
+                                                names.insert(name.clone(), *id);
+                                            }
                                         }
                                     }
                                 }
