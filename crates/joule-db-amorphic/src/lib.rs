@@ -896,7 +896,7 @@ pub struct AmorphicStore {
 
     /// B-tree index for numeric range queries: field -> (value -> record_ids)
     /// Enables O(log N) range queries instead of O(N)
-    numeric_index: HashMap<String, BTreeMap<OrderedFloat, Vec<RecordId>>>,
+    numeric_index: HashMap<String, BTreeMap<OrderedFloat, ValueIds>>,
 
     /// LSH hash tables for O(1) approximate similarity search
     /// Each table maps a hash (from sampled bits) to record IDs
@@ -3145,7 +3145,7 @@ impl AmorphicStore {
             if let Some(num) = value.as_f64() {
                 if let Some(btree) = self.numeric_index.get_mut(field) {
                     if let Some(ids) = btree.get_mut(&OrderedFloat(num)) {
-                        ids.retain(|&x| x != id);
+                        ids.retain(|x| *x != id);
                     }
                 }
             }
@@ -3415,7 +3415,7 @@ impl AmorphicStore {
                 if let Some(old_num) = old_value.as_f64() {
                     if let Some(btree) = self.numeric_index.get_mut(field) {
                         if let Some(ids) = btree.get_mut(&OrderedFloat(old_num)) {
-                            ids.retain(|&x| x != id);
+                            ids.retain(|x| *x != id);
                         }
                     }
                 }
