@@ -1231,6 +1231,7 @@ impl AmorphicStore {
         // fill them in parallel. Same contents as the row-at-a-time path.
         // gather per field in parallel (one task per field name, each a
         // pass over the batch in id order): same lists as a serial pass
+        let t_res = t_start.elapsed();
         // field names (few): a linear list, extended only by rows that bring
         // a new key
         let mut names: Vec<&str> = Vec::new();
@@ -1297,6 +1298,7 @@ impl AmorphicStore {
             })
             .collect();
         drop(parts);
+        let t_gather = t_start.elapsed();
         let mut by_field: rustc_hash::FxHashMap<&str, Vec<RecordId>> = Default::default();
         let mut numeric: rustc_hash::FxHashMap<&str, Vec<(OrderedFloat, RecordId)>> =
             Default::default();
@@ -1454,7 +1456,7 @@ impl AmorphicStore {
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
             let (pf, vi, wal): (std::time::Duration, std::time::Duration, std::time::Duration) = branch_t;
             eprintln!(
-                "apply indexes+wal={:?} (pre={t_pre:?} per-field={pf:?} value_index={vi:?} wal={wal:?}) shells={:?} records_insert={:?}",
+                "apply indexes+wal={:?} (pre={t_pre:?} [reserve={t_res:?} gather={t_gather:?}] per-field={pf:?} value_index={vi:?} wal={wal:?}) shells={:?} records_insert={:?}",
                 t_shell - t_start,
                 t_ins - t_shell,
                 t_ins.elapsed()
