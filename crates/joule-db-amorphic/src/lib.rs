@@ -1731,10 +1731,11 @@ impl AmorphicStore {
     /// `_table = <name>`), so a schema lookup for table `t` walked all of
     /// `t`'s rows on every INSERT, which made ingest quadratic.
     fn hash_value(field: &str, value: &Value) -> u64 {
-        use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
-        let mut hasher = DefaultHasher::new();
+        // in-memory index key only (never persisted; candidates are
+        // re-checked against the value), so a fast non-keyed hash is fine
+        let mut hasher = rustc_hash::FxHasher::default();
         field.hash(&mut hasher);
         match value {
             Value::Null => 0u8.hash(&mut hasher),
