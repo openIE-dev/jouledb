@@ -216,7 +216,7 @@ impl TableColumns {
     /// record already here). Returns false when a value does not fit the
     /// column's current type; the caller then drops this snapshot and the
     /// next query rebuilds it from the store.
-    pub fn append(&mut self, records: &[&joule_db_amorphic::AmorphicRecord]) -> bool {
+    pub fn append<R: FieldGet + Sync>(&mut self, records: &[R]) -> bool {
         use rayon::prelude::*;
         let old = self.len;
         let mut idxs = std::mem::take(&mut self.text_index);
@@ -257,19 +257,37 @@ impl TableColumns {
     }
 }
 
-fn append_col(
+/// A row's field lookup: stored records, or (id, fields) pairs of a batch
+/// that is being committed (column snapshot appended alongside the store).
+pub trait FieldGet {
+    fn field(&self, name: &str) -> Option<&joule_db_amorphic::Value>;
+}
+
+impl FieldGet for &joule_db_amorphic::AmorphicRecord {
+    fn field(&self, name: &str) -> Option<&joule_db_amorphic::Value> {
+        self.get(name)
+    }
+}
+
+impl FieldGet for (u64, std::collections::HashMap<String, joule_db_amorphic::Value>) {
+    fn field(&self, name: &str) -> Option<&joule_db_amorphic::Value> {
+        self.1.get(name)
+    }
+}
+
+fn append_col<R: FieldGet>(
     name: &str,
     col: &mut Col,
     idx: Option<&mut FxMap<Arc<str>, u32>>,
     old: usize,
-    records: &[&joule_db_amorphic::AmorphicRecord],
+    records: &[R],
 ) -> bool {
     use joule_db_amorphic::Value as V;
     match col {
         Col::Int(v, nulls) => {
             v.reserve(records.len());
             for (k, r) in records.iter().enumerate() {
-                match r.get(name) {
+                match r.field(name) {
                     Some(V::Int(i)) => v.push(*i),
                     None | Some(V::Null) => {
                         if nulls.is_empty() {
@@ -289,7 +307,7 @@ fn append_col(
         Col::Float(v, nulls) => {
             v.reserve(records.len());
             for (k, r) in records.iter().enumerate() {
-                match r.get(name) {
+                match r.field(name) {
                     Some(V::Float(f)) => v.push(*f),
                     Some(V::Int(i)) => v.push(*i as f64),
                     None | Some(V::Null) => {
@@ -311,7 +329,7 @@ fn append_col(
             let Some(idx) = idx else { return false };
             codes.reserve(records.len());
             for r in records {
-                match r.get(name) {
+                match r.field(name) {
                     Some(V::String(s)) => {
                         let code = match idx.get(s.as_str()) {
                             Some(&c) => c,

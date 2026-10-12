@@ -350,6 +350,18 @@ impl DurableAmorphicStore {
         &mut self,
         rows: Vec<HashMap<String, Value>>,
     ) -> AmorphicResult<Vec<RecordId>> {
+        self.ingest_fields_batch_with(rows, |_| ()).map(|(ids, ())| ids)
+    }
+
+    /// `ingest_fields_batch` that also runs `extra` over the batch's
+    /// (id, fields) rows, in parallel with the index updates and WAL encode
+    /// (e.g. appending to a column snapshot). `extra`'s result is returned
+    /// with the ids; it runs before the commit record is logged.
+    pub fn ingest_fields_batch_with<X: Send>(
+        &mut self,
+        rows: Vec<HashMap<String, Value>>,
+        extra: impl FnOnce(&[(RecordId, HashMap<String, Value>)]) -> X + Send,
+    ) -> AmorphicResult<(Vec<RecordId>, X)> {
         let tx_id = self.next_tx_id();
         let t_wal = std::time::Instant::now();
         let mut prepared = Vec::with_capacity(rows.len());
@@ -365,25 +377,10 @@ impl DurableAmorphicStore {
         let wal_result = self
             .store
             .apply_prepared_ingest_batch_with(prepared, |rows| {
-                use rayon::prelude::*;
-                // binary columnar chunk records (JWB1: typed column blocks,
-                // crc32), one WAL entry per CHUNK rows; page id = first
-                // record id, so replay order and dedup stay per id range
-                const CHUNK: usize = 4096;
-                let t_enc = std::time::Instant::now();
-                let writes: Vec<(RecordId, Vec<u8>)> = rows
-                    .par_chunks(CHUNK)
-                    .map(|chunk| (chunk[0].0, crate::wal_codec::encode_chunk(chunk)))
-                    .collect();
-                let t_log = std::time::Instant::now();
-                let r = wal.log_page_writes_owned(tx_id, writes);
-                if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-                    eprintln!("wal encode={:?} frame+write={:?}", t_log - t_enc, t_log.elapsed());
-                }
-                r
-                    .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
+                let (w, x) = rayon::join(|| Self::wal_chunks(wal, tx_id, rows), || extra(rows));
+                w.map(|()| x)
             })?;
-        wal_result?;
+        let x = wal_result?;
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
             eprintln!(
                 "durable batch prep={:?} wal+apply={:?}",
@@ -394,7 +391,32 @@ impl DurableAmorphicStore {
         self.wal
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
-        Ok(ids)
+        Ok((ids, x))
+    }
+
+    /// WAL page records for a batch: binary columnar chunks, in id order.
+    fn wal_chunks(
+        wal: &mut WalManager,
+        tx_id: u64,
+        rows: &[(RecordId, HashMap<String, Value>)],
+    ) -> AmorphicResult<()> {
+        use rayon::prelude::*;
+        // binary columnar chunk records (JWB1: typed column blocks,
+        // crc32), one WAL entry per CHUNK rows; page id = first
+        // record id, so replay order and dedup stay per id range
+        const CHUNK: usize = 4096;
+        let t_enc = std::time::Instant::now();
+        let writes: Vec<(RecordId, Vec<u8>)> = rows
+            .par_chunks(CHUNK)
+            .map(|chunk| (chunk[0].0, crate::wal_codec::encode_chunk(chunk)))
+            .collect();
+        let t_log = std::time::Instant::now();
+        let r = wal.log_page_writes_owned(tx_id, writes);
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!("wal encode={:?} frame+write={:?}", t_log - t_enc, t_log.elapsed());
+        }
+        r
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
     }
 
     /// Ingest a row (columns + values) with durability

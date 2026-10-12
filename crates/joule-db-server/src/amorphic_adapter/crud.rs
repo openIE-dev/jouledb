@@ -501,9 +501,32 @@ impl AmorphicTableStorage {
         let _columns = self.get_schema_columns(&store, table)?;
         let t0 = std::time::Instant::now();
         let gen_before = store.generation();
-        let ids = store.ingest_fields_batch(batch).map_err(amorphic_error)?;
+        // The table's column snapshot, if current, is taken out of the cache
+        // and appended from the batch rows in parallel with the store's
+        // index updates and WAL encode (it was a serial step after them).
+        // Queries cannot read it meanwhile: they need the store lock we hold.
+        let snap = self.col_cache.lock().ok().and_then(|mut c| match c.get(table) {
+            Some((g, _)) if *g == gen_before => c.remove(table).map(|(_, t)| t),
+            _ => None,
+        });
+        let had_snap = snap.is_some();
+        let (ids, snap) = store
+            .ingest_fields_batch_with(batch, move |rows| {
+                snap.and_then(|mut t| std::sync::Arc::make_mut(&mut t).append(rows).then_some(t))
+            })
+            .map_err(amorphic_error)?;
         let t_cache = std::time::Instant::now();
-        self.refresh_columns_after_load(&store, table, gen_before, &ids);
+        match snap {
+            Some(t) => {
+                if let Ok(mut c) = self.col_cache.lock() {
+                    c.insert(table.to_string(), (store.generation(), t));
+                }
+            }
+            // appended snapshot rejected the batch (type change): it stays
+            // dropped and is rebuilt on the next query, as before
+            None if had_snap => {}
+            None => self.refresh_columns_after_load(&store, table, gen_before, &ids),
+        }
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
             eprintln!(
                 "insert_rows n={} lock={:?} prep={:?} store={:?} colcache={:?}",
