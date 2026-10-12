@@ -164,6 +164,8 @@ def main():
     ap.add_argument("--min-seconds", type=float, default=2.0)
     ap.add_argument("--engines", default="duckdb,jouledb")
     ap.add_argument("--out", default="bench-result.json")
+    ap.add_argument("--settle", type=float, default=0.0,
+                    help="seconds to wait after loading before querying (lets background indexing finish)")
     a = ap.parse_args()
     host = platform.node(); csvp = os.path.abspath(f"hits-{a.rows}.csv")
     if not os.path.exists(csvp): gen_csv(csvp, a.rows)
@@ -179,6 +181,9 @@ def main():
         eng = DuckEngine(csvp) if e == "duckdb" else JouleEngine(csvp, a.pg_port)
         res["engines"][e] = {"version": eng.version, "load_s": round(time.monotonic() - t, 3)}
         engines.append(eng)
+    res["settle_s"] = a.settle
+    if a.settle > 0:
+        time.sleep(a.settle)
     for qn, q in QUERIES.items():
         res["queries"][qn] = {"sql": q}
         answers = {}
