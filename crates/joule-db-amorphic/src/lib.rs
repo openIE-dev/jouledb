@@ -249,6 +249,8 @@ pub mod durable;
 #[cfg(feature = "durable")]
 pub mod wal_codec;
 #[cfg(feature = "durable")]
+pub mod column_batch;
+#[cfg(feature = "durable")]
 pub use durable::DurableAmorphicStore;
 
 // MVCC transaction module (requires "durable" feature for full functionality)
@@ -1703,6 +1705,13 @@ impl AmorphicStore {
     }
 
     /// Allocate an id for a field map (bulk path; validates field count).
+    /// Reserve `n` consecutive record ids (columnar bulk ingest).
+    pub fn reserve_ids(&mut self, n: usize) -> RecordId {
+        let first = self.next_id;
+        self.next_id += n as RecordId;
+        first
+    }
+
     pub fn prepare_fields_ingest(
         &mut self,
         fields: HashMap<String, Value>,

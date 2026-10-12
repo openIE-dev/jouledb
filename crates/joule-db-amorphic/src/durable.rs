@@ -47,6 +47,17 @@ pub struct DurableAmorphicStore {
 
     /// Active batch transaction (if any)
     active_batch: Option<BatchTransaction>,
+
+    /// Columnar bulk batches committed to the WAL but not yet materialized
+    /// into row records / indexes (FIFO; ids ascending). `pending_off` is
+    /// how many rows of the front batch are already materialized.
+    pending: std::collections::VecDeque<std::sync::Arc<crate::column_batch::ColumnBatch>>,
+    pending_off: usize,
+    pending_rows: usize,
+    /// Generation bumps from columnar ingests, and the store generation
+    /// bumps caused by materializing them (which change no visible data)
+    col_gen: u64,
+    mat_gen: u64,
 }
 
 /// A batch transaction for grouping multiple operations
@@ -161,6 +172,11 @@ impl DurableAmorphicStore {
             tx_counter: AtomicU64::new(max_tx_id + 1),
             path,
             active_batch: None,
+            pending: Default::default(),
+            pending_off: 0,
+            pending_rows: 0,
+            col_gen: 0,
+            mat_gen: 0,
         })
     }
 
@@ -272,6 +288,7 @@ impl DurableAmorphicStore {
     ///
     /// This logs to WAL, applies to store, and commits atomically.
     pub fn ingest_json(&mut self, json: &str) -> AmorphicResult<RecordId> {
+        self.settle_pending()?;
         let tx_id = self.next_tx_id();
 
         // Parse and prepare the record
@@ -362,6 +379,7 @@ impl DurableAmorphicStore {
         rows: Vec<HashMap<String, Value>>,
         extra: impl FnOnce(&[(RecordId, HashMap<String, Value>)]) -> X + Send,
     ) -> AmorphicResult<(Vec<RecordId>, X)> {
+        self.settle_pending()?;
         let tx_id = self.next_tx_id();
         let t_wal = std::time::Instant::now();
         let mut prepared = Vec::with_capacity(rows.len());
@@ -421,6 +439,7 @@ impl DurableAmorphicStore {
 
     /// Ingest a row (columns + values) with durability
     pub fn ingest_row(&mut self, columns: &[&str], values: &[&str]) -> AmorphicResult<RecordId> {
+        self.settle_pending()?;
         let tx_id = self.next_tx_id();
 
         // Parse and prepare the record
@@ -456,6 +475,7 @@ impl DurableAmorphicStore {
     ///
     /// Multiple operations can be grouped and committed together.
     pub fn begin_batch(&mut self) -> AmorphicResult<()> {
+        self.settle_pending()?;
         if self.active_batch.is_some() {
             return Err(AmorphicError::IngestionError("Batch already active".into()));
         }
@@ -640,6 +660,7 @@ impl DurableAmorphicStore {
         relation: &str,
         target: &str,
     ) -> AmorphicResult<RecordId> {
+        self.settle_pending()?;
         let tx_id = self.next_tx_id();
 
         // WAL-log the edge operation BEFORE applying
@@ -673,6 +694,7 @@ impl DurableAmorphicStore {
     /// Removes the record from all indices. The deletion is logged to WAL.
     /// Note: The global hologram retains traces of deleted records until rebuild.
     pub fn delete(&mut self, id: RecordId) -> AmorphicResult<()> {
+        self.settle_pending()?;
         let tx_id = self.next_tx_id();
 
         // WAL-log the delete operation BEFORE applying.
@@ -703,6 +725,7 @@ impl DurableAmorphicStore {
     /// Returns how many existed. O(deleted + touched index entries), not
     /// O(deleted x table) like a loop over [`Self::delete`].
     pub fn delete_batch(&mut self, ids: &[RecordId]) -> AmorphicResult<usize> {
+        self.settle_pending()?;
         if ids.is_empty() {
             return Ok(0);
         }
@@ -729,6 +752,7 @@ impl DurableAmorphicStore {
         id: RecordId,
         updates: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
+        self.settle_pending()?;
         let tx_id = self.next_tx_id();
 
         // WAL-log the update operation BEFORE applying.
@@ -765,7 +789,111 @@ impl DurableAmorphicStore {
 
     /// See [`crate::AmorphicStore::generation`].
     pub fn generation(&self) -> (u64, usize) {
-        (self.store.generation(), self.store.len())
+        (
+            self.store
+                .generation()
+                .wrapping_add(self.col_gen)
+                .wrapping_sub(self.mat_gen),
+            self.store.len() + self.pending_rows,
+        )
+    }
+
+    // ==================== Columnar-first bulk ingest ====================
+
+    /// Commit a columnar bulk batch: ids are assigned, the rows are logged
+    /// to the WAL as `JWB1` records (same format as the row path, so
+    /// recovery rebuilds them as ordinary records) and committed. The rows
+    /// are NOT yet in the row records / indexes: they are queued until
+    /// `materialize_pending`. `extra` runs on the batch (ids assigned) in
+    /// parallel with the WAL encode, e.g. to append a column snapshot.
+    pub fn ingest_column_batch_with<X: Send>(
+        &mut self,
+        mut batch: crate::column_batch::ColumnBatch,
+        extra: impl FnOnce(&crate::column_batch::ColumnBatch) -> X + Send,
+    ) -> AmorphicResult<(RecordId, X)> {
+        use rayon::prelude::*;
+        batch.validate().map_err(AmorphicError::IngestionError)?;
+        if batch.cols.len() + 1 > crate::MAX_FIELDS_ERROR {
+            return Err(AmorphicError::FieldCountExceeded(batch.cols.len() + 1, crate::MAX_FIELDS_ERROR));
+        }
+        let first = self.store.reserve_ids(batch.len);
+        batch.first_id = first;
+        let tx_id = self.next_tx_id();
+        const CHUNK: usize = 4096;
+        let b = &batch;
+        let (writes, x) = rayon::join(
+            || {
+                (0..b.len)
+                    .step_by(CHUNK)
+                    .collect::<Vec<_>>()
+                    .into_par_iter()
+                    .map(|s| (b.first_id + s as u64, b.encode_chunk(s, (s + CHUNK).min(b.len))))
+                    .collect::<Vec<(RecordId, Vec<u8>)>>()
+            },
+            || extra(b),
+        );
+        self.wal
+            .log_page_writes_owned(tx_id, writes)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+        self.wal
+            .log_commit(tx_id)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+        self.pending_rows += batch.len;
+        self.pending.push_back(std::sync::Arc::new(batch));
+        self.col_gen = self.col_gen.wrapping_add(1);
+        Ok((first, x))
+    }
+
+    /// Materialize every queued columnar row (row writes need the row
+    /// records current: deletes/updates of those ids, id order).
+    pub fn settle_pending(&mut self) -> AmorphicResult<()> {
+        if self.pending_rows > 0 {
+            self.materialize_pending(usize::MAX)?;
+        }
+        Ok(())
+    }
+
+    /// Rows committed by columnar ingest that are not yet row records.
+    pub fn pending_rows(&self) -> usize {
+        self.pending_rows
+    }
+
+    /// Queued (not yet materialized) columnar batches, oldest first, with
+    /// the number of leading rows of the first that are already records.
+    pub fn pending_batches(
+        &self,
+    ) -> (usize, Vec<std::sync::Arc<crate::column_batch::ColumnBatch>>) {
+        (self.pending_off, self.pending.iter().cloned().collect())
+    }
+
+    /// Turn up to `max_rows` queued columnar rows into row records and
+    /// indexes (same records and index entries as the row path; their
+    /// hypervectors are deferred like any bulk ingest). Visible data is
+    /// unchanged, so the generation is too. Returns rows materialized.
+    pub fn materialize_pending(&mut self, max_rows: usize) -> AmorphicResult<usize> {
+        let mut done = 0;
+        while done < max_rows {
+            let Some(b) = self.pending.front().cloned() else { break };
+            let from = self.pending_off;
+            let to = b.len.min(from + (max_rows - done));
+            if to > from {
+                let rows = b.rows(from, to);
+                let before = self.store.generation();
+                self.store.apply_prepared_ingest_batch_with(rows, |_| ())?;
+                self.mat_gen = self
+                    .mat_gen
+                    .wrapping_add(self.store.generation().wrapping_sub(before));
+                done += to - from;
+                self.pending_rows -= to - from;
+            }
+            if to == b.len {
+                self.pending.pop_front();
+                self.pending_off = 0;
+            } else {
+                self.pending_off = to;
+            }
+        }
+        Ok(done)
     }
 
     /// Borrowing variant of `query_equals` (no record clones).
@@ -820,7 +948,7 @@ impl DurableAmorphicStore {
 
     /// Get record count
     pub fn len(&self) -> usize {
-        self.store.len()
+        self.store.len() + self.pending_rows
     }
 
     /// Check if empty
@@ -1115,6 +1243,102 @@ mod tests {
             assert_eq!(r.get("s").is_some(), i % 2 == 0);
         }
         assert_eq!(store.len(), 10_002);
+    }
+
+        fn rows_of(store: &DurableAmorphicStore, ids: impl Iterator<Item = RecordId>) -> Vec<(RecordId, HashMap<String, Value>)> {
+        ids.filter_map(|id| {
+            store.get(id).map(|r| (id, r.fields_iter().map(|(k, v)| (k.to_string(), v.clone())).collect()))
+        })
+        .collect()
+    }
+
+    fn col_batch(n: usize) -> crate::column_batch::ColumnBatch {
+        use crate::column_batch::*;
+        let mut offsets = vec![0u32];
+        let mut bytes = Vec::new();
+        for i in 0..n {
+            bytes.extend_from_slice(format!("/p{}", i % 11).as_bytes());
+            offsets.push(bytes.len() as u32);
+        }
+        ColumnBatch {
+            table_field: "_table".into(),
+            table: "hits".into(),
+            first_id: 0,
+            len: n,
+            cols: vec![
+                BatchColumn { name: "id".into(), data: ColData::Int((0..n as i64).collect()), valid: None },
+                BatchColumn {
+                    name: "d".into(),
+                    data: ColData::Float((0..n).map(|i| i as f64 * 0.25).collect()),
+                    valid: Some((0..n).map(|i| i % 9 != 0).collect()),
+                },
+                BatchColumn { name: "url".into(), data: ColData::Str { offsets, bytes }, valid: None },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_column_batch_matches_row_path_and_survives_crash_mid_materialize() {
+        let n = 10_000usize;
+        // reference: the same rows through the row path
+        let ref_dir = TempDir::new().unwrap();
+        let reference = {
+            let mut s = DurableAmorphicStore::open(ref_dir.path()).unwrap();
+            let rows: Vec<HashMap<String, Value>> = col_batch(n).rows(0, n).into_iter().map(|(_, f)| f).collect();
+            let ids = s.ingest_fields_batch(rows).unwrap();
+            rows_of(&s, ids.into_iter())
+        };
+        for materialize_first in [0usize, 3_333, n] {
+            let dir = TempDir::new().unwrap();
+            let (first, gen_after_ingest) = {
+                let mut s = DurableAmorphicStore::open(dir.path()).unwrap();
+                let (first, ()) = s.ingest_column_batch_with(col_batch(n), |_| ()).unwrap();
+                assert_eq!(s.len(), n);
+                assert_eq!(s.pending_rows(), n);
+                let g = s.generation();
+                assert_eq!(s.materialize_pending(materialize_first).unwrap(), materialize_first);
+                // materializing changes no visible data, so no generation change
+                assert_eq!(s.generation(), g);
+                assert_eq!(s.pending_rows(), n - materialize_first);
+                // materialized prefix already equals the row path
+                let got = rows_of(&s, first..first + materialize_first as u64);
+                assert_eq!(got.len(), materialize_first);
+                for ((_, a), (_, b)) in got.iter().zip(&reference) {
+                    assert_eq!(a, b);
+                }
+                (first, g)
+                // simulated crash with background indexing unfinished
+            };
+            let _ = gen_after_ingest;
+            let s = DurableAmorphicStore::open(dir.path()).unwrap();
+            assert_eq!(s.pending_rows(), 0);
+            assert_eq!(s.len(), n);
+            let got = rows_of(&s, first..first + n as u64);
+            assert_eq!(got.len(), n);
+            for ((_, a), (_, b)) in got.iter().zip(&reference) {
+                assert_eq!(a, b);
+            }
+            assert_eq!(s.query_equals("id", &Value::Int(9_999)).records.len(), 1);
+            assert_eq!(s.query_equals("_table", &Value::String("hits".into())).records.len(), n);
+        }
+    }
+
+    #[test]
+    fn test_row_writes_after_column_batch_settle_first() {
+        let dir = TempDir::new().unwrap();
+        let mut s = DurableAmorphicStore::open(dir.path()).unwrap();
+        let (first, ()) = s.ingest_column_batch_with(col_batch(100), |_| ()).unwrap();
+        s.delete(first + 5).unwrap();
+        assert_eq!(s.pending_rows(), 0);
+        assert_eq!(s.len(), 99);
+        let mut up = HashMap::new();
+        up.insert("d".to_string(), Value::Float(-1.0));
+        s.update_fields(first + 6, up).unwrap();
+        drop(s);
+        let s = DurableAmorphicStore::open(dir.path()).unwrap();
+        assert_eq!(s.len(), 99);
+        assert!(s.get(first + 5).is_none());
+        assert_eq!(s.get(first + 6).unwrap().get("d"), Some(&Value::Float(-1.0)));
     }
 
     #[test]

@@ -17,11 +17,11 @@ use std::collections::HashMap;
 
 pub const MAGIC: &[u8; 4] = b"JWB1";
 
-const T_MIXED: u8 = 0;
-const T_INT: u8 = 1;
-const T_FLOAT: u8 = 2;
-const T_BOOL: u8 = 3;
-const T_STR: u8 = 4;
+pub(crate) const T_MIXED: u8 = 0;
+pub(crate) const T_INT: u8 = 1;
+pub(crate) const T_FLOAT: u8 = 2;
+pub(crate) const T_BOOL: u8 = 3;
+pub(crate) const T_STR: u8 = 4;
 
 pub fn is_binary(data: &[u8]) -> bool {
     data.len() >= 4 && &data[..4] == MAGIC

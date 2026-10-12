@@ -22,7 +22,7 @@ joule-db-local = { workspace = true, optional = true }
 joule-db-core = { workspace = true }
 sigql = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
 thiserror = { workspace = true }
 rand = { workspace = true }
 memmap2 = { workspace = true }
