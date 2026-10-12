@@ -1876,8 +1876,31 @@ pub struct VecResult {
     pub rows: Vec<Vec<serde_json::Value>>,
 }
 
+/// Tables up to this many rows run their columnar query on a private
+/// one-thread pool: every parallel step then runs inline instead of waking
+/// the global workers (at 10k rows the wakeups and spinning cost more time
+/// and energy than the work itself).
+const SMALL_TABLE_ROWS: usize = 65_536;
+
+thread_local! {
+    static SMALL_POOL: Option<rayon::ThreadPool> = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .thread_name(|_| "jouledb-small-q".into())
+        .build()
+        .ok();
+}
+
 /// Run `query` against `t` if it has a supported shape, else `None`.
 pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
+    if t.len <= SMALL_TABLE_ROWS && rayon::current_thread_index().is_none() {
+        if let Some(r) = SMALL_POOL.with(|p| p.as_ref().map(|p| p.install(|| execute_inner(query, t)))) {
+            return r;
+        }
+    }
+    execute_inner(query, t)
+}
+
+fn execute_inner(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
     if !query.joins.is_empty()
         || !query.ctes.is_empty()
         || query.set_op.is_some()
