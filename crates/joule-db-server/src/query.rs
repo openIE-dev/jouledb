@@ -142422,6 +142422,7 @@ mod columnar_ingest_tests {
     fn batches(from: i64, to: i64) -> Vec<RecordBatch> {
         let mut out = Vec::new();
         let mut s = from;
+        let day = |i: i64| if i % 23 == 0 { None } else { Some((i % 400) as i32) };
         while s < to {
             let e = (s + 7_000).min(to);
             let id: ArrayRef = Arc::new(Int64Array::from_iter_values(s..e));
@@ -142437,8 +142438,9 @@ mod columnar_ingest_tests {
             let b: ArrayRef = Arc::new(BooleanArray::from_iter((s..e).map(|i| {
                 if i % 19 == 0 { None } else { Some(i % 2 == 0) }
             })));
+            let d: ArrayRef = Arc::new(arrow::array::Date32Array::from_iter((s..e).map(day)));
             out.push(
-                RecordBatch::try_from_iter(vec![("id", id), ("k", k), ("f", f), ("t", t), ("b", b)])
+                RecordBatch::try_from_iter(vec![("id", id), ("k", k), ("f", f), ("t", t), ("b", b), ("d", d)])
                     .unwrap(),
             );
             s = e;
@@ -142447,7 +142449,7 @@ mod columnar_ingest_tests {
     }
 
     fn create(e: &SimpleQueryExecutor) {
-        q(e, "CREATE TABLE ci (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN)");
+        q(e, "CREATE TABLE ci (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
     }
 
     fn load_rows(e: &SimpleQueryExecutor, from: i64, to: i64) {
@@ -142473,6 +142475,7 @@ mod columnar_ingest_tests {
         "SELECT t, avg(f) FROM ci GROUP BY t ORDER BY t",
         "SELECT sum(id), min(f), max(f), count(t), count(b) FROM ci",
         "SELECT * FROM ci WHERE id BETWEEN 19990 AND 20005 ORDER BY id",
+        "SELECT d, count(*) FROM ci WHERE d > '1970-06-01' GROUP BY d ORDER BY d",
     ];
 
     fn assert_same(a: &SimpleQueryExecutor, b: &SimpleQueryExecutor, when: &str) {
@@ -142512,7 +142515,7 @@ mod columnar_ingest_tests {
         for e in [&row, &col] {
             q(e, "UPDATE ci SET t = 'upd' WHERE id = 45001");
             q(e, "DELETE FROM ci WHERE id < 100");
-            q(e, "INSERT INTO ci (id, k, f, t, b) VALUES (999999, 1, 2.5, 'x', false)");
+            q(e, "INSERT INTO ci (id, k, f, t, b, d) VALUES (999999, 1, 2.5, 'x', false, '2026-01-01')");
         }
         assert_same(&row, &col, "after row writes");
         assert_eq!(col.amorphic.pending_column_rows(), 0);
@@ -142569,11 +142572,11 @@ mod columnar_ingest_tests {
     #[test]
     fn test_columnar_ingest_ineligible_falls_back() {
         let e = SimpleQueryExecutor::new();
-        q(&e, "CREATE TABLE cf (id DOUBLE, k INT, f DOUBLE, t TEXT, b BOOLEAN)");
+        q(&e, "CREATE TABLE cf (id DOUBLE, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
         assert!(e.bulk_insert_arrow("cf", &[], &batches(0, 10)).is_none());
         q(&e, "CREATE TABLE cn (id BIGINT, k INT NOT NULL, f DOUBLE, t TEXT, b BOOLEAN)");
         assert!(e.bulk_insert_arrow("cn", &[], &batches(0, 30)).is_none());
-        q(&e, "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN)");
+        q(&e, "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
         assert!(e.bulk_insert_arrow("cp", &[], &batches(0, 10)).is_none());
     }
 

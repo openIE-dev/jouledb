@@ -387,6 +387,26 @@ pub fn batches_to_columns(
                     }
                     ColData::Str { offsets, bytes }
                 }
+                // dates/timestamps: the text `batches_to_values` gives them
+                DataType::Date32 | DataType::Date64 | DataType::Timestamp(_, _) => {
+                    let mut offsets = Vec::with_capacity(total + 1);
+                    let mut bytes: Vec<u8> = Vec::new();
+                    offsets.push(0u32);
+                    for a in &arrays {
+                        let f = ArrayFormatter::try_new(*a, &FormatOptions::default()).ok()?;
+                        for i in 0..a.len() {
+                            if !a.is_null(i) {
+                                use std::io::Write;
+                                write!(bytes, "{}", f.value(i)).ok()?;
+                            }
+                            offsets.push(bytes.len() as u32);
+                        }
+                        if bytes.len() > u32::MAX as usize / 2 {
+                            return None;
+                        }
+                    }
+                    ColData::Str { offsets, bytes }
+                }
                 _ => return None,
             };
             Some(BatchColumn { name: names[ci].clone(), data, valid })
