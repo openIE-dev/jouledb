@@ -374,53 +374,63 @@ pub fn batches_to_columns(
                     }
                     ColData::Bool(v)
                 }
-                DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
-                    let mut offsets = Vec::with_capacity(total + 1);
-                    let mut bytes: Vec<u8> = Vec::new();
-                    offsets.push(0u32);
-                    for a in &arrays {
-                        let mut push = |s: &str| {
-                            bytes.extend_from_slice(s.as_bytes());
-                            offsets.push(bytes.len() as u32);
-                        };
-                        // NULL cells: empty (masked by `valid`)
-                        match a.data_type() {
-                            DataType::Utf8 => {
-                                let s = a.as_string::<i32>();
-                                (0..s.len()).for_each(|i| push(if s.is_null(i) { "" } else { s.value(i) }));
+                DataType::Utf8
+                | DataType::LargeUtf8
+                | DataType::Utf8View
+                | DataType::Date32
+                | DataType::Date64
+                | DataType::Timestamp(_, _) => {
+                    // one task per Arrow batch, then concatenated in order;
+                    // dates/timestamps as the text `batches_to_values` gives
+                    let parts: Option<Vec<(Vec<u32>, Vec<u8>)>> = arrays
+                        .par_iter()
+                        .map(|a| {
+                            let n = a.len();
+                            let mut offs = Vec::with_capacity(n);
+                            let mut bytes: Vec<u8> = Vec::new();
+                            match a.data_type() {
+                                DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
+                                    let get = |i: usize| -> &str {
+                                        if a.is_null(i) {
+                                            return "";
+                                        }
+                                        match a.data_type() {
+                                            DataType::Utf8 => a.as_string::<i32>().value(i),
+                                            DataType::LargeUtf8 => a.as_string::<i64>().value(i),
+                                            _ => a.as_string_view().value(i),
+                                        }
+                                    };
+                                    for i in 0..n {
+                                        bytes.extend_from_slice(get(i).as_bytes());
+                                        offs.push(bytes.len() as u32);
+                                    }
+                                }
+                                _ => {
+                                    let f = ArrayFormatter::try_new(*a, &FormatOptions::default()).ok()?;
+                                    use std::io::Write;
+                                    for i in 0..n {
+                                        if !a.is_null(i) {
+                                            write!(bytes, "{}", f.value(i)).ok()?;
+                                        }
+                                        offs.push(bytes.len() as u32);
+                                    }
+                                }
                             }
-                            DataType::LargeUtf8 => {
-                                let s = a.as_string::<i64>();
-                                (0..s.len()).for_each(|i| push(if s.is_null(i) { "" } else { s.value(i) }));
-                            }
-                            _ => {
-                                let s = a.as_string_view();
-                                (0..s.len()).for_each(|i| push(if s.is_null(i) { "" } else { s.value(i) }));
-                            }
-                        }
-                        if bytes.len() > u32::MAX as usize / 2 {
-                            return None;
-                        }
+                            Some((offs, bytes))
+                        })
+                        .collect();
+                    let parts = parts?;
+                    let total_bytes: usize = parts.iter().map(|p| p.1.len()).sum();
+                    if total_bytes > u32::MAX as usize / 2 {
+                        return None;
                     }
-                    ColData::Str { offsets, bytes }
-                }
-                // dates/timestamps: the text `batches_to_values` gives them
-                DataType::Date32 | DataType::Date64 | DataType::Timestamp(_, _) => {
                     let mut offsets = Vec::with_capacity(total + 1);
-                    let mut bytes: Vec<u8> = Vec::new();
+                    let mut bytes = Vec::with_capacity(total_bytes);
                     offsets.push(0u32);
-                    for a in &arrays {
-                        let f = ArrayFormatter::try_new(*a, &FormatOptions::default()).ok()?;
-                        for i in 0..a.len() {
-                            if !a.is_null(i) {
-                                use std::io::Write;
-                                write!(bytes, "{}", f.value(i)).ok()?;
-                            }
-                            offsets.push(bytes.len() as u32);
-                        }
-                        if bytes.len() > u32::MAX as usize / 2 {
-                            return None;
-                        }
+                    for (o, b) in parts {
+                        let base = bytes.len() as u32;
+                        offsets.extend(o.into_iter().map(|x| x + base));
+                        bytes.extend_from_slice(&b);
                     }
                     ColData::Str { offsets, bytes }
                 }

@@ -2132,6 +2132,7 @@ where
                 }
             }
         }
+        let t_recv = std::time::Instant::now();
         let text = String::from_utf8_lossy(&data);
         let mut rows: Vec<Vec<Option<String>>> = if spec.csv {
             split_csv(&text, spec.delimiter, &spec.null)
@@ -2143,6 +2144,9 @@ where
         };
         if spec.header && !rows.is_empty() {
             rows.remove(0);
+        }
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!("copy stdin bytes={} parse={:?}", data.len(), t_recv.elapsed());
         }
         let cols = if spec.columns.is_empty() {
             String::new()
