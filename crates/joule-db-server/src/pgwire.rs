@@ -1793,8 +1793,19 @@ fn copy_file(
         let batches = crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
         if conn_state.session_id.is_none() {
             // Not in a transaction: typed columns straight into the store.
+            let t_ins = std::time::Instant::now();
             match executor.bulk_insert_arrow(&spec.target, &spec.columns, &batches) {
-                Some(Ok(n)) => return Ok(n),
+                Some(Ok(n)) => {
+                    if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                        eprintln!(
+                            "copy_file columnar read={:?} insert={:?} batches={}",
+                            t_ins - t_read,
+                            t_ins.elapsed(),
+                            batches.len()
+                        );
+                    }
+                    return Ok(n);
+                }
                 Some(Err(e)) => return Err((e.code, e.message)),
                 None => {}
             }
@@ -1875,7 +1886,7 @@ fn split_copy_text(line: &str, delim: char, null: &str) -> Vec<Option<String>> {
 }
 
 /// Parse CSV records (quotes, doubled quotes, embedded newlines).
-fn split_csv(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>> {
+pub(crate) fn split_csv(data: &str, delim: char, null: &str) -> Vec<Vec<Option<String>>> {
     // Without quotes every record is one line: split large inputs at line
     // boundaries and parse the pieces in parallel (same rows, same order).
     const PAR_MIN: usize = 1 << 20;

@@ -190,12 +190,29 @@ pub fn read_file(path: &str, fmt: FileFormat) -> Result<Vec<RecordBatch>, String
     let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
     match fmt {
         FileFormat::Parquet => {
-            let rd = parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(f)
-                .map_err(err)?
-                .with_batch_size(65536)
-                .build()
-                .map_err(err)?;
-            rd.collect::<Result<Vec<_>, _>>().map_err(err)
+            use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder as B;
+            use rayon::prelude::*;
+            let groups = B::try_new(f).map_err(err)?.metadata().num_row_groups();
+            if groups <= 1 {
+                let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
+                let rd = B::try_new(f).map_err(err)?.with_batch_size(65536).build().map_err(err)?;
+                return rd.collect::<Result<Vec<_>, _>>().map_err(err);
+            }
+            // decode row groups in parallel, batches kept in file order
+            let parts: Vec<Vec<RecordBatch>> = (0..groups)
+                .into_par_iter()
+                .map(|g| {
+                    let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
+                    let rd = B::try_new(f)
+                        .map_err(err)?
+                        .with_row_groups(vec![g])
+                        .with_batch_size(65536)
+                        .build()
+                        .map_err(err)?;
+                    rd.collect::<Result<Vec<_>, _>>().map_err(err)
+                })
+                .collect::<Result<_, String>>()?;
+            Ok(parts.into_iter().flatten().collect())
         }
         FileFormat::ArrowFile => {
             let rd = arrow::ipc::reader::FileReader::try_new(std::io::BufReader::new(f), None).map_err(err)?;

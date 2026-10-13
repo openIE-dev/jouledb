@@ -768,6 +768,13 @@ impl QueryExecutor for SimpleQueryExecutor {
         } else {
             columns.to_vec()
         };
+        #[cfg(test)]
+        let columnar = !NO_COLUMNAR_COPY.with(|c| c.get());
+        #[cfg(not(test))]
+        let columnar = true;
+        if let Some(batch) = columnar.then(|| self.csv_column_batch(table, columns, rows)).flatten() {
+            return Some(self.insert_column_batch_logged(table, batch));
+        }
         // Integers outside i64 take the SQL fallback (parser decides their type).
         if rows.iter().flatten().any(|v| copy_field_value(v).is_none()) {
             return None;
@@ -805,33 +812,19 @@ impl QueryExecutor for SimpleQueryExecutor {
         columns: &[String],
         batches: &[arrow::record_batch::RecordBatch],
     ) -> Option<Result<usize, QueryErrorResponse>> {
+        let t0 = std::time::Instant::now();
         let batch = self.column_batch_for(table, columns, batches)?;
         if batch.len == 0 {
             return None;
         }
-        self.fire_triggers(table, "BEFORE", "INSERT");
-        crate::amorphic_adapter::take_commit_error();
-        let r = self.amorphic.insert_column_batch(table, batch);
-        let r = match (r, crate::amorphic_adapter::take_commit_error()) {
-            (_, Some(e)) => Err(QueryErrorResponse::execution_error(&e)),
-            (Err(e), None) => Err(QueryErrorResponse::execution_error(&e.to_string())),
-            (Ok(n), None) => Ok(n),
-        };
-        if let Ok(n) = r {
-            if n > 0 {
-                self.fire_triggers(table, "AFTER", "INSERT");
-                self.broadcast_replication(
-                    crate::replication::ReplicationOp::Put,
-                    table,
-                    Some(&format!(
-                        "{{\"__op__\":\"INSERT\",\"__table__\":\"{}\",\"__count__\":{}}}",
-                        table, n
-                    )),
-                );
-            }
+        let t1 = std::time::Instant::now();
+        let r = self.insert_column_batch_logged(table, batch);
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!("bulk_insert_arrow convert+checks={:?} insert+commit={:?}", t1 - t0, t1.elapsed());
         }
         Some(r)
     }
+
 
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let start = Instant::now();
@@ -6487,6 +6480,36 @@ impl SimpleQueryExecutor {
         }
     }
 
+    /// Commit a columnar batch with the bulk path's triggers and replication.
+    fn insert_column_batch_logged(
+        &self,
+        table: &str,
+        batch: joule_db_amorphic::column_batch::ColumnBatch,
+    ) -> Result<usize, QueryErrorResponse> {
+        self.fire_triggers(table, "BEFORE", "INSERT");
+        crate::amorphic_adapter::take_commit_error();
+        let r = self.amorphic.insert_column_batch(table, batch);
+        let r = match (r, crate::amorphic_adapter::take_commit_error()) {
+            (_, Some(e)) => Err(QueryErrorResponse::execution_error(&e)),
+            (Err(e), None) => Err(QueryErrorResponse::execution_error(&e.to_string())),
+            (Ok(n), None) => Ok(n),
+        };
+        if let Ok(n) = r {
+            if n > 0 {
+                self.fire_triggers(table, "AFTER", "INSERT");
+                self.broadcast_replication(
+                    crate::replication::ReplicationOp::Put,
+                    table,
+                    Some(&format!(
+                        "{{\"__op__\":\"INSERT\",\"__table__\":\"{}\",\"__count__\":{}}}",
+                        table, n
+                    )),
+                );
+            }
+        }
+        r
+    }
+
     /// The Arrow batches as one columnar ingest batch, when the row path
     /// would store exactly these values: bulk-eligible table, every table
     /// column given once, no type coercion for any column type pair, no
@@ -6497,7 +6520,17 @@ impl SimpleQueryExecutor {
         columns: &[String],
         batches: &[arrow::record_batch::RecordBatch],
     ) -> Option<joule_db_amorphic::column_batch::ColumnBatch> {
-        use joule_db_amorphic::column_batch::{ColData, ColumnBatch};
+        let (table_columns, defs) = self.columnar_target(table)?;
+        let (file_cols, cols, len) = crate::file_formats::batches_to_columns(batches)?;
+        let names = if columns.is_empty() { file_cols } else { columns.to_vec() };
+        self.finish_column_batch(table, &table_columns, &defs, names, cols, len)
+    }
+
+    /// Schema columns and defs of a table that may take columnar ingest.
+    fn columnar_target(
+        &self,
+        table: &str,
+    ) -> Option<(Vec<String>, Vec<crate::amorphic_adapter::ColumnDefInfo>)> {
         if table.starts_with('_')
             || table == "holographic"
             || table == "kv"
@@ -6510,8 +6543,118 @@ impl SimpleQueryExecutor {
         if !self.bulk_insert_eligible(table, &defs) {
             return None;
         }
-        let (file_cols, mut cols, len) = crate::file_formats::batches_to_columns(batches)?;
-        let names = if columns.is_empty() { file_cols } else { columns.to_vec() };
+        Some((table_columns, defs))
+    }
+
+    /// Typed text COPY rows as one columnar batch: every cell typed by
+    /// `copy_field_value` and coerced by `coerce_to_column` exactly as the
+    /// row path does; `None` when a column's values do not end up as one
+    /// type (the row path then stores the mix).
+    fn csv_column_batch(
+        &self,
+        table: &str,
+        columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> Option<joule_db_amorphic::column_batch::ColumnBatch> {
+        use joule_db_amorphic::column_batch::{BatchColumn, ColData};
+        use rayon::prelude::*;
+        let (table_columns, defs) = self.columnar_target(table)?;
+        let names: Vec<String> = if columns.is_empty() { table_columns.clone() } else { columns.to_vec() };
+        let ncols = names.len();
+        if rows.is_empty() || rows.iter().any(|r| r.len() != ncols) {
+            return None;
+        }
+        let n = rows.len();
+        let cols: Option<Vec<BatchColumn>> = (0..ncols)
+            .into_par_iter()
+            .map(|ci| {
+                let target = defs
+                    .iter()
+                    .find(|d| d.name == names[ci])
+                    .map(|d| d.data_type.to_uppercase());
+                // kind: 0 none yet, 1 int, 2 float, 3 bool, 4 str
+                let mut kind = 0u8;
+                let (mut iv, mut fv, mut bv) = (Vec::new(), Vec::new(), Vec::new());
+                let (mut offsets, mut bytes) = (vec![0u32], Vec::<u8>::new());
+                let mut valid = Vec::with_capacity(n);
+                let mut any_null = false;
+                for r in rows {
+                    let mut v = copy_field_value(&r[ci])?;
+                    if let Some(t) = &target {
+                        v = coerce_to_column(t, v);
+                    }
+                    let k = match &v {
+                        AstValue::Null => 0,
+                        AstValue::Int(_) => 1,
+                        AstValue::Float(_) => 2,
+                        AstValue::Bool(_) => 3,
+                        AstValue::String(_) => 4,
+                        _ => return None,
+                    };
+                    if k != 0 {
+                        if kind == 0 {
+                            // first value: earlier rows were NULL
+                            kind = k;
+                            let done = valid.len();
+                            match k {
+                                1 => iv.resize(done, 0),
+                                2 => fv.resize(done, 0.0),
+                                3 => bv.resize(done, false),
+                                _ => offsets.resize(done + 1, 0),
+                            }
+                        } else if k != kind {
+                            return None;
+                        }
+                    }
+                    valid.push(k != 0);
+                    any_null |= k == 0;
+                    match (kind, v) {
+                        (0, _) => {}
+                        (1, AstValue::Int(i)) => iv.push(i),
+                        (2, AstValue::Float(f)) => fv.push(f),
+                        (3, AstValue::Bool(b)) => bv.push(b),
+                        (4, AstValue::String(s)) => {
+                            bytes.extend_from_slice(s.as_bytes());
+                            offsets.push(bytes.len() as u32);
+                        }
+                        (1, _) => iv.push(0),
+                        (2, _) => fv.push(0.0),
+                        (3, _) => bv.push(false),
+                        (_, _) => offsets.push(bytes.len() as u32),
+                    }
+                    if bytes.len() > u32::MAX as usize / 2 {
+                        return None;
+                    }
+                }
+                let data = match kind {
+                    // all NULL: an int column of NULLs stores the same rows
+                    0 => ColData::Int(vec![0; n]),
+                    1 => ColData::Int(iv),
+                    2 => ColData::Float(fv),
+                    3 => ColData::Bool(bv),
+                    _ => ColData::Str { offsets, bytes },
+                };
+                Some(BatchColumn {
+                    name: names[ci].clone(),
+                    data,
+                    valid: any_null.then_some(valid),
+                })
+            })
+            .collect();
+        self.finish_column_batch(table, &table_columns, &defs, names, cols?, n)
+    }
+
+    /// Shared checks of a typed batch for `table` (see `column_batch_for`).
+    fn finish_column_batch(
+        &self,
+        table: &str,
+        table_columns: &[String],
+        defs: &[crate::amorphic_adapter::ColumnDefInfo],
+        names: Vec<String>,
+        mut cols: Vec<joule_db_amorphic::column_batch::BatchColumn>,
+        len: usize,
+    ) -> Option<joule_db_amorphic::column_batch::ColumnBatch> {
+        use joule_db_amorphic::column_batch::{ColData, ColumnBatch};
         if names.len() != cols.len() {
             return None;
         }
@@ -6523,7 +6666,7 @@ impl SimpleQueryExecutor {
             c.name = n.clone();
         }
         if !defs.is_empty() {
-            for d in &defs {
+            for d in defs {
                 let Some(c) = cols.iter().find(|c| c.name == d.name) else {
                     // a missing column gets its default, or is absent (NULL)
                     if d.default_value.is_some() || !d.nullable {
@@ -12355,6 +12498,53 @@ fn resolve_excluded_refs(expr: &Expression, new_row: &RowData) -> Expression {
 
 /// Apply DEFAULT values for missing columns and validate NOT NULL constraints.
 /// Returns a RowData with defaults applied, or an error message for constraint violations.
+#[cfg(test)]
+thread_local! {
+    /// Tests: COPY rows take the row path (the reference for equivalence).
+    static NO_COLUMNAR_COPY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Implicit INSERT coercion of one value to a column type (`target` upper-case).
+fn coerce_to_column(target: &str, v: AstValue) -> AstValue {
+    let mut values = [v];
+    let i = 0;
+    match (&target[..], &values[i]) {
+                ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::String(s)) => {
+                    if let Ok(n) = s.parse::<i64>() {
+                        values[i] = AstValue::Int(n);
+                    }
+                }
+                ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::Float(f)) => {
+                    values[i] = AstValue::Int(*f as i64);
+                }
+                ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::String(s)) => {
+                    if let Ok(f) = s.parse::<f64>() {
+                        values[i] = AstValue::Float(f);
+                    }
+                }
+                ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::Int(n)) => {
+                    values[i] = AstValue::Float(*n as f64);
+                }
+                ("BOOLEAN" | "BOOL", AstValue::String(s)) => match s.to_lowercase().as_str() {
+                    "true" | "1" | "yes" | "t" => values[i] = AstValue::Bool(true),
+                    "false" | "0" | "no" | "f" => values[i] = AstValue::Bool(false),
+                    _ => {}
+                },
+                ("BOOLEAN" | "BOOL", AstValue::Int(n)) => {
+                    values[i] = AstValue::Bool(*n != 0);
+                }
+                ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Int(n)) => {
+                    values[i] = AstValue::String(n.to_string());
+                }
+                ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Float(f)) => {
+                    values[i] = AstValue::String(f.to_string());
+                }
+                _ => {} // No coercion needed or possible
+            }
+    let [v] = values;
+    v
+}
+
 fn apply_defaults_and_validate(
     mut columns: Vec<String>,
     mut values: Vec<AstValue>,
@@ -12408,39 +12598,8 @@ fn apply_defaults_and_validate(
     for i in 0..columns.len() {
         if let Some(def) = column_defs.iter().find(|d| d.name == columns[i]) {
             let target = def.data_type.to_uppercase();
-            match (&target[..], &values[i]) {
-                ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::String(s)) => {
-                    if let Ok(n) = s.parse::<i64>() {
-                        values[i] = AstValue::Int(n);
-                    }
-                }
-                ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::Float(f)) => {
-                    values[i] = AstValue::Int(*f as i64);
-                }
-                ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::String(s)) => {
-                    if let Ok(f) = s.parse::<f64>() {
-                        values[i] = AstValue::Float(f);
-                    }
-                }
-                ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::Int(n)) => {
-                    values[i] = AstValue::Float(*n as f64);
-                }
-                ("BOOLEAN" | "BOOL", AstValue::String(s)) => match s.to_lowercase().as_str() {
-                    "true" | "1" | "yes" | "t" => values[i] = AstValue::Bool(true),
-                    "false" | "0" | "no" | "f" => values[i] = AstValue::Bool(false),
-                    _ => {}
-                },
-                ("BOOLEAN" | "BOOL", AstValue::Int(n)) => {
-                    values[i] = AstValue::Bool(*n != 0);
-                }
-                ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Int(n)) => {
-                    values[i] = AstValue::String(n.to_string());
-                }
-                ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Float(f)) => {
-                    values[i] = AstValue::String(f.to_string());
-                }
-                _ => {} // No coercion needed or possible
-            }
+            let v = std::mem::replace(&mut values[i], AstValue::Null);
+            values[i] = coerce_to_column(&target, v);
         }
     }
 
@@ -142578,6 +142737,65 @@ mod columnar_ingest_tests {
         assert!(e.bulk_insert_arrow("cn", &[], &batches(0, 30)).is_none());
         q(&e, "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
         assert!(e.bulk_insert_arrow("cp", &[], &batches(0, 10)).is_none());
+    }
+
+    /// Text COPY through the columnar path stores exactly what the row path
+    /// stores: quoting, NULLs, dates, number-looking text, coercions; and
+    /// columns that would end up mixed fall back.
+    #[test]
+    fn test_csv_columnar_copy_matches_row_path() {
+        let _g = PAUSE_BG.lock().unwrap_or_else(|p| p.into_inner());
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(true, Ordering::Relaxed);
+        let mut csv = String::new();
+        for i in 0..30_000i64 {
+            let name = match i % 7 {
+                0 => format!("\"q,{i}\""),
+                1 => format!("\"multi\nline {i}\""),
+                2 => "".to_string(), // NULL
+                3 => "\"\"".to_string(), // empty string
+                4 => format!("\"say \"\"hi\"\" {i}\""),
+                5 => format!("007{}", i % 10), // leading zeros: text
+                _ => format!("n{}", i % 100),
+            };
+            let f = match i % 5 { 0 => "".to_string(), 1 => format!("{}", i), _ => format!("{}.5", i % 1000) };
+            let k = match i % 6 { 0 => "".to_string(), 1 => format!("{}.0", i % 9), _ => format!("{}", i % 50) };
+            let b = ["t", "false", "yes", "0", "", "TRUE"][(i % 6) as usize];
+            let d = if i % 9 == 0 { String::new() } else { format!("2026-{:02}-{:02}", 1 + i % 12, 1 + i % 28) };
+            let t = match i % 4 { 0 => format!("{}", i), 1 => format!("{}.25", i), 2 => "".into(), _ => "x".into() };
+            csv.push_str(&format!("{i},{name},{f},{k},{b},{d},{t}\n"));
+        }
+        let rows = crate::pgwire::split_csv(&csv, ',', "");
+        let ddl = "CREATE TABLE cc (id BIGINT, name TEXT, f DOUBLE, k INT, b BOOLEAN, d TEXT, t TEXT)";
+        let cols: Vec<String> = ["id", "name", "f", "k", "b", "d", "t"].iter().map(|s| s.to_string()).collect();
+        let (row, col) = (SimpleQueryExecutor::new(), SimpleQueryExecutor::new());
+        q(&row, ddl);
+        q(&col, ddl);
+        NO_COLUMNAR_COPY.with(|c| c.set(true));
+        row.bulk_copy("cc", &cols, &rows).unwrap().unwrap();
+        NO_COLUMNAR_COPY.with(|c| c.set(false));
+        assert!(row.amorphic.pending_column_rows() == 0);
+        assert!(col.csv_column_batch("cc", &cols, &rows).is_some(), "eligible");
+        col.bulk_copy("cc", &cols, &rows).unwrap().unwrap();
+        assert_eq!(col.amorphic.pending_column_rows(), 30_000);
+        for sql in [
+            "SELECT * FROM cc ORDER BY id",
+            "SELECT count(*), sum(f), sum(k), count(b), count(name), count(d) FROM cc",
+            "SELECT name, count(*) FROM cc GROUP BY name ORDER BY name",
+            "SELECT * FROM cc WHERE id = 29999",
+            "SELECT id FROM cc WHERE b = true AND k > 40 ORDER BY id",
+            "SELECT d, sum(k) FROM cc GROUP BY d ORDER BY d",
+            "SELECT t, count(*) FROM cc GROUP BY t ORDER BY t LIMIT 50",
+        ] {
+            assert_eq!(q(&row, sql), q(&col, sql), "{sql}");
+        }
+        let mixed = crate::pgwire::split_csv("1,2.5\n2,3\n", ',', "");
+        q(&col, "CREATE TABLE cm (a BIGINT, v TEXT)");
+        let two: Vec<String> = vec!["a".into(), "v".into()];
+        assert!(col.csv_column_batch("cm", &two, &mixed).is_some()); // TEXT coerces both to text
+        // BOOLEAN: 3 -> true but 2.5 stays a float: mixed, row path
+        q(&col, "CREATE TABLE cx (a BIGINT, v BOOLEAN)");
+        assert!(col.csv_column_batch("cx", &two, &mixed).is_none());
+        crate::amorphic_adapter::PAUSE_BG_MATERIALIZE.store(false, Ordering::Relaxed);
     }
 
     /// Serializes the tests that toggle the global background pause.
