@@ -72,7 +72,7 @@ One CLI across all five IDE brands (Lux, Joule, Arc, Data, DevOps). Every operat
 **Binary:** `jouledb`
 **Crate:** [`crates/joule-db-server/`](../../crates/joule-db-server/)
 
-The JouleDB server daemon. Direct invocation (without `joule db server start`) is supported for production deployments managed by systemd, OCI, or the `JouleDBCluster` K8s operator.
+The JouleDB server daemon. Direct invocation (without `joule db server start`) is supported for production deployments managed by systemd or OCI.
 
 ### 2.1 Synopsis
 
@@ -86,7 +86,6 @@ Configuration is supplied via a TOML file ([`config.rs`](../../crates/joule-db-s
 
 | Port | Protocol | Default | Purpose |
 |---|---|---|---|
-| 9000 | JWP/TCP | cloud | JouleDB wire protocol (managed cloud) |
 | 9090 | JWP/TCP | local | JouleDB wire protocol (local default) |
 | 9200 | JWP/TCP | test | `JwpServerConfig::default()` for testing |
 | 5432 | pgwire/TCP | off until enabled | PostgreSQL-compatible wire |
@@ -259,7 +258,7 @@ The OpenIE ACP (Agent CLI / Container Protocol) contract from [`MGAI-ACP-REFEREN
 |---|---|---|---|
 | `joule` (subcommands like `joule db query run`) | One-shot | stdin → stdout, exit on completion | seconds |
 | `joule db query shell` | REPL | Line-delimited stdio | until EOF |
-| `jouledb` | Daemon | TCP (JWP 9000/9090) + WebSocket | indefinite, signal-managed |
+| `jouledb` | Daemon | TCP (JWP 9090) + WebSocket | indefinite, signal-managed |
 | `joule-db-recover scan` | One-shot | stdin → stdout | minutes |
 | `joule-db-recover --write-recovery-meta` | One-shot, destructive | stdin → stdout | minutes |
 | `scholar-recover scan` | One-shot | stdin → stdout | minutes |
@@ -267,7 +266,7 @@ The OpenIE ACP (Agent CLI / Container Protocol) contract from [`MGAI-ACP-REFEREN
 
 ### 5.2 Container packaging
 
-The `jouledb` daemon is packaged as a Kubernetes `StatefulSet` workload via the `JouleDBCluster` CRD (`jouledb.cloud/v1`). See [`docs/jouledb/CLOUD-OPERATOR.md`](CLOUD-OPERATOR.md) for the operator runbook.
+The `jouledb` daemon can run in any container runtime.
 
 `joule-db-recover` is **not** packaged as a separate workload — it's compiled into the same image as `jouledb` so it can `kubectl exec` against a stuck pod for in-place recovery:
 
@@ -300,7 +299,6 @@ kubectl exec -it my-cluster-0 -n jouledb -- \
 - [`MGAI-CLI-REFERENCE.md`](../MGAI-CLI-REFERENCE.md) — `askdavidc` / `jmax` / `ask-server` / `ask-mcp` (user-facing surface)
 - [`MGAI-ACP-REFERENCE.md`](../MGAI-ACP-REFERENCE.md) — process contract for all OpenIE agent binaries
 - [`MGAI-JWP-PROTOCOL.md`](../MGAI-JWP-PROTOCOL.md) — wire protocol the `jouledb` daemon speaks
-- [`docs/jouledb/CLOUD-OPERATOR.md`](CLOUD-OPERATOR.md) — operator runbook for managed deployments
 - [`crates/joule-db-server/README.md`](../../crates/joule-db-server/README.md) — daemon module map
 - [`the-fix-1.md`](../../the-fix-1.md), [`the-fix-2.md`](../../the-fix-2.md) — Scholar recovery incident narratives
 

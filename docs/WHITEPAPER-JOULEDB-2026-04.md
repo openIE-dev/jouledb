@@ -5,7 +5,7 @@
 **Version 0.1 — April 2026**
 **OpenIE, Inc.**
 
-> **Superseded by v0.2** ([`WHITEPAPER-JOULEDB-2026-05.md`](WHITEPAPER-JOULEDB-2026-05.md), May 2026). v0.2 adds the May 2026 storage-engine hardening (Phase 5/6 atomic-publish CoW, iterator hardening, forensic recovery), the cloud / container layer (`JouleDBCluster` CRD), and updated crate / test counts. This v0.1 document remains available as the historical record — the motivation, axioms, primitive vocabulary, and benchmark results are unchanged in v0.2.
+> **Superseded by v0.2** ([`WHITEPAPER-JOULEDB-2026-05.md`](WHITEPAPER-JOULEDB-2026-05.md), May 2026). v0.2 adds the May 2026 storage-engine hardening (Phase 5/6 atomic-publish CoW, iterator hardening, forensic recovery), and updated crate / test counts. This v0.1 document remains available as the historical record; the motivation, axioms, primitive vocabulary, and benchmark results are unchanged in v0.2.
 
 ---
 

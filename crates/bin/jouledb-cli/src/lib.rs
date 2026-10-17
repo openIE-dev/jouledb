@@ -2,7 +2,6 @@
 //!
 //! This crate provides the command-line interface for JouleDB.
 
-pub mod cloud;
 pub mod commands;
 pub mod config;
 pub mod error;

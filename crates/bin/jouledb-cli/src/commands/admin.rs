@@ -278,7 +278,7 @@ async fn backup_database(
         progress.finish_and_clear();
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });
@@ -367,7 +367,7 @@ async fn restore_database(
         progress.finish_and_clear();
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });

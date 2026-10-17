@@ -59,7 +59,6 @@ cargo test  -p joule-db-core --lib
 ## Layout
 
 `crates/joule-db-*`, the engine (core, local, query, server, client, c, browser, edge, gpu, branch, crdt, ternary, features, energy, viz, weights, ledger, langgraph, hdc, domains, amorphic, odbc, test-harness, benches, quickstart).
-`crates/joule-cloud-*`, the managed-cluster operator surface (control plane, provisioner, API gateway, billing).
 Supporting infra crates: `jwp` (wire protocol), `sigql`, `inv-mcp-core`, `jpb-core`, `inv-energy-core`, `inv-hdc-core`, and the `inv-auth`/post-quantum-crypto cluster.
 
 ## License

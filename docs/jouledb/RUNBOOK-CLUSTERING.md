@@ -19,13 +19,6 @@ Multi-node JouleDB — Raft consensus for HA, 2PC for distributed transactions, 
 | **Sharded + Raft per shard** | Both HA and scale-out. |
 | **Read replicas** | Read-heavy workloads, eventual consistency acceptable. |
 
-For managed cloud, the `JouleDBCluster` CRD selects topology via `replicas`:
-
-```yaml
-spec:
-  replicas: 3   # one leader + two followers, Raft
-```
-
 ---
 
 ## 2. Raft consensus
@@ -231,5 +224,4 @@ The [`WHITEPAPER-JOULEDB-2026-05.md`](../WHITEPAPER-JOULEDB-2026-05.md) §6 (The
 
 - [`RUNBOOK-RECOVERY.md`](RUNBOOK-RECOVERY.md) — what to do when something's wrong
 - [`RUNBOOK-BACKUP.md`](RUNBOOK-BACKUP.md) — backup the cluster
-- [`CLOUD-OPERATOR.md`](CLOUD-OPERATOR.md) — Kubernetes-managed clusters
 - [`crates/joule-db-server/README.md`](../../crates/joule-db-server/README.md) — full module map

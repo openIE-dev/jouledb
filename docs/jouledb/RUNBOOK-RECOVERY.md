@@ -157,7 +157,6 @@ joule-db-recover scan /data/joule.db
 joule-db-recover /data/joule.db --write-recovery-meta
 ```
 
-For full cluster lifecycle in K8s, see [`CLOUD-OPERATOR.md`](CLOUD-OPERATOR.md).
 
 ---
 

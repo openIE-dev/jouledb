@@ -149,7 +149,7 @@ In-tree backup snapshots used for tests live in [`crates/joule-db-server/backups
 - A different storage class (S3 / GCS / on-prem object store)
 - With versioning + cross-region replication
 
-For managed-cloud deployments, the operator can provision a backup `PVC` per cluster — but customer-driven backup-to-S3 is the recommended path.
+For containerised deployments, backup-to-S3 is the recommended path.
 
 ---
 

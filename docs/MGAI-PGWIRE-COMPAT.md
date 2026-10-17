@@ -35,7 +35,7 @@ JouleDB speaks **PostgreSQL v3 wire protocol** as an alternate transport to JWP.
 ## 2. Connect with `psql`
 
 ```bash
-psql -h my-cluster.jouledb.cloud -p 5432 -U my-user -d main
+psql -h db.example.org -p 5432 -U my-user -d main
 ```
 
 ```text
@@ -65,7 +65,7 @@ main=> \d users
 ## 3. JDBC
 
 ```java
-String url = "jdbc:postgresql://my-cluster.jouledb.cloud:5432/main";
+String url = "jdbc:postgresql://db.example.org:5432/main";
 Properties props = new Properties();
 props.setProperty("user", "my-user");
 props.setProperty("password", "my-password");
@@ -85,7 +85,7 @@ ResultSet rs = stmt.executeQuery();
 ```python
 # psycopg 3
 import psycopg
-conn = psycopg.connect("postgresql://my-user@my-cluster.jouledb.cloud:5432/main?sslmode=require")
+conn = psycopg.connect("postgresql://my-user@db.example.org:5432/main?sslmode=require")
 with conn.cursor() as cur:
     cur.execute("SELECT * FROM users WHERE id = %s", (42,))
     for row in cur:
@@ -96,7 +96,7 @@ with conn.cursor() as cur:
 # asyncpg
 import asyncpg
 async def main():
-    conn = await asyncpg.connect("postgresql://my-user@my-cluster.jouledb.cloud:5432/main")
+    conn = await asyncpg.connect("postgresql://my-user@db.example.org:5432/main")
     rows = await conn.fetch("SELECT * FROM users WHERE active = true")
     for row in rows:
         print(row["name"])
@@ -108,7 +108,7 @@ async def main():
 
 ```python
 from sqlalchemy import create_engine
-engine = create_engine("postgresql+psycopg://user:pass@my-cluster.jouledb.cloud:5432/main")
+engine = create_engine("postgresql+psycopg://user:pass@db.example.org:5432/main")
 ```
 
 Drop-in replacement; ORM models work unchanged.

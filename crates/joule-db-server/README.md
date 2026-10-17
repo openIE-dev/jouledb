@@ -132,7 +132,7 @@ This is the largest crate in the JouleDB ecosystem — **~182K LOC, 6,202 tests*
 
 ## Binary
 
-Build with `cargo build --release -p joule-db-server`; the binary is named `jouledb`. Default JWP listener port is `9090` (local) or `9000` (cloud, via [`joule-cloud-provisioner`](../joule-cloud-provisioner/)).
+Build with `cargo build --release -p joule-db-server`; the binary is named `jouledb`. Default JWP listener port is `9090` (local).
 
 ## Tests
 
@@ -143,4 +143,3 @@ Build with `cargo build --release -p joule-db-server`; the binary is named `joul
 - [WHITEPAPER-JOULEDB-2026-04.md](../../docs/WHITEPAPER-JOULEDB-2026-04.md)
 - [MGAI-ACP-REFERENCE.md](../../docs/MGAI-ACP-REFERENCE.md) — daemon invocation contract
 - `docs/MGAI-JWP-PROTOCOL.md` — wire protocol spec *(in progress)*
-- [openapi.yaml](../joule-cloud-api-gateway/openapi.yaml) — cloud API surface

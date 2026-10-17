@@ -132,7 +132,7 @@ Response:
   "mcpServers": {
     "jouledb-prod": {
       "command": "jouledb",
-      "args": ["mcp", "--stdio", "--url", "jouledb://my-cluster.jouledb.cloud:9000"],
+      "args": ["mcp", "--stdio", "--url", "jouledb://localhost:9090"],
       "env": { "JOULE_DB_TOKEN": "..." }
     }
   }

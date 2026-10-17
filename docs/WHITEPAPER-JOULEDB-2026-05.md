@@ -5,7 +5,7 @@
 **Version 0.2 — May 2026**
 **OpenIE, Inc.**
 
-> Supersedes [WHITEPAPER-JOULEDB-2026-04.md](WHITEPAPER-JOULEDB-2026-04.md) (v0.1). The v0.1 document remains available as the historical record. This v0.2 preserves the motivation and architecture chapters and folds in the May 2026 storage-engine hardening pass, the forensic recovery tool, the cloud/container layer, and updated counts. Sections affected: §2.2 (crate table + novel properties), §2.5 (NEW — cloud/container layer), §4 (the Good), §5 (the Bad), §6 (the Ugly), §7 (existing-method closures), §9 (Roadmap progress).
+> Supersedes [WHITEPAPER-JOULEDB-2026-04.md](WHITEPAPER-JOULEDB-2026-04.md) (v0.1). The v0.1 document remains available as the historical record. This v0.2 preserves the motivation and architecture chapters and folds in the May 2026 storage-engine hardening pass, the forensic recovery tool, and updated counts. Sections affected: §2.2 (crate table + novel properties), §2.5 (container layer, since removed), §4 (the Good), §5 (the Bad), §6 (the Ugly), §7 (existing-method closures), §9 (Roadmap progress).
 
 ---
 
@@ -13,7 +13,7 @@
 
 JouleDB is a database engine with integrated intelligence that measures every operation in joules, not tokens. It combines a production ACID database, a hyperdimensional computing runtime with 15 irreducible primitives, and a knowledge system that starts empty and learns from live interaction. On the WN18RR knowledge graph benchmark, the system achieves 83.8% Hits@10 (28 points above published SOTA) at 9 microjoules per prediction — approximately one million times more energy-efficient than GPU-based inference.
 
-v0.2 adds: copy-on-write MVCC with cross-process snapshot publication (Phase 5/6 atomic publish), depth-bounded and cycle-safe tree traversal, write-failure rollback of CoW state, a `prefix_count` tree-walk operator (1800× faster row counts), a forensic `joule-db-recover` page-walker that recovered a 4M-row production database from a corrupted `meta.wdb`, and a 4-crate `joule-cloud-*` layer that packages JouleDB as a managed Kubernetes service (`JouleDBCluster` CRD on the `jouledb.cloud/v1` API group).
+v0.2 adds: copy-on-write MVCC with cross-process snapshot publication (Phase 5/6 atomic publish), depth-bounded and cycle-safe tree traversal, write-failure rollback of CoW state, a `prefix_count` tree-walk operator (1800× faster row counts), a forensic `joule-db-recover` page-walker that recovered a 4M-row production database from a corrupted `meta.wdb`.
 
 This whitepaper specifies the architecture, documents current capabilities and honest limitations, and identifies the path from prototype to production.
 
@@ -224,57 +224,9 @@ input (any modality) → Encode → Compare(current_state) → contrast?
 
 Auto-selection based on contrast magnitude: no change = no compute (Resting state, ~1µJ). Maximum novelty = escalate to highest available tier (Surge state, up to 5J).
 
-### 2.5 *(NEW in v0.2)* Cloud / Container Layer — JouleDB as a Service
+### 2.5 Container and managed-service layer (removed)
 
-A four-crate layer in `joule-cloud-*` packages JouleDB as a managed Kubernetes service. The container surface is the `JouleDBCluster` custom resource on the `jouledb.cloud/v1` API group, namespace `jouledb`.
-
-| Crate | Role | Binary |
-|---|---|---|
-| `joule-cloud-control-plane` | Orchestrator HTTP API (axum, JSON) | `control-plane` |
-| `joule-cloud-provisioner` | K8s operator: reconciles `JouleDBCluster` CRDs | (library + provisioner main) |
-| `joule-cloud-api-gateway` | Customer-facing edge: auth, rate-limit, OpenAPI | `api-gateway` |
-| `joule-cloud-billing-service` | Usage metering + Stripe integration | `billing-service` |
-
-**Resource tiers** (per `crates/joule-cloud-provisioner/src/lib.rs:34-74`):
-
-| Tier | CPU | Memory | Storage | Replicas |
-|---|---|---|---|---|
-| `free` | 250m | 512 MiB | 1 GiB | 1 |
-| `startup` | 2000m | 4 GiB | 10 GiB | 1 |
-| `business` | 8000m | 32 GiB | 100 GiB | 3 |
-
-**Cluster spec** (Kubernetes resource): replicas, version, resources (with 2× limits over requests), storage (PVC backed by `fast-ssd` storage class), networking (`LoadBalancer` service type, TLS-on by default). Endpoints assigned as `{name}.jouledb.cloud:9000` — port 9000 is the JouleDB JWP wire protocol.
-
-**Lifecycle state machine:** `Provisioning → Running → Scaling | Paused | Deleting → Failed`. State persisted to disk in JSON via `persist.rs` so the operator survives restart.
-
-**OpenAPI:** [`crates/joule-cloud-api-gateway/openapi.yaml`](../crates/joule-cloud-api-gateway/openapi.yaml) is the machine-readable customer-facing surface. A narrative `docs/jouledb/CLOUD-API.md` runbook is in progress.
-
-```
-Customer
-   │
-api-gateway  (axum + tower; auth, rate-limit)
-   │
-control-plane  (orchestrator HTTP API)
-   │
-provisioner  ──►  KubeClient (kube-rs)
-                       │
-                       ▼
-        k8s API: JouleDBCluster CRD (jouledb.cloud/v1)
-                       │
-                       ▼
-        StatefulSet running joule-db-server
-        (port 9000, JWP wire protocol)
-                       │
-                       ▼
-        PVC backed by `fast-ssd` storage class
-        (joule-db-local on a real disk)
-
-billing-service  ──►  Stripe  (usage → invoices)
-```
-
-Test count across the four crates: ~110.
-
----
+Earlier drafts of this paper described a managed-cluster layer (operator, control plane, API gateway, usage metering). That layer, its billing and pricing documents and its CLI commands have been removed from this repository. JouleDB is a free open research database and the repository contains the database only.
 
 ## 3. Results
 
@@ -330,9 +282,9 @@ Q: what is a mammal? → A: mammal ✓
 8. **Cross-platform.** Same codebase runs on Raspberry Pi, server, and browser (WASM).
 9. **Storage is production-hardened.** *(NEW in v0.2)* Phase 5/6 atomic-publish CoW, depth-bounded traversal, cycle protection, CoW rollback, orphan-page fix, forensic recovery. All driven by real production incidents (Scholar). The engine now refuses corrupt pages upfront — no escape hatches.
 10. **Forensic recovery tool exists.** *(NEW in v0.2)* `joule-db-recover` walks pages directly, identifies candidate roots, rebuilds `meta.wdb`. The Scholar incident validated it end-to-end.
-11. **Cloud/container layer is in tree.** *(NEW in v0.2)* `JouleDBCluster` CRD on `jouledb.cloud/v1`, three resource tiers, full provisioner + control plane + API gateway + Stripe billing pipeline.
+11. **Managed-cloud layer removed.** The operator, API gateway and billing pipeline are no longer part of this repository.
 12. **~7,000 tests in core + query + server alone**, plus fuzz harnesses with INV-1..INV-2422 invariants and the 14-layer `joule-db-test-harness` substrate.
-13. **~355K+ lines of production Rust** across 25 jouledb crates plus 4 cloud crates.
+13. **~355K+ lines of production Rust** across the jouledb crates.
 
 ---
 
@@ -356,7 +308,7 @@ Q: what is a mammal? → A: mammal ✓
 4. **No error recovery in the inference pipeline.** Silent tier downgrade on failure. *(unchanged)*
 5. **Text-gen corpus is still 30 sentences.** *(unchanged)*
 6. **flowQIT is physically correct but isolated.** Von Neumann entropy, decoherence, and Landauer floor are computed but don't feed back into system behavior. *(unchanged)*
-7. **Documentation has been the weakest link.** *(NEW in v0.2)* Until May 18 2026, 23 of 25 jouledb crates had no README. The May 18 audit produced `docs/JOULEDB-DOCS-PUNCH-LIST.md` and wave 1 (per-crate READMEs) is now complete. Wave 2 (JWP protocol spec, HDC reference, cloud operator runbook) is in progress.
+7. **Documentation has been the weakest link.** *(NEW in v0.2)* Until May 18 2026, 23 of 25 jouledb crates had no README. The May 18 audit produced `docs/JOULEDB-DOCS-PUNCH-LIST.md` and wave 1 (per-crate READMEs) is now complete. Wave 2 (JWP protocol spec, HDC reference) is in progress.
 
 ---
 
@@ -381,7 +333,6 @@ Q: what is a mammal? → A: mammal ✓
 | **Forensic recovery** | Page-walker bin reconstructing root | Medium | Recover from `meta.wdb` corruption | **DONE (May 2026)** |
 | **Row-count perf** | Tree-walk `prefix_count` operator | Low | 1800× faster than tantivy scan | **DONE (May 2026)** |
 | **Atomic root publish** | Phase 5/6 CoW + cross-process snapshot registry | High | Lock-free reader/writer concurrency | **DONE (April 2026)** |
-| **Managed-cloud packaging** | K8s operator + CRD + API gateway + billing | Medium | Customer-deployable | **DONE (April-May 2026)** |
 
 ---
 
@@ -424,7 +375,6 @@ Hardware target: the Joule SOM, a custom RISC-V SoC (RV64GC, 4 TOPS NPU, 5 radio
 - [ ] Distributed contrast detection
 - [ ] Pooled tier executors
 - [ ] Edge deployment on Joule SOM prototype
-- [x] **Managed-cloud packaging via `JouleDBCluster` CRD** (April-May 2026)
 
 ### Phase 4: Benchmark Publication (Q1 2027)
 - [ ] Full WN18RR evaluation (3,134 test triples)

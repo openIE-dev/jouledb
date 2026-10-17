@@ -145,9 +145,7 @@ impl ProtocolStateMachine {
             (ProtocolState::Ready, FrameType::PasskeyRegisterBegin) => {
                 ProtocolState::Authenticating
             }
-            (ProtocolState::Init, FrameType::PasskeyRegisterBegin) => {
-                ProtocolState::Authenticating
-            }
+            (ProtocolState::Init, FrameType::PasskeyRegisterBegin) => ProtocolState::Authenticating,
             // Challenge/complete stay in Authenticating
             (ProtocolState::Authenticating, FrameType::PasskeyRegisterChallenge) => {
                 ProtocolState::Authenticating
@@ -157,12 +155,8 @@ impl ProtocolStateMachine {
             }
 
             // Passkey login: begin enters Authenticating from Ready or Init
-            (ProtocolState::Ready, FrameType::PasskeyLoginBegin) => {
-                ProtocolState::Authenticating
-            }
-            (ProtocolState::Init, FrameType::PasskeyLoginBegin) => {
-                ProtocolState::Authenticating
-            }
+            (ProtocolState::Ready, FrameType::PasskeyLoginBegin) => ProtocolState::Authenticating,
+            (ProtocolState::Init, FrameType::PasskeyLoginBegin) => ProtocolState::Authenticating,
             // Challenge/complete stay in Authenticating
             (ProtocolState::Authenticating, FrameType::PasskeyLoginChallenge) => {
                 ProtocolState::Authenticating
@@ -170,15 +164,6 @@ impl ProtocolStateMachine {
             (ProtocolState::Authenticating, FrameType::PasskeyLoginComplete) => {
                 ProtocolState::Authenticating
             }
-
-            // ── Billing frames (request-response, only from Ready) ──
-
-            (ProtocolState::Ready, FrameType::BalanceQuery) => ProtocolState::Ready,
-            (ProtocolState::Ready, FrameType::BalanceResponse) => ProtocolState::Ready,
-            (ProtocolState::Ready, FrameType::TopupBegin) => ProtocolState::Ready,
-            (ProtocolState::Ready, FrameType::TopupResponse) => ProtocolState::Ready,
-            (ProtocolState::Ready, FrameType::UsageQuery) => ProtocolState::Ready,
-            (ProtocolState::Ready, FrameType::UsageResponse) => ProtocolState::Ready,
 
             // ── Device-code frames ───────────────────────────────
 
@@ -199,19 +184,13 @@ impl ProtocolStateMachine {
             (ProtocolState::Ready, FrameType::ContractPropose) => ProtocolState::Contracting,
 
             // ContractRespond: Contracting → Contracting (counter-propose stays in negotiation)
-            (ProtocolState::Contracting, FrameType::ContractRespond) => {
-                ProtocolState::Contracting
-            }
+            (ProtocolState::Contracting, FrameType::ContractRespond) => ProtocolState::Contracting,
 
             // ContractPropose again: Contracting → Contracting (revised proposal after counter)
-            (ProtocolState::Contracting, FrameType::ContractPropose) => {
-                ProtocolState::Contracting
-            }
+            (ProtocolState::Contracting, FrameType::ContractPropose) => ProtocolState::Contracting,
 
             // ContractSigned: Contracting → AgentEngaged (mutual agreement reached)
-            (ProtocolState::Contracting, FrameType::ContractSigned) => {
-                ProtocolState::AgentEngaged
-            }
+            (ProtocolState::Contracting, FrameType::ContractSigned) => ProtocolState::AgentEngaged,
 
             // ExtensionRequest/Response: only valid while AgentEngaged
             (ProtocolState::AgentEngaged, FrameType::ExtensionRequest) => {
@@ -712,83 +691,6 @@ mod tests {
         sm.transition(FrameType::PasskeyLoginComplete).unwrap();
         sm.transition(FrameType::AuthSuccess).unwrap();
         assert_eq!(sm.state(), ProtocolState::Ready);
-    }
-
-    // ── Billing state machine tests ──────────────────────────────
-
-    #[test]
-    fn balance_query_from_ready() {
-        let mut sm = ProtocolStateMachine::new();
-        sm.transition(FrameType::Handshake).unwrap();
-
-        sm.transition(FrameType::BalanceQuery).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-
-        sm.transition(FrameType::BalanceResponse).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-    }
-
-    #[test]
-    fn topup_from_ready() {
-        let mut sm = ProtocolStateMachine::new();
-        sm.transition(FrameType::Handshake).unwrap();
-
-        sm.transition(FrameType::TopupBegin).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-
-        sm.transition(FrameType::TopupResponse).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-    }
-
-    #[test]
-    fn usage_query_from_ready() {
-        let mut sm = ProtocolStateMachine::new();
-        sm.transition(FrameType::Handshake).unwrap();
-
-        sm.transition(FrameType::UsageQuery).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-
-        sm.transition(FrameType::UsageResponse).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-    }
-
-    #[test]
-    fn billing_invalid_from_init() {
-        let mut sm = ProtocolStateMachine::new();
-        assert!(sm.transition(FrameType::BalanceQuery).is_err());
-        assert!(sm.transition(FrameType::TopupBegin).is_err());
-        assert!(sm.transition(FrameType::UsageQuery).is_err());
-    }
-
-    #[test]
-    fn billing_invalid_from_streaming() {
-        let mut sm = ProtocolStateMachine::new();
-        sm.transition(FrameType::Handshake).unwrap();
-        sm.transition(FrameType::Query).unwrap();
-
-        assert!(sm.transition(FrameType::BalanceQuery).is_err());
-    }
-
-    #[test]
-    fn billing_after_passkey_auth() {
-        let mut sm = ProtocolStateMachine::new();
-        sm.transition(FrameType::Handshake).unwrap();
-
-        // Passkey login
-        sm.transition(FrameType::PasskeyLoginBegin).unwrap();
-        sm.transition(FrameType::PasskeyLoginChallenge).unwrap();
-        sm.transition(FrameType::PasskeyLoginComplete).unwrap();
-        sm.transition(FrameType::AuthSuccess).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-
-        // Now billing works
-        sm.transition(FrameType::BalanceQuery).unwrap();
-        sm.transition(FrameType::BalanceResponse).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Ready);
-
-        // And queries work
-        sm.transition(FrameType::Query).unwrap();
-        assert_eq!(sm.state(), ProtocolState::Streaming);
     }
 
     // ── Agent contract lifecycle state machine tests ─────────────

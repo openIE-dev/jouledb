@@ -89,7 +89,6 @@ pub enum FrameType {
     DeviceCodeResult = 0x1A,
 
     // ── Passkey ceremony frames (WebAuthn over JWP) ──
-
     /// Passkey: client begins registration (email + optional display name).
     PasskeyRegisterBegin = 0x1B,
     /// Passkey: server returns WebAuthn creation challenge.
@@ -103,23 +102,10 @@ pub enum FrameType {
     /// Passkey: client completes login with assertion.
     PasskeyLoginComplete = 0x20,
 
-    // ── Billing frames (prepaid energy balance) ──
-
-    /// Client queries their current energy balance.
-    BalanceQuery = 0x21,
-    /// Server responds with balance info.
-    BalanceResponse = 0x22,
-    /// Client requests a top-up (prepaid energy purchase).
-    TopupBegin = 0x23,
-    /// Server responds with checkout URL or confirmation.
-    TopupResponse = 0x24,
-    /// Client queries their usage history.
-    UsageQuery = 0x25,
-    /// Server responds with usage entries.
-    UsageResponse = 0x26,
+    // 0x21..=0x26 are reserved (retired prepaid-balance frames); they are not
+    // assigned and decode as unknown frame types.
 
     // ── Agent contract lifecycle frames ──
-
     /// Host → Agent: propose a work contract (scope, energy budget, return terms).
     ContractPropose = 0x27,
     /// Agent → Host: accept, reject, or counter-propose the contract.
@@ -171,12 +157,6 @@ impl FrameType {
             0x1E => Ok(Self::PasskeyLoginBegin),
             0x1F => Ok(Self::PasskeyLoginChallenge),
             0x20 => Ok(Self::PasskeyLoginComplete),
-            0x21 => Ok(Self::BalanceQuery),
-            0x22 => Ok(Self::BalanceResponse),
-            0x23 => Ok(Self::TopupBegin),
-            0x24 => Ok(Self::TopupResponse),
-            0x25 => Ok(Self::UsageQuery),
-            0x26 => Ok(Self::UsageResponse),
             0x27 => Ok(Self::ContractPropose),
             0x28 => Ok(Self::ContractRespond),
             0x29 => Ok(Self::ContractSigned),
@@ -379,12 +359,13 @@ impl FrameHeader {
                         available: src.len(),
                     });
                 }
-                let buf: [u8; HEADER_LEN] = src[..HEADER_LEN]
-                    .try_into()
-                    .map_err(|_| JwpError::IncompleteFrame {
-                        needed: HEADER_LEN,
-                        available: src.len(),
-                    })?;
+                let buf: [u8; HEADER_LEN] =
+                    src[..HEADER_LEN]
+                        .try_into()
+                        .map_err(|_| JwpError::IncompleteFrame {
+                            needed: HEADER_LEN,
+                            available: src.len(),
+                        })?;
                 let header = Self::decode(&buf)?;
                 Ok((header, HeaderFormat::Standard, HEADER_LEN))
             }
@@ -409,11 +390,12 @@ impl FrameHeader {
                         available: src.len(),
                     });
                 }
-                let buf: [u8; COMPACT_HEADER_LEN] = src[..COMPACT_HEADER_LEN]
-                    .try_into()
-                    .map_err(|_| JwpError::IncompleteFrame {
-                        needed: COMPACT_HEADER_LEN,
-                        available: src.len(),
+                let buf: [u8; COMPACT_HEADER_LEN] =
+                    src[..COMPACT_HEADER_LEN].try_into().map_err(|_| {
+                        JwpError::IncompleteFrame {
+                            needed: COMPACT_HEADER_LEN,
+                            available: src.len(),
+                        }
                     })?;
                 let header = Self::decode_compact(&buf)?;
                 Ok((header, HeaderFormat::Compact, COMPACT_HEADER_LEN))
@@ -768,92 +750,6 @@ pub struct StreamChunkPayload {
     pub layer: Option<String>,
     /// Chunk index within this stream (0-based).
     pub index: u32,
-}
-
-// ── Billing payload types ─────────────────────────────────────────
-
-/// Client → Server: query current energy balance.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BalanceQueryPayload {
-    /// Optional session token for auth (if not in handshake).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub session_token: Option<String>,
-}
-
-/// Server → Client: current energy balance.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BalanceResponsePayload {
-    /// Available energy in microjoules (µJ).
-    pub balance_uj: u64,
-    /// Stripe customer ID (if linked).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stripe_customer_id: Option<String>,
-    /// Lifetime energy consumed in µJ.
-    pub lifetime_consumed_uj: u64,
-}
-
-/// Client → Server: request energy top-up.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TopupBeginPayload {
-    /// Amount in USD cents (minimum 500 = $5.00).
-    pub amount_cents: u64,
-    /// Optional currency override (default: "usd").
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub currency: Option<String>,
-}
-
-/// Server → Client: top-up response with checkout info.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TopupResponsePayload {
-    /// Stripe checkout session URL (client opens in browser).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub checkout_url: Option<String>,
-    /// Status: "created", "completed", "error".
-    pub status: String,
-    /// Energy credited in µJ (if completed).
-    #[serde(default)]
-    pub energy_credited_uj: u64,
-    /// Error message if status is "error".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-}
-
-/// Client → Server: query usage history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsageQueryPayload {
-    /// Return entries from this Unix timestamp (inclusive).
-    #[serde(default)]
-    pub from_ts: u64,
-    /// Return entries up to this Unix timestamp (inclusive). 0 = now.
-    #[serde(default)]
-    pub to_ts: u64,
-    /// Maximum entries to return (default 50).
-    #[serde(default)]
-    pub limit: u32,
-}
-
-/// Server → Client: usage history response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsageResponsePayload {
-    /// Usage entries in reverse chronological order.
-    pub entries: Vec<UsageEntryPayload>,
-    /// Total energy consumed in the queried window (µJ).
-    pub total_uj: u64,
-    /// Total queries in the queried window.
-    pub total_queries: u64,
-}
-
-/// A single usage entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsageEntryPayload {
-    /// Query text (truncated to 120 chars).
-    pub query: String,
-    /// Energy consumed in µJ.
-    pub energy_uj: u64,
-    /// Cascade levels used (e.g. "L0-L2" or "L0-L3").
-    pub levels: String,
-    /// Unix timestamp.
-    pub timestamp: u64,
 }
 
 // ── Agent contract lifecycle payloads ─────────────────────────────
@@ -1543,7 +1439,7 @@ mod tests {
         assert!(decoded.parameters.is_empty());
     }
 
-    // ── Passkey + Billing frame type tests ────────────────────────
+    // ── Passkey frame type tests ────────────────────────
 
     #[test]
     fn frame_type_passkey_roundtrip() {
@@ -1560,101 +1456,11 @@ mod tests {
     }
 
     #[test]
-    fn frame_type_billing_roundtrip() {
-        for ft in [
-            FrameType::BalanceQuery,
-            FrameType::BalanceResponse,
-            FrameType::TopupBegin,
-            FrameType::TopupResponse,
-            FrameType::UsageQuery,
-            FrameType::UsageResponse,
-        ] {
-            assert_eq!(FrameType::from_u8(ft as u8).unwrap(), ft);
-        }
-    }
-
-    #[test]
     fn frame_type_passkey_discriminants() {
         assert_eq!(FrameType::PasskeyRegisterBegin as u8, 0x1B);
         assert_eq!(FrameType::PasskeyLoginComplete as u8, 0x20);
-        assert_eq!(FrameType::BalanceQuery as u8, 0x21);
-        assert_eq!(FrameType::UsageResponse as u8, 0x26);
-    }
-
-    #[test]
-    fn cbor_roundtrip_balance_query() {
-        let payload = BalanceQueryPayload {
-            session_token: Some("st-abc".into()),
-        };
-        let bytes = cbor_encode(&payload).unwrap();
-        let decoded: BalanceQueryPayload = cbor_decode(&bytes).unwrap();
-        assert_eq!(decoded.session_token.as_deref(), Some("st-abc"));
-    }
-
-    #[test]
-    fn cbor_roundtrip_balance_response() {
-        let payload = BalanceResponsePayload {
-            balance_uj: 50_000_000,
-            stripe_customer_id: Some("cus_abc".into()),
-            lifetime_consumed_uj: 1_200_000,
-        };
-        let bytes = cbor_encode(&payload).unwrap();
-        let decoded: BalanceResponsePayload = cbor_decode(&bytes).unwrap();
-        assert_eq!(decoded.balance_uj, 50_000_000);
-        assert_eq!(decoded.stripe_customer_id.as_deref(), Some("cus_abc"));
-        assert_eq!(decoded.lifetime_consumed_uj, 1_200_000);
-    }
-
-    #[test]
-    fn cbor_roundtrip_topup() {
-        let begin = TopupBeginPayload {
-            amount_cents: 500,
-            currency: None,
-        };
-        let bytes = cbor_encode(&begin).unwrap();
-        let decoded: TopupBeginPayload = cbor_decode(&bytes).unwrap();
-        assert_eq!(decoded.amount_cents, 500);
-        assert!(decoded.currency.is_none());
-
-        let response = TopupResponsePayload {
-            checkout_url: Some("https://checkout.stripe.com/cs_test_abc".into()),
-            status: "created".into(),
-            energy_credited_uj: 0,
-            error: None,
-        };
-        let bytes = cbor_encode(&response).unwrap();
-        let decoded: TopupResponsePayload = cbor_decode(&bytes).unwrap();
-        assert_eq!(decoded.status, "created");
-        assert!(decoded.checkout_url.is_some());
-    }
-
-    #[test]
-    fn cbor_roundtrip_usage() {
-        let query = UsageQueryPayload {
-            from_ts: 1700000000,
-            to_ts: 1700100000,
-            limit: 10,
-        };
-        let bytes = cbor_encode(&query).unwrap();
-        let decoded: UsageQueryPayload = cbor_decode(&bytes).unwrap();
-        assert_eq!(decoded.from_ts, 1700000000);
-        assert_eq!(decoded.limit, 10);
-
-        let response = UsageResponsePayload {
-            entries: vec![UsageEntryPayload {
-                query: "what is rust".into(),
-                energy_uj: 42_000,
-                levels: "L0-L2".into(),
-                timestamp: 1700050000,
-            }],
-            total_uj: 42_000,
-            total_queries: 1,
-        };
-        let bytes = cbor_encode(&response).unwrap();
-        let decoded: UsageResponsePayload = cbor_decode(&bytes).unwrap();
-        assert_eq!(decoded.entries.len(), 1);
-        assert_eq!(decoded.entries[0].energy_uj, 42_000);
-        assert_eq!(decoded.total_queries, 1);
+        assert!(FrameType::from_u8(0x21).is_err());
+        assert!(FrameType::from_u8(0x26).is_err());
     }
 
     // ── Agent contract frame type + payload tests ────────────────
@@ -1769,7 +1575,10 @@ mod tests {
         let bytes = cbor_encode(&payload).unwrap();
         let decoded: ExtensionRequestPayload = cbor_decode(&bytes).unwrap();
         assert_eq!(decoded.additional_energy_uj, 20_000_000);
-        assert_eq!(decoded.interim_findings.as_deref(), Some("3 anomalous nodes identified"));
+        assert_eq!(
+            decoded.interim_findings.as_deref(),
+            Some("3 anomalous nodes identified")
+        );
     }
 
     #[test]

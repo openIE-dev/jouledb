@@ -11,10 +11,6 @@ pub struct Config {
     #[serde(default)]
     pub connection: ConnectionConfig,
 
-    /// Cloud settings
-    #[serde(default)]
-    pub cloud: CloudConfig,
-
     /// Output preferences
     #[serde(default)]
     pub output: OutputConfig,
@@ -28,7 +24,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             connection: ConnectionConfig::default(),
-            cloud: CloudConfig::default(),
             output: OutputConfig::default(),
             shell: ShellConfig::default(),
         }
@@ -84,24 +79,6 @@ impl Default for ConnectionConfig {
             timeout: default_timeout(),
         }
     }
-}
-
-/// Cloud configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct CloudConfig {
-    /// Cloud API base URL
-    #[serde(default = "default_cloud_url")]
-    pub api_url: String,
-
-    /// Current project ID
-    pub project_id: Option<String>,
-
-    /// Current cluster ID
-    pub cluster_id: Option<String>,
-}
-
-fn default_cloud_url() -> String {
-    "https://api.jouledb.cloud".to_string()
 }
 
 /// Output configuration
@@ -228,13 +205,6 @@ impl Config {
         Ok(config_dir.join("jouledb").join("config.toml"))
     }
 
-    /// Get credentials path
-    pub fn credentials_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| CliError::Config("Could not determine config directory".into()))?;
-        Ok(config_dir.join("jouledb").join("credentials.json"))
-    }
-
     /// Get connection URL
     pub fn connection_url(&self) -> String {
         let scheme = if self.connection.tls {
@@ -247,70 +217,5 @@ impl Config {
             "{}://{}:{}/{}",
             scheme, self.connection.host, self.connection.port, db
         )
-    }
-}
-
-/// Stored credentials
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Credentials {
-    /// Access token
-    pub access_token: Option<String>,
-
-    /// Refresh token
-    pub refresh_token: Option<String>,
-
-    /// Token expiry
-    pub expires_at: Option<i64>,
-
-    /// User email
-    pub email: Option<String>,
-}
-
-impl Credentials {
-    /// Load credentials
-    pub fn load() -> Result<Self> {
-        let path = Config::credentials_path()?;
-        if path.exists() {
-            let content = std::fs::read_to_string(&path)?;
-            let creds: Credentials = serde_json::from_str(&content)?;
-            Ok(creds)
-        } else {
-            Ok(Credentials::default())
-        }
-    }
-
-    /// Save credentials
-    pub fn save(&self) -> Result<()> {
-        let path = Config::credentials_path()?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, content)?;
-        Ok(())
-    }
-
-    /// Clear credentials
-    pub fn clear() -> Result<()> {
-        let path = Config::credentials_path()?;
-        if path.exists() {
-            std::fs::remove_file(&path)?;
-        }
-        Ok(())
-    }
-
-    /// Check if authenticated
-    pub fn is_authenticated(&self) -> bool {
-        if let Some(token) = &self.access_token {
-            if !token.is_empty() {
-                // Check expiry
-                if let Some(expires) = self.expires_at {
-                    let now = chrono::Utc::now().timestamp();
-                    return expires > now;
-                }
-                return true;
-            }
-        }
-        false
     }
 }

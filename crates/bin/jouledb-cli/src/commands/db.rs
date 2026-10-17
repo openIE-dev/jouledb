@@ -103,7 +103,7 @@ async fn create_database(
     } else {
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });
@@ -139,7 +139,7 @@ async fn drop_database(name: &str, force: bool, config: &Config, output: &Output
     } else {
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });
@@ -296,7 +296,7 @@ async fn rename_database(
     } else {
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });

@@ -1,7 +1,7 @@
 //! Multi-Tenancy — tenant isolation at the storage layer.
 //!
 //! Netflix's data can't leak to Disney's queries. Every content provider
-//! needs tenant isolation: separate data, separate quotas, separate billing.
+//! needs tenant isolation: separate data, separate quotas.
 //!
 //! This module provides:
 //! - Tenant-scoped stores (each tenant gets its own AmorphicStore shard)

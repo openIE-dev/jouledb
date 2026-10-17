@@ -39,14 +39,12 @@ pub use compression::{
 pub use encoding::{CborPayloadCodec, EncodingId, PayloadCodec};
 pub use error::JwpError;
 pub use frame::{
-    BalanceQueryPayload, BalanceResponsePayload, BatchPayload, COMPACT_HEADER_LEN, CommandPayload,
-    CommandResponsePayload, DonePayload, EnergyBreakdown, EnergyGradientPayload, ErrorPayload,
-    FrameFlags, FrameHeader, FrameType, HEADER_LEN, HandshakePayload, HandshakeV2Payload,
-    HeaderFormat, JwpFrame, MetaPayload, NegotiatePayload, PROTOCOL_VERSION, PROTOCOL_VERSION_V2,
-    PROTOCOL_VERSION_V2_COMPACT, PROTOCOL_VERSION_V2_EXTENDED, ProfileUpdatePayload, QueryPayload,
-    RateLimitPayload, ReceiptPayload, ResultPayload, StreamChunkPayload, TopupBeginPayload,
-    TopupResponsePayload, UsageEntryPayload, UsageQueryPayload, UsageResponsePayload, cbor_decode,
-    cbor_encode,
+    BatchPayload, COMPACT_HEADER_LEN, CommandPayload, CommandResponsePayload, DonePayload,
+    EnergyBreakdown, EnergyGradientPayload, ErrorPayload, FrameFlags, FrameHeader, FrameType,
+    HEADER_LEN, HandshakePayload, HandshakeV2Payload, HeaderFormat, JwpFrame, MetaPayload,
+    NegotiatePayload, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V2_COMPACT,
+    PROTOCOL_VERSION_V2_EXTENDED, ProfileUpdatePayload, QueryPayload, RateLimitPayload,
+    ReceiptPayload, ResultPayload, StreamChunkPayload, cbor_decode, cbor_encode,
 };
 pub use negotiation::NegotiatedCapabilities;
 pub use profile::{ConnectionProfile, EnergyReporting, RateLimitInfo};

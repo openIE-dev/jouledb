@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
-    /// Full control over the org: manage users, roles, billing, and all resources.
+    /// Full control over the org: manage users, roles, and all resources.
     Admin,
     /// Deploy, manage, and monitor workloads and infrastructure.
     Operator,
@@ -16,7 +16,7 @@ pub enum Role {
     Viewer,
     /// Node agent — can heartbeat, report energy, but cannot manage workloads.
     Agent,
-    /// Customer — can manage projects, billing, and API keys (no infrastructure access).
+    /// Customer: can manage projects and API keys (no infrastructure access).
     Customer,
 }
 
@@ -55,8 +55,6 @@ impl Role {
                 Permission::ProjectRead,
                 Permission::ProjectDeploy,
                 Permission::ProjectDestroy,
-                Permission::BillingRead,
-                Permission::BillingManage,
                 Permission::ApiKeyManage,
                 Permission::WorkloadRead,
                 Permission::EnergyRead,
@@ -125,10 +123,6 @@ pub enum Permission {
     ProjectDeploy,
     ProjectDestroy,
 
-    // Billing permissions (customer-facing)
-    BillingRead,
-    BillingManage,
-
     // API key management
     ApiKeyManage,
 }
@@ -157,8 +151,6 @@ impl Permission {
             Permission::ProjectRead,
             Permission::ProjectDeploy,
             Permission::ProjectDestroy,
-            Permission::BillingRead,
-            Permission::BillingManage,
             Permission::ApiKeyManage,
         ]
     }
@@ -187,8 +179,6 @@ impl fmt::Display for Permission {
             Permission::ProjectRead => write!(f, "project:read"),
             Permission::ProjectDeploy => write!(f, "project:deploy"),
             Permission::ProjectDestroy => write!(f, "project:destroy"),
-            Permission::BillingRead => write!(f, "billing:read"),
-            Permission::BillingManage => write!(f, "billing:manage"),
             Permission::ApiKeyManage => write!(f, "apikey:manage"),
         }
     }
@@ -233,12 +223,10 @@ mod tests {
         assert!(!Role::Agent.has_permission(Permission::SecretRead));
         assert!(!Role::Agent.has_permission(Permission::OrgManage));
 
-        // Customer can manage projects and billing but not infrastructure
+        // Customer can manage projects but not infrastructure
         assert!(Role::Customer.has_permission(Permission::ProjectRead));
         assert!(Role::Customer.has_permission(Permission::ProjectDeploy));
         assert!(Role::Customer.has_permission(Permission::ProjectDestroy));
-        assert!(Role::Customer.has_permission(Permission::BillingRead));
-        assert!(Role::Customer.has_permission(Permission::BillingManage));
         assert!(Role::Customer.has_permission(Permission::ApiKeyManage));
         assert!(Role::Customer.has_permission(Permission::WorkloadRead));
         assert!(Role::Customer.has_permission(Permission::EnergyRead));

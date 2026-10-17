@@ -87,7 +87,6 @@ async fn init_config(force: bool, output: &Output) -> Result<()> {
     output.key_value(vec![
         ("Host", default_config.connection.host),
         ("Port", default_config.connection.port.to_string()),
-        ("Cloud API", default_config.cloud.api_url),
     ]);
 
     output.raw("");
@@ -104,9 +103,6 @@ async fn get_config(key: &str, config: &Config, output: &Output) -> Result<()> {
         "connection.username" => config.connection.username.clone(),
         "connection.tls" => Some(config.connection.tls.to_string()),
         "connection.timeout" => Some(config.connection.timeout.to_string()),
-        "cloud.api_url" => Some(config.cloud.api_url.clone()),
-        "cloud.project_id" => config.cloud.project_id.clone(),
-        "cloud.cluster_id" => config.cloud.cluster_id.clone(),
         "output.format" => Some(config.output.format.clone()),
         "output.colors" => Some(config.output.colors.to_string()),
         "shell.prompt" => Some(config.shell.prompt.clone()),
@@ -150,9 +146,6 @@ async fn set_config(key: &str, value: &str, config: &Config, output: &Output) ->
                 .parse()
                 .map_err(|_| CliError::InvalidInput("Invalid timeout".into()))?;
         }
-        "cloud.api_url" => new_config.cloud.api_url = value.to_string(),
-        "cloud.project_id" => new_config.cloud.project_id = Some(value.to_string()),
-        "cloud.cluster_id" => new_config.cloud.cluster_id = Some(value.to_string()),
         "output.format" => new_config.output.format = value.to_string(),
         "output.colors" => {
             new_config.output.colors = value
@@ -209,27 +202,6 @@ async fn list_config(config: &Config, output: &Output) -> Result<()> {
         ("timeout", format!("{}s", config.connection.timeout)),
     ]);
 
-    output.section("Cloud");
-    output.key_value(vec![
-        ("api_url", config.cloud.api_url.clone()),
-        (
-            "project_id",
-            config
-                .cloud
-                .project_id
-                .clone()
-                .unwrap_or_else(|| "(not set)".into()),
-        ),
-        (
-            "cluster_id",
-            config
-                .cloud
-                .cluster_id
-                .clone()
-                .unwrap_or_else(|| "(not set)".into()),
-        ),
-    ]);
-
     output.section("Output");
     output.key_value(vec![
         ("format", config.output.format.clone()),
@@ -253,11 +225,9 @@ async fn list_config(config: &Config, output: &Output) -> Result<()> {
 
 async fn show_path(output: &Output) -> Result<()> {
     let config_path = Config::default_config_path()?;
-    let creds_path = Config::credentials_path()?;
 
     output.key_value(vec![
         ("Config", config_path.display().to_string()),
-        ("Credentials", creds_path.display().to_string()),
     ]);
 
     Ok(())

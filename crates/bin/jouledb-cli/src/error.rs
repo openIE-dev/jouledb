@@ -44,11 +44,8 @@ pub enum CliError {
     #[error("Operation cancelled")]
     Cancelled,
 
-    #[error("Cloud API error: {status} - {message}")]
-    CloudApi { status: u16, message: String },
-
-    #[error("Not authenticated. Run 'jouledb cloud login' first.")]
-    NotAuthenticated,
+    #[error("Server API error: {status} - {message}")]
+    ServerApi { status: u16, message: String },
 
     #[error("Runtime error: {0}")]
     Runtime(String),

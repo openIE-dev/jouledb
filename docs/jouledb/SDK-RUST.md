@@ -23,7 +23,7 @@ use joule_db_client::Client;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Local: jouledb://localhost:9090
-    // Cloud: jouledb://my-cluster.jouledb.cloud:9000
+    // Remote: jouledb://db.example.org:9090
     let client = Client::connect("jouledb://localhost:9090").await?;
     Ok(())
 }

@@ -239,9 +239,6 @@ Per Phase 0a stub inventory: zero `todo!()` / `unimplemented!()` macros across t
 | `MGAI-JWP-PROTOCOL.md` | JouleDB wire protocol spec |
 | `MGAI-PGWIRE-COMPAT.md` | PostgreSQL wire compatibility |
 | `MGAI-HDC-REFERENCE.md` | 15-primitive HDC reference |
-| `jouledb/CLOUD-OPERATOR.md` | K8s operator runbook |
-| `jouledb/CLOUD-API.md` | Cloud API narrative |
-| `jouledb/CLOUD-BILLING.md` | Stripe billing pipeline |
 | `jouledb/CLI-REFERENCE.md` | JouleDB CLI surface |
 | `jouledb/MCP-JOULEDB.md` | JouleDB MCP bridge |
 | `jouledb/QUERY-*.md` | Per-language references (9 docs) |

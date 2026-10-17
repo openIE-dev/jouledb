@@ -48,10 +48,10 @@ Use **ODBC Data Sources (64-bit)** in Control Panel → Drivers tab → Add → 
 
 ```ini
 [my-cluster]
-Description = JouleDB cluster — startup tier
+Description = JouleDB server
 Driver      = JouleDB
-Server      = my-cluster.jouledb.cloud
-Port        = 9000
+Server      = db.example.org
+Port        = 9090
 Database    = main
 UID         = my-user
 PWD         = my-password

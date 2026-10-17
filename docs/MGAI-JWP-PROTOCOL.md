@@ -18,11 +18,11 @@ What makes JWP different from pgwire / gRPC / Postgres-replication-protocol:
 - **Compression-negotiated at the frame level.** Flags bits 3–4 carry the per-frame compression algorithm; the server can adapt compression strategy mid-stream as the energy / bandwidth tradeoff shifts.
 - **Version-negotiable.** v1 (static 21-byte headers) and v2 (adaptive amorphous headers, compression negotiation, push-style profile updates) coexist on the same port.
 - **Auth lives in the frame header**, not in a separate handshake protocol. Bit 5 marks an authenticated connection; bits 6–7 identify which auth path (device-code, passkey, etc.) succeeded.
-- **45 frame types** cover the database surface (query/result/done), control (heartbeat/cancel/error), auth (challenge/response/passkey/device-code), session (revoke/extend), CDK commands (deploy/secrets), streaming (chunk-by-chunk LLM output), prepaid billing (balance/topup/usage), and agent-contract lifecycle (propose/sign/extend/recall).
+- **45 frame types** cover the database surface (query/result/done), control (heartbeat/cancel/error), auth (challenge/response/passkey/device-code), session (revoke/extend), CDK commands (deploy/secrets), streaming (chunk-by-chunk LLM output), and agent-contract lifecycle (propose/sign/extend/recall).
 
 JWP is **not** a pgwire alternative. They coexist — pgwire for "your BI tool already speaks PostgreSQL," JWP for "the client wants energy metering, agent-contract semantics, or streaming LLM responses."
 
-Default port: **`9000`** in managed-cloud deployments (`*.jouledb.cloud:9000`), **`9090`** for local `joule-db-server` instances, **`9200`** when the server is run with `JwpServerConfig::default()` for testing.
+Default port: **`9090`** for local `joule-db-server` instances, **`9200`** when the server is run with `JwpServerConfig::default()` for testing.
 
 ---
 
@@ -156,16 +156,9 @@ All structured payloads use **CBOR** (RFC 8949) for compactness and schema evolu
 | `Command` | `0x14` | C→S | Generic CDK command (`deploy`, `create_secret`, …) |
 | `CommandResponse` | `0x15` | S→C | Command result |
 
-### 3.9 Billing — prepaid energy balance
+### 3.9 Reserved
 
-| Type | ID | Direction | Purpose |
-|---|---|---|---|
-| `BalanceQuery` | `0x21` | C→S | Query current energy balance |
-| `BalanceResponse` | `0x22` | S→C | Balance info |
-| `TopupBegin` | `0x23` | C→S | Request prepaid energy purchase |
-| `TopupResponse` | `0x24` | S→C | Checkout URL or confirmation |
-| `UsageQuery` | `0x25` | C→S | Request usage history |
-| `UsageResponse` | `0x26` | S→C | Usage entries |
+Frame IDs `0x21` to `0x26` are reserved and unassigned (retired). Receivers treat them as unknown frame types.
 
 ### 3.10 Agent-contract lifecycle
 
@@ -274,9 +267,7 @@ pub struct JwpServerConfig {
 }
 ```
 
-In managed cloud (via [`joule-cloud-provisioner`](../crates/joule-cloud-provisioner/)), the bind address is the pod's service IP and the public endpoint is `{name}.jouledb.cloud:9000`. TLS is on by default and terminated at the cloud API gateway.
-
-For local development, the default is `9090` to avoid colliding with the cloud production port.
+For local development, the default is `9090` as the local default.
 
 ---
 

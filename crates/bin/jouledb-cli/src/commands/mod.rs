@@ -1,7 +1,6 @@
 //! CLI Commands
 
 pub mod admin;
-pub mod cloud;
 pub mod config;
 pub mod container;
 pub mod daemon;

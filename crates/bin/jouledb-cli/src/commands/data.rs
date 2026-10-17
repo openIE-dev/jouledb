@@ -271,7 +271,7 @@ async fn import_data(
         progress.finish_and_clear();
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });
@@ -347,7 +347,7 @@ async fn export_data(
         progress.finish_and_clear();
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });
@@ -457,7 +457,7 @@ async fn copy_data(
     } else {
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
-        return Err(CliError::CloudApi {
+        return Err(CliError::ServerApi {
             status: status.as_u16(),
             message,
         });

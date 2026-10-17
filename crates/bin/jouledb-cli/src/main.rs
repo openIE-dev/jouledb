@@ -2,7 +2,7 @@
 //!
 //! Derived from `crates/bin/joule-cli`. Retains only the database +
 //! universal-energy-layer surface: `run`, `db {server, database, query,
-//! admin, data, cloud, config, ledger, daemon, shell}`, and `status`.
+//! admin, data, config, ledger, daemon, shell}`, and `status`.
 //! The dev-platform Lux subcommands (init / build / dev / search / repl
 //! / deploy / export / ide / energy-on-Lux-source) are dropped because
 //! they drag the verity / flowG / Lux crates out of the public closure.
@@ -10,7 +10,6 @@
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 
-mod cloud;
 mod commands;
 mod config;
 mod error;
@@ -54,7 +53,7 @@ enum Commands {
     /// `… ./my-binary`, etc.
     Run(commands::run::RunCommand),
 
-    /// JouleDB operations (server, query, admin, data, cloud, ledger,
+    /// JouleDB operations (server, query, admin, data, ledger,
     /// daemon, shell).
     #[command(subcommand)]
     Db(DbCommands),
@@ -81,9 +80,6 @@ enum DbCommands {
     /// Data import/export
     #[command(subcommand)]
     Data(commands::data::DataCommands),
-    /// Cloud management
-    #[command(subcommand)]
-    Cloud(commands::cloud::CloudCommands),
     /// Configuration
     #[command(subcommand)]
     Config(commands::config::ConfigCommands),
@@ -126,7 +122,6 @@ async fn main() {
             DbCommands::Query(c) => commands::query::execute(c, &config, &output).await,
             DbCommands::Admin(c) => commands::admin::execute(c, &config, &output).await,
             DbCommands::Data(c) => commands::data::execute(c, &config, &output).await,
-            DbCommands::Cloud(c) => commands::cloud::execute(c, &config, &output).await,
             DbCommands::Config(c) => commands::config::execute(c, &config, &output).await,
             DbCommands::Ledger(c) => commands::ledger::execute(c, &config, &output).await,
             DbCommands::Daemon(c) => commands::daemon::execute(c, &config, &output).await,
