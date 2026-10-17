@@ -1,6 +1,6 @@
 //! Energy Trace Diagnostics — behavioral pattern detection from energy consumption.
 //!
-//! Energy is a behavioral signal, not just a billing metric. Like PET scans
+//! Energy is a behavioral signal, not just an accounting metric. Like PET scans
 //! detecting the Warburg effect in cancer cells, energy traces reveal what
 //! an agent is actually doing:
 //!

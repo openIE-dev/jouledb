@@ -1,6 +1,6 @@
 //! Voiceprint Store — speaker verification via MFCC + HDC + HNSW.
 //!
-//! $20.6B voice biometrics market by 2026. Every VoIP call can be authenticated
+//! A VoIP call can be authenticated
 //! by comparing the speaker's voice against stored voiceprints.
 //!
 //! Pipeline: audio → MFCC extraction → BinaryHV hologram → HNSW similarity search

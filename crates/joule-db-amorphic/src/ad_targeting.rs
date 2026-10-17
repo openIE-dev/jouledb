@@ -1,6 +1,6 @@
 //! Ad Tech Targeting Engine — programmatic ad decisioning via HDC.
 //!
-//! $200B+ digital ad market. Every streaming platform with an ad tier needs:
+//! Ad decisioning over streaming content needs:
 //! - Real-time bid decisioning (sub-10ms)
 //! - Brand safety matching (ad ↔ content)
 //! - Frequency capping (time-windowed per-user counters)

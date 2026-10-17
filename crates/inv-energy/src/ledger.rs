@@ -5,7 +5,7 @@
 //! layers and produces:
 //!
 //! - Real-time snapshots for JWP frame headers (cumulative µWh)
-//! - Per-layer breakdowns for billing and cost attribution
+//! - Per-layer breakdowns for energy accounting and cost attribution
 //! - Carbon accounting (energy × grid intensity → gCO2e)
 //! - Audit-ready receipts with verification hashes
 //!
@@ -385,7 +385,7 @@ pub struct LedgerSnapshot {
     pub total_uj: u64,
     /// Total energy in microwatt-hours (for JWP headers).
     pub total_uwh: u64,
-    /// Total energy in joules (for billing/display).
+    /// Total energy in joules (for accounting/display).
     pub total_joules: f64,
     /// Total operation count across all layers.
     pub total_ops: u64,

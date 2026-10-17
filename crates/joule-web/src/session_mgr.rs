@@ -579,8 +579,8 @@ mod tests {
     fn test_session_data() {
         let mut mgr = default_mgr();
         let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
-        mgr.set_data(&sid, "cart", json!(["item1", "item2"])).unwrap();
-        let val = mgr.get_data(&sid, "cart").unwrap();
+        mgr.set_data(&sid, "basket", json!(["item1", "item2"])).unwrap();
+        let val = mgr.get_data(&sid, "basket").unwrap();
         assert_eq!(val, Some(&json!(["item1", "item2"])));
     }
 

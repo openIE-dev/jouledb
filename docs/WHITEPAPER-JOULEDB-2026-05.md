@@ -344,7 +344,7 @@ JouleDB occupies a unique position: database + HDC runtime + knowledge system + 
 
 Energy per inference, JouleDB AI: **~9 µJ**. Nearest non-FPGA comparator: Mamba-3B at ~360 mJ — 40,000× higher.
 
-Hardware target: the Joule SOM, a custom RISC-V SoC (RV64GC, 4 TOPS NPU, 5 radios, PQC security) on 28nm FD-SOI (GlobalFoundries 22FDX), $5 at volume.
+Hardware target: the Joule SOM, a custom RISC-V SoC (RV64GC, 4 TOPS NPU, 5 radios, PQC security) on 28nm FD-SOI (GlobalFoundries 22FDX).
 
 ---
 

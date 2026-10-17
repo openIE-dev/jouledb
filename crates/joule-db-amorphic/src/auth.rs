@@ -1,6 +1,6 @@
 //! Authentication & Authorization — token-based auth with row-level security.
 //!
-//! Every content provider needs:
+//! A content provider needs:
 //! - Token validation (API keys, JWTs)
 //! - Role-based access control (admin, reader, writer)
 //! - Row-level security (user can only see their own data)

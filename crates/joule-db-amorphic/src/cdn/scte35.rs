@@ -5,7 +5,7 @@
 //! in JouleDB, enabling queries like "what ad break is active at timestamp X?"
 //!
 //! Solves: SCTE-35 markers lost during transcode, inconsistent across ABR variants,
-//! revenue loss from failed ad insertions in the $9B FAST market.
+//! failed ad insertions in FAST channels.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -1,7 +1,6 @@
 //! Royalty Calculation Engine — usage-based revenue distribution.
 //!
-//! YouTube pays $15B+/year to creators. Spotify's royalty system is constantly
-//! criticized. This module orchestrates the existing JouleDB primitives
+//! This module orchestrates the existing JouleDB primitives
 //! (temporal rights, events, graph relationships) into actual payment calculations.
 //!
 //! Pipeline: consumption events → usage aggregation → rights graph → revenue splits → payments

@@ -1,6 +1,6 @@
 //! FAST Channel Scheduler — Free Ad-Supported Streaming TV.
 //!
-//! $9B market by 2026. Uses TrendingIndex for content selection and
+//! Uses TrendingIndex for content selection and
 //! AdTargetingEngine for ad break optimization.
 //! Auto-schedules 24/7 linear channels from a content library.
 

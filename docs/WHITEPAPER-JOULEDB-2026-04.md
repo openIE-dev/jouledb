@@ -243,7 +243,7 @@ After integrating cleanup memory (denoising after holographic unbinding):
 
 7. **Negative space.** Absence, negation, and void are three distinct operations. "Patient is NOT allergic" ≠ "allergy status unknown" ≠ "never tested."
 
-8. **Cross-platform.** Same codebase runs on Raspberry Pi, server, and browser (WASM). Target: $5 Joule SOM RISC-V chip.
+8. **Cross-platform.** Same codebase runs on Raspberry Pi, server, and browser (WASM). Target: the Joule SOM RISC-V chip.
 
 9. **535+ tests, zero failures.** Across HDC + amorphic + knowledge modules.
 
@@ -331,7 +331,7 @@ JouleDB occupies a unique position: database + HDC runtime + knowledge system + 
 
 ### 8.3 Hardware Target
 
-JouleDB AI is designed for the Joule SOM: a custom RISC-V SoC (RV64GC, 4 TOPS NPU, 5 radios, PQC security) targeting $5 at volume on 28nm FD-SOI (GlobalFoundries 22FDX). The 15 primitives map to hardware operations: XOR binding is one clock cycle, Hamming distance is POPCNT, BundleAccumulator is majority vote — all parallelizable on the NPU.
+JouleDB AI is designed for the Joule SOM: a custom RISC-V SoC (RV64GC, 4 TOPS NPU, 5 radios, PQC security) on 28nm FD-SOI (GlobalFoundries 22FDX). The 15 primitives map to hardware operations: XOR binding is one clock cycle, Hamming distance is POPCNT, BundleAccumulator is majority vote, all parallelizable on the NPU.
 
 ---
 

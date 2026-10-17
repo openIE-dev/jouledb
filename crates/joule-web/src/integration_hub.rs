@@ -684,7 +684,7 @@ mod tests {
         let mut hub = IntegrationHub::new();
         hub.add_route(make_route("r1", RouteCondition::MessageType("order".into())))
             .unwrap();
-        hub.add_route(make_route("r2", RouteCondition::MessageType("invoice".into())))
+        hub.add_route(make_route("r2", RouteCondition::MessageType("report".into())))
             .unwrap();
         hub
     }
@@ -925,9 +925,9 @@ mod tests {
 
         let or_cond = RouteCondition::Or(vec![
             RouteCondition::MessageType("order".into()),
-            RouteCondition::MessageType("invoice".into()),
+            RouteCondition::MessageType("report".into()),
         ]);
-        let msg3 = make_message("m3", "invoice");
+        let msg3 = make_message("m3", "report");
         assert!(evaluate_route_condition(&or_cond, &msg3));
     }
 
@@ -970,7 +970,7 @@ mod tests {
     fn test_messages_for_route() {
         let mut hub = setup();
         hub.route(make_message("m1", "order")).unwrap();
-        hub.route(make_message("m2", "invoice")).unwrap();
+        hub.route(make_message("m2", "report")).unwrap();
         assert_eq!(hub.messages_for_route("r1").len(), 1);
         assert_eq!(hub.messages_for_route("r2").len(), 1);
     }

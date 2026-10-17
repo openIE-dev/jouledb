@@ -27,7 +27,7 @@ pub enum MeasurementMethod {
     Nvml,
     /// Combined GPU (NVML) + CPU (RAPL) measurement.
     NvmlRapl,
-    /// Derived from billing data or hardware specs, not measured.
+    /// Derived from utility reports or hardware specs, not measured.
     Estimated,
 }
 

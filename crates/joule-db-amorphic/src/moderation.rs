@@ -1,6 +1,6 @@
 //! Content Moderation Workflow — similarity-based trust & safety.
 //!
-//! $14B market (2026). Every content platform needs:
+//! A content platform needs:
 //! 1. Scan uploads against known-bad content (similarity search)
 //! 2. Flag matches for human review (priority queue)
 //! 3. Record actions with audit trail (compliance)

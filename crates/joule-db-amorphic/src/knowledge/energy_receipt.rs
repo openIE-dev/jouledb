@@ -24,11 +24,11 @@
 //!
 //! ## Why this exists
 //!
-//! Every other AI system meters in tokens or dollars. Tokens are a billing
-//! abstraction; dollars are a business abstraction. Both hide the physics.
+//! Every other AI system meters in tokens or dollars. Tokens are a metering
+//! abstraction; dollars are an economic abstraction. Both hide the physics.
 //! Joules are the physics. A receipt in joules lets you compare a cascade
 //! hit (picojoules) against an LLM round-trip (tens of millijoules) and
-//! see the ~10⁸× gap directly. That gap is the product.
+//! see the ~10⁸× gap directly. That gap is the point.
 //!
 //! ## Non-goals
 //!
