@@ -247,15 +247,8 @@ pub mod oauth2_pkce;
 pub mod jwt_codec;
 pub mod p2p_mesh;
 
-// ── Payments & Commerce ──
-pub mod payment;
-pub mod invoice;
-pub mod cart;
+// ── Currency ──
 pub mod currency;
-pub mod tax;
-pub mod subscription;
-pub mod coupon;
-pub mod checkout;
 
 // ── Typography & Text ──
 pub mod text_shaper;
@@ -1891,7 +1884,6 @@ pub mod custody_manage;
 pub mod kyc_check;
 pub mod margin_calc;
 pub mod netting_engine;
-pub mod payment_flow;
 pub mod reconcile_trade;
 pub mod settlement_engine;
 

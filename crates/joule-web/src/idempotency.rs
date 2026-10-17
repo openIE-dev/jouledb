@@ -1,7 +1,7 @@
 //! Idempotency — idempotency key management, response caching, duplicate
 //! detection, TTL-based cleanup, and key fingerprinting.
 //!
-//! Replaces JS idempotency libraries (Stripe idempotency, express-idempotency)
+//! Replaces JS idempotency libraries (express-idempotency and similar)
 //! with a pure-Rust idempotency layer that tracks energy per operation.
 
 use chrono::{DateTime, Duration, Utc};

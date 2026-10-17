@@ -1,7 +1,7 @@
 //! Cost/resource tracking — per-request cost attribution, resource usage meters,
-//! budget alerts, cost allocation by tenant/service/endpoint, billing period rollups.
+//! budget alerts, cost allocation by tenant/service/endpoint, period rollups.
 //!
-//! Pure-Rust replacement for cloud cost management SDKs and billing libraries.
+//! Pure-Rust replacement for cost management SDKs.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -182,17 +182,17 @@ impl fmt::Display for AlertSeverity {
     }
 }
 
-// ── Billing period ───────────────────────────────────────────────
+// ── Cost period ───────────────────────────────────────────────
 
-/// A billing period definition.
+/// A cost period definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BillingPeriod {
+pub struct CostPeriod {
     pub name: String,
     pub start_s: u64,
     pub end_s: u64,
 }
 
-impl BillingPeriod {
+impl CostPeriod {
     pub fn new(name: impl Into<String>, start_s: u64, end_s: u64) -> Self {
         assert!(end_s > start_s, "end must be after start");
         Self { name: name.into(), start_s, end_s }
@@ -209,10 +209,10 @@ impl BillingPeriod {
 
 // ── Rollup ───────────────────────────────────────────────────────
 
-/// Cost rollup for a billing period.
+/// Cost rollup for a cost period.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PeriodRollup {
-    pub period: BillingPeriod,
+    pub period: CostPeriod,
     pub total_cost: f64,
     pub by_tenant: Vec<(String, f64)>,
     pub by_service: Vec<(String, f64)>,
@@ -362,8 +362,8 @@ impl CostTracker {
         alerts
     }
 
-    /// Generate a rollup for a billing period.
-    pub fn rollup(&self, period: &BillingPeriod) -> PeriodRollup {
+    /// Generate a rollup for a cost period.
+    pub fn rollup(&self, period: &CostPeriod) -> PeriodRollup {
         let period_entries: Vec<&CostEntry> = self.entries.iter()
             .filter(|e| period.contains(e.timestamp_s))
             .collect();
@@ -511,8 +511,8 @@ mod tests {
     }
 
     #[test]
-    fn test_billing_period() {
-        let bp = BillingPeriod::new("march", 1000, 2000);
+    fn test_cost_period() {
+        let bp = CostPeriod::new("march", 1000, 2000);
         assert!(bp.contains(1000));
         assert!(bp.contains(1500));
         assert!(!bp.contains(2000));
@@ -522,8 +522,8 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "end must be after start")]
-    fn test_billing_period_bad_range() {
-        BillingPeriod::new("bad", 2000, 1000);
+    fn test_cost_period_bad_range() {
+        CostPeriod::new("bad", 2000, 1000);
     }
 
     #[test]
@@ -625,7 +625,7 @@ mod tests {
         tracker.record(make_entry(200, "beta", "db", ResourceType::Memory, 5.0, 2.0));
         tracker.record(make_entry(500, "acme", "api", ResourceType::Compute, 3.0, 1.0));
 
-        let period = BillingPeriod::new("test", 50, 300);
+        let period = CostPeriod::new("test", 50, 300);
         let rollup = tracker.rollup(&period);
         assert!((rollup.total_cost - 20.0).abs() < 1e-10);
         assert_eq!(rollup.entry_count, 2);
@@ -681,7 +681,7 @@ mod tests {
     #[test]
     fn test_rollup_empty_period() {
         let tracker = CostTracker::new();
-        let period = BillingPeriod::new("empty", 1000, 2000);
+        let period = CostPeriod::new("empty", 1000, 2000);
         let rollup = tracker.rollup(&period);
         assert!((rollup.total_cost - 0.0).abs() < 1e-10);
         assert_eq!(rollup.entry_count, 0);

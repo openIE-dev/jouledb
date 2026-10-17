@@ -20,7 +20,7 @@ pub enum RateLimitError {
         limit: u64,
         remaining: u64,
     },
-    /// Quota exceeded for the billing period.
+    /// Quota exceeded for the quota period.
     QuotaExceeded {
         plan: String,
         limit: u64,
@@ -66,9 +66,9 @@ pub struct Plan {
     pub requests_per_window: u64,
     /// Window duration in milliseconds.
     pub window_ms: u64,
-    /// Total requests allowed per billing period (quota). 0 = unlimited.
+    /// Total requests allowed per quota period (quota). 0 = unlimited.
     pub quota_limit: u64,
-    /// Billing period in milliseconds. 0 = no period.
+    /// Quota period in milliseconds. 0 = no period.
     pub quota_period_ms: u64,
     /// Burst allowance above the rate limit.
     pub burst_allowance: u64,

@@ -2,7 +2,7 @@
 //! verification, timestamp validation (replay protection), canonical request
 //! format, signature header parsing, and multiple signing secrets (rotation).
 //!
-//! Replaces `svix-webhooks`, `stripe-webhook`, and similar JS webhook
+//! Replaces `svix-webhooks` and similar JS webhook
 //! verification libraries with a pure-Rust, timing-safe verifier.
 
 use serde::{Deserialize, Serialize};
@@ -235,8 +235,8 @@ impl SignatureHeader {
     ///
     /// Supports formats:
     /// - `sha256=<hex>` (GitHub style)
-    /// - `v1,<hex>` (Svix/Stripe style)
-    /// - `t=<ts>,v1=<sig>` (Stripe style)
+    /// - `v1,<hex>` (Svix style)
+    /// - `t=<ts>,v1=<sig>` (timestamped style)
     /// - plain hex
     pub fn parse(header: &str) -> Result<Vec<Self>, VerifyError> {
         let trimmed = header.trim();
@@ -255,7 +255,7 @@ impl SignatureHeader {
             return Ok(signatures);
         }
 
-        // Stripe/Svix style: "t=<ts>,v1=<sig>,v1=<sig>"
+        // Timestamped style: "t=<ts>,v1=<sig>,v1=<sig>"
         if trimmed.contains('=') && trimmed.contains(',') {
             for part in trimmed.split(',') {
                 let part = part.trim();
@@ -715,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_signature_stripe_style() {
+    fn test_parse_signature_timestamped_style() {
         let parsed = SignatureHeader::parse("t=1234,v1=abcdef,v1=fedcba").unwrap();
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].scheme, "v1");
