@@ -4,7 +4,10 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
-## [0.1.0] — TBD
+### Changed
+- License: MIT OR Apache-2.0 for the binaries, documentation and examples, replacing Business Source License 1.1.
+
+## [0.1.0], TBD
 
 ### Added
 - Initial public release surface

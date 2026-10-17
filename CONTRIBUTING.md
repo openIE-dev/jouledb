@@ -4,14 +4,14 @@ This repository hosts the **public release surface** for an Open Interface Engin
 
 ## What we accept
 
-- **Bug reports** — open an issue describing the problem, environment, and reproduction steps
-- **Documentation fixes** — typos, clarifications, broken links: open a PR directly
-- **Example improvements** — bug fixes or new examples in `examples/`: open a PR
+- **Bug reports**, open an issue describing the problem, environment, and reproduction steps
+- **Documentation fixes**, typos, clarifications, broken links: open a PR directly
+- **Example improvements**, bug fixes or new examples in `examples/`: open a PR
 
 ## What we don't accept here
 
-- **Source code changes** — the source is private; the binaries and examples in this repository are mirrors of internal work. We can't merge source PRs.
-- **Feature requests outside our roadmap** — feature ideas are welcome as issues, but we may close them if they don't fit.
+- **Source code changes**, the source is private; the binaries and examples in this repository are mirrors of internal work. We can't merge source PRs.
+- **Feature requests outside our roadmap**, feature ideas are welcome as issues, but we may close them if they don't fit.
 
 ## Reporting issues
 
@@ -33,4 +33,4 @@ By participating in this project, you agree to abide by the [Code of Conduct](./
 
 ## License
 
-Contributions to documentation and examples are accepted under the same terms as the rest of this repository: documentation under CC-BY-4.0, examples under Apache-2.0, binaries under BSL-1.1.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this repository is dual licensed under MIT OR Apache-2.0, without any additional terms or conditions.

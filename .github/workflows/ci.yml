@@ -16,7 +16,7 @@ jobs:
       - name: Check required files
         run: |
           set -e
-          for f in README.md LICENSE CHANGELOG.md CODE_OF_CONDUCT.md SECURITY.md CONTRIBUTING.md examples/LICENSE examples/README.md; do
+          for f in README.md LICENSE-MIT LICENSE-APACHE COPYRIGHT CHANGELOG.md CODE_OF_CONDUCT.md SECURITY.md CONTRIBUTING.md examples/README.md; do
             test -f "$f" || (echo "missing: $f"; exit 1)
           done
           test -d .github/ISSUE_TEMPLATE

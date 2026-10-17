@@ -72,7 +72,7 @@ jobs:
           mkdir -p "dist/$BASE"
           cp target/${{ matrix.target }}/release/jouledb* "dist/$BASE/" 2>/dev/null || true
           rm -f "dist/$BASE"/*.d "dist/$BASE"/*.pdb
-          cp LICENSE README.md "dist/$BASE/"
+          cp LICENSE-MIT LICENSE-APACHE COPYRIGHT README.md "dist/$BASE/"
           cd dist
           if [ "${{ runner.os }}" = "Windows" ]; then
             7z a -tzip "$BASE.zip" "$BASE" >/dev/null && sha256sum "$BASE.zip" > "$BASE.zip.sha256"

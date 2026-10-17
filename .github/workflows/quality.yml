@@ -63,19 +63,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check license trio is present
+      - name: Check license files are present
         run: |
           set -e
-          test -f LICENSE
-          grep -q "Business Source License 1.1" LICENSE
-          test -f examples/LICENSE
-          grep -q "Apache License" examples/LICENSE
-          echo "license trio (BSL-1.1 root, Apache-2.0 examples) intact"
-      - name: Check stub Cargo.toml license-file
+          for f in LICENSE-MIT LICENSE-APACHE COPYRIGHT; do test -f "$f"; done
+          grep -q "Apache License" LICENSE-APACHE
+          grep -q "MIT License" LICENSE-MIT
+          test ! -f LICENSE
+          ! grep -rIl "Business Source License" --exclude-dir=.git --exclude=CHANGELOG.md --exclude=README.md --exclude=quality.yml . || (echo "stale BSL text found"; exit 1)
+          echo "MIT OR Apache-2.0 files present, no BSL text"
+      - name: Check stub Cargo.toml license field
         run: |
           set -e
           for cargo in stubs/*/Cargo.toml; do
-            grep -q '^license-file = "LICENSE"' "$cargo" || (echo "$cargo missing license-file"; exit 1)
-            test -f "$(dirname "$cargo")/LICENSE"
+            grep -q '^license = "MIT OR Apache-2.0"' "$cargo" || (echo "$cargo missing license field"; exit 1)
+            test -f "$(dirname "$cargo")/LICENSE-MIT"
+            test -f "$(dirname "$cargo")/LICENSE-APACHE"
           done
-          echo "stub license-file references valid"
+          echo "stub license fields valid"

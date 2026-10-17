@@ -6,7 +6,7 @@ class Jouledb < Formula
   desc "Energy-aware database: measured joules per query, pgwire, MCP, HDC"
   homepage "https://github.com/openIE-dev/jouledb"
   version "0.1.0"
-  license :cannot_represent
+  license any_of: ["MIT", "Apache-2.0"]
   head "https://github.com/openIE-dev/jouledb.git", branch: "main"
 
   on_macos do
