@@ -16,8 +16,6 @@ use std::collections::HashMap;
 pub enum MatchPolicy {
     /// Block the content from being published
     Block,
-    /// Allow but monetize (ads go to rights holder)
-    Monetize,
     /// Allow but track viewership stats
     Track,
     /// No action (reference only)
@@ -284,7 +282,7 @@ mod tests {
             id: "movie_123".into(),
             owner: "Studio X".into(),
             title: "The Movie".into(),
-            policy: MatchPolicy::Monetize,
+            policy: MatchPolicy::Track,
         };
 
         // Register with 10 frame hashes
@@ -340,7 +338,7 @@ mod tests {
                 id: "song_1".into(),
                 owner: "Label A".into(),
                 title: "Hit Song".into(),
-                policy: MatchPolicy::Monetize,
+                policy: MatchPolicy::Track,
             },
             &[],
             &[100, 200, 300, 400, 500],
@@ -351,7 +349,7 @@ mod tests {
         // Match exact audio
         let matches = index.match_audio(&[100, 200, 300, 400, 500]);
         if !matches.is_empty() {
-            assert_eq!(matches[0].reference.policy, MatchPolicy::Monetize);
+            assert_eq!(matches[0].reference.policy, MatchPolicy::Track);
         }
     }
 }

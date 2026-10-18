@@ -1,8 +1,7 @@
 //! HLS/DASH Manifest Manipulation — edge ad insertion.
 //!
 //! Rewrites streaming manifests at the edge to insert personalized ads
-//! without the 10s+ latency of traditional SSAI. The ad decision is
-//! pre-computed by the AdTargetingEngine at the edge PoP.
+//! without the 10s+ latency of traditional SSAI.
 
 use serde::{Deserialize, Serialize};
 

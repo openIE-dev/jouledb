@@ -9,9 +9,7 @@
 //! - ContentIdIndex
 //! - TemporalStore
 //! - CaptionStore
-//! - AdTargetingEngine
 //! - DistributionManager
-//! - RoyaltyCalculator
 //!
 //! Strategy: periodic snapshots to disk (not WAL — these modules are either
 //! reconstructible from events or small enough to snapshot entirely).

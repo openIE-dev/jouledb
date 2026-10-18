@@ -65,7 +65,7 @@ impl Score {
 // Re-export domain types at crate root for convenience.
 pub use domain::{DomainError, DomainStore, EnergyAccumulator, EnergyReceipt};
 pub use domain_types::{
-    ActivityKind, DeliveryChannel, EmailAddress, EmploymentType, InvoiceLine, InvoiceStatus,
+    ActivityKind, DeliveryChannel, EmailAddress, EmploymentType,
     PayMethodKind, PayPeriod, SalaryRange, SourceModule,
 };
 

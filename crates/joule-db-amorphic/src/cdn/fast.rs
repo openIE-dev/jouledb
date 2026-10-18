@@ -1,14 +1,12 @@
 //! FAST Channel Scheduler — Free Ad-Supported Streaming TV.
 //!
-//! Uses TrendingIndex for content selection and
-//! AdTargetingEngine for ad break optimization.
+//! Uses TrendingIndex for content selection.
 //! Auto-schedules 24/7 linear channels from a content library.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::trending::{TrendWindow, TrendingIndex};
-use crate::ad_targeting::AdTargetingEngine;
 use crate::RecordId;
 
 /// Type of content in a schedule slot.

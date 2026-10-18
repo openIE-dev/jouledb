@@ -119,22 +119,9 @@ pub use voiceprint::{
     VoiceFeatures, Voiceprint, VoiceprintStore,
 };
 
-// Ad tech targeting engine (programmatic ad decisioning)
-pub mod ad_targeting;
-pub use ad_targeting::{
-    AdCampaign, AdDecision, AdTargetingEngine, FrequencyCap, TargetingCriteria,
-};
-
 // Semantic hybrid search (vector + keyword + metadata fusion)
 pub mod hybrid_search;
 pub use hybrid_search::{HybridQuery, HybridResult, hybrid_search};
-
-// Royalty calculation engine (usage-based revenue distribution)
-pub mod royalty;
-pub use royalty::{
-    DistributionModel, RevenuePool, RightsHolder, RightsRole, RoyaltyCalculator, RoyaltyPayment,
-    UsageEvent,
-};
 
 // Accessibility infrastructure (captions, scoring, epilepsy detection)
 pub mod accessibility;

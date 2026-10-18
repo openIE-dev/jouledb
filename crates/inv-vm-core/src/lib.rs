@@ -6,7 +6,6 @@ pub mod disarm;
 pub mod energy;
 pub mod error;
 pub mod identity;
-pub mod payment;
 pub mod policy;
 pub mod privacy;
 
@@ -32,7 +31,6 @@ pub use disarm::{DisarmLevel, MeshTierHint, classify_query};
 pub use energy::{EnergyBudget, EnergyReading, EnergySource, Joules, ThermalState, Watts};
 pub use error::{InvError, InvResult};
 pub use identity::{NodeId, OrgId, RegionId, WorkloadId};
-pub use payment::{PaymentMethod, SettlementNetwork, WalletAddress, WalletAddressError};
 pub use policy::{
     DataClassification, DataPolicy, EnergyPolicy, PlacementPolicy, PolicyEvaluator,
     PolicyViolation, SchedulingMode, ViolationSeverity, ViolationType,

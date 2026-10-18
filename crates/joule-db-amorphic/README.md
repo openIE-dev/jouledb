@@ -34,12 +34,10 @@ This is the largest of the JouleDB specialized crates: **~51K LOC, 684 tests, 92
 |---|---|
 | [`ai/`](src/ai/) | AI workloads |
 | [`accessibility.rs`](src/accessibility.rs) | A11y metadata |
-| [`ad_targeting.rs`](src/ad_targeting.rs) | Ad-targeting workloads |
 | [`cdn/`](src/cdn/) | CDN integration |
 | [`events.rs`](src/events.rs) | Event store |
 | [`knowledge/`](src/knowledge/) | Knowledge-graph workloads |
 | [`moderation.rs`](src/moderation.rs) | Content moderation |
-| [`royalty.rs`](src/royalty.rs) | Royalty/payments tracking |
 
 ## Feature flags
 

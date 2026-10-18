@@ -83,45 +83,6 @@ pub struct SalaryRange {
 
 // ── Finance / Pay ──────────────────────────────────────────────────────────
 
-/// Invoice status (unified across joule-finance and joule-pay).
-///
-/// Merges Finance's `{Draft, Sent, Paid, Overdue, Void}` with
-/// Pay's `{Draft, Open, Paid, Void, Uncollectable}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum InvoiceStatus {
-    Draft,
-    /// Finance calls this "Sent", Pay calls it "Open".
-    Open,
-    Paid,
-    Overdue,
-    Void,
-    Uncollectable,
-}
-
-/// A single invoice line item (shared by joule-finance, joule-pay).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InvoiceLine {
-    pub description: String,
-    pub quantity: i64,
-    /// Unit price in cents.
-    pub unit_price_cents: i64,
-    /// Tax rate in basis points (e.g. 750 = 7.50%).
-    pub tax_rate_bps: u32,
-}
-
-impl InvoiceLine {
-    /// Compute line total in cents (quantity * unit_price).
-    pub fn subtotal_cents(&self) -> i64 {
-        self.quantity.saturating_mul(self.unit_price_cents)
-    }
-
-    /// Compute tax amount in cents.
-    pub fn tax_cents(&self) -> i64 {
-        let sub = self.subtotal_cents();
-        (sub as i128 * self.tax_rate_bps as i128 / 10_000) as i64
-    }
-}
-
 // ── Email / Contact ────────────────────────────────────────────────────────
 
 /// Email address with optional display name (shared by joule-email, joule-notify, joule-crm).
@@ -171,18 +132,6 @@ pub enum PayMethodKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn invoice_line_subtotal() {
-        let line = InvoiceLine {
-            description: "Widget".into(),
-            quantity: 3,
-            unit_price_cents: 1000,
-            tax_rate_bps: 750,
-        };
-        assert_eq!(line.subtotal_cents(), 3000);
-        assert_eq!(line.tax_cents(), 225); // 3000 * 7.5%
-    }
 
     #[test]
     fn email_address_display() {
