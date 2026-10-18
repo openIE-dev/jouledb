@@ -235,40 +235,6 @@ pub struct ComplianceRecord {
 }
 
 // ---------------------------------------------------------------------------
-// PricingInfo
-// ---------------------------------------------------------------------------
-
-/// Token and energy pricing with on-chain settlement details.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PricingInfo {
-    /// Price per input token (USDC).
-    pub usdc_per_input_token: f64,
-    /// Price per output token (USDC).
-    pub usdc_per_output_token: f64,
-    /// Price per joule of energy consumed (USDC).
-    pub usdc_per_joule: f64,
-    /// CAIP-2 chain identifier for settlement (e.g. "eip155:8453").
-    pub settlement_network: String,
-    /// HTTP endpoint for the metering interface.
-    pub x402_endpoint: String,
-    /// Free-tier energy budget per day (joules).
-    pub free_tier_joules_per_day: f64,
-}
-
-impl Default for PricingInfo {
-    fn default() -> Self {
-        Self {
-            usdc_per_input_token: 0.0,
-            usdc_per_output_token: 0.0,
-            usdc_per_joule: 0.0,
-            settlement_network: "eip155:8453".to_string(),
-            x402_endpoint: String::new(),
-            free_tier_joules_per_day: 0.0,
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // AiServicePassport
 // ---------------------------------------------------------------------------
 
@@ -298,8 +264,6 @@ pub struct AiServicePassport {
     pub energy_label: PassportLabel,
     /// Regulatory compliance status.
     pub compliance: ComplianceRecord,
-    /// Pricing and settlement information.
-    pub pricing: PricingInfo,
 }
 
 impl AiServicePassport {
@@ -317,7 +281,6 @@ impl AiServicePassport {
             carbon_profile: None,
             energy_label: None,
             compliance: None,
-            pricing: None,
         }
     }
 }
@@ -340,7 +303,6 @@ pub struct PassportBuilder {
     carbon_profile: Option<CarbonProfile>,
     energy_label: Option<PassportLabel>,
     compliance: Option<ComplianceRecord>,
-    pricing: Option<PricingInfo>,
 }
 
 impl PassportBuilder {
@@ -404,12 +366,6 @@ impl PassportBuilder {
         self
     }
 
-    /// Sets the pricing information.
-    pub fn pricing(mut self, p: PricingInfo) -> Self {
-        self.pricing = Some(p);
-        self
-    }
-
     /// Consumes the builder and returns a completed [`AiServicePassport`].
     ///
     /// # Panics
@@ -428,7 +384,6 @@ impl PassportBuilder {
             carbon_profile: self.carbon_profile.expect("carbon_profile is required"),
             energy_label: self.energy_label.expect("energy_label is required"),
             compliance: self.compliance.expect("compliance is required"),
-            pricing: self.pricing.unwrap_or_default(),
         }
     }
 }
@@ -582,17 +537,6 @@ mod tests {
         }
     }
 
-    fn sample_pricing() -> PricingInfo {
-        PricingInfo {
-            usdc_per_input_token: 0.0000015,
-            usdc_per_output_token: 0.000006,
-            usdc_per_joule: 0.0001,
-            settlement_network: "eip155:8453".to_string(),
-            x402_endpoint: "https://invisible.dev/x402".to_string(),
-            free_tier_joules_per_day: 1000.0,
-        }
-    }
-
     fn build_sample_passport(
         service_id: &str,
         ratio: f64,
@@ -615,7 +559,6 @@ mod tests {
             .carbon_profile(sample_carbon_profile())
             .energy_label(label)
             .compliance(sample_compliance())
-            .pricing(sample_pricing())
             .build()
     }
 
@@ -635,7 +578,6 @@ mod tests {
             .carbon_profile(sample_carbon_profile())
             .energy_label(sample_label())
             .compliance(sample_compliance())
-            .pricing(sample_pricing())
             .build();
 
         assert_eq!(passport.passport_version, "1.0");
@@ -657,11 +599,6 @@ mod tests {
         assert_eq!(deserialized.model.id, passport.model.id);
         assert_eq!(deserialized.energy_label.rating, EnergyLabel::A);
         assert!((deserialized.energy_label.efficiency_ratio - 0.35).abs() < 1e-10);
-        assert!(
-            (deserialized.pricing.usdc_per_input_token - passport.pricing.usdc_per_input_token)
-                .abs()
-                < 1e-15
-        );
     }
 
     #[test]
@@ -791,17 +728,5 @@ mod tests {
         assert!((deserialized.eed.facility_wue - 0.3).abs() < 1e-10);
 
         assert!(deserialized.espr_dpp.registry_submitted);
-    }
-
-    #[test]
-    fn default_pricing_info() {
-        let pricing = PricingInfo::default();
-
-        assert!((pricing.usdc_per_input_token - 0.0).abs() < 1e-15);
-        assert!((pricing.usdc_per_output_token - 0.0).abs() < 1e-15);
-        assert!((pricing.usdc_per_joule - 0.0).abs() < 1e-15);
-        assert_eq!(pricing.settlement_network, "eip155:8453");
-        assert!(pricing.x402_endpoint.is_empty());
-        assert!((pricing.free_tier_joules_per_day - 0.0).abs() < 1e-15);
     }
 }

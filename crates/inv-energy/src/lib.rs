@@ -84,7 +84,7 @@ pub use meter::{CompositeMeter, EnergyMeter, EnergyMeterError, EstimationMeter, 
 pub use passport::{
     AiActCompliance, AiServicePassport, CarbonProfile, ComplianceRecord, CsrdCompliance,
     EedCompliance, EnergyProfile, EsprCompliance, HardwareProfile, LocationInfo, MeasurementMethod,
-    ModelProfile, PassportBuilder, PassportCatalog, PassportLabel, PricingInfo,
+    ModelProfile, PassportBuilder, PassportCatalog, PassportLabel,
 };
 pub use product_budget::{
     AlertChannel, AlertThreshold, BudgetAlert, BudgetPeriod, BudgetStatus, ProductBudget,
