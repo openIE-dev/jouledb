@@ -66,7 +66,7 @@ impl Score {
 pub use domain::{DomainError, DomainStore, EnergyAccumulator, EnergyReceipt};
 pub use domain_types::{
     ActivityKind, DeliveryChannel, EmailAddress, EmploymentType,
-    PayMethodKind, PayPeriod, SalaryRange, SourceModule,
+    PayPeriod, SalaryRange, SourceModule,
 };
 
 #[cfg(test)]

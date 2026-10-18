@@ -117,18 +117,6 @@ impl std::fmt::Display for EmailAddress {
     }
 }
 
-// ── Payment ────────────────────────────────────────────────────────────────
-
-/// Payment method kind (shared by joule-commerce, joule-pay).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PayMethodKind {
-    Card,
-    BankAccount,
-    Crypto,
-    /// Pay-per-joule: energy-metered payment.
-    PerJoule,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

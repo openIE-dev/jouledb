@@ -1,5 +1,5 @@
 //! Netting Engine — bilateral netting, multilateral netting, close-out
-//! netting, payment netting, novation netting, and netting set optimization.
+//! netting, novation netting, and netting set optimization.
 //!
 //! Pure-Rust netting engine that reduces gross obligations to net positions
 //! across bilateral and multilateral participant sets.
@@ -40,8 +40,6 @@ pub enum NettingMode {
     Multilateral,
     /// Net obligations upon default/termination.
     CloseOut,
-    /// Net cash payment obligations.
-    Payment,
     /// Replace multiple obligations with one (novation).
     Novation,
 }
@@ -52,7 +50,6 @@ impl fmt::Display for NettingMode {
             Self::Bilateral => write!(f, "Bilateral"),
             Self::Multilateral => write!(f, "Multilateral"),
             Self::CloseOut => write!(f, "CloseOut"),
-            Self::Payment => write!(f, "Payment"),
             Self::Novation => write!(f, "Novation"),
         }
     }
@@ -451,33 +448,6 @@ impl NettingEngine {
             .collect()
     }
 
-    /// Payment netting: net cash flows for a specific settlement date bucket.
-    pub fn payment_net(
-        &self,
-        currency: &str,
-    ) -> Vec<NetPosition> {
-        // Collect unique bilateral pairs
-        let mut pairs: Vec<(String, String)> = Vec::new();
-        for o in &self.obligations {
-            if !o.is_active || o.currency != currency || o.security_id.is_some() {
-                continue;
-            }
-            let pair = if o.from < o.to {
-                (o.from.clone(), o.to.clone())
-            } else {
-                (o.to.clone(), o.from.clone())
-            };
-            if !pairs.contains(&pair) {
-                pairs.push(pair);
-            }
-        }
-
-        pairs
-            .iter()
-            .filter_map(|(a, b)| self.bilateral_net(a, b, currency).ok())
-            .collect()
-    }
-
     /// Novation netting: replace obligations between two parties with a single net.
     pub fn novation_net(
         &mut self,
@@ -629,13 +599,6 @@ mod tests {
             o.is_active && (o.from == "A" || o.to == "A")
         }).count();
         assert_eq!(active_a, 0);
-    }
-
-    #[test]
-    fn test_payment_netting() {
-        let ne = setup_engine();
-        let nets = ne.payment_net("USD");
-        assert!(!nets.is_empty());
     }
 
     #[test]

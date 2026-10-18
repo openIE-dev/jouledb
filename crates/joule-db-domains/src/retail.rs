@@ -75,7 +75,6 @@ pub struct Transaction {
     pub total: f64,
     pub status: TransactionStatus,
     pub timestamp: u64,
-    pub payment_method: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -403,7 +402,6 @@ mod tests {
             total: 100.0,
             status: TransactionStatus::Completed,
             timestamp: 0,
-            payment_method: "card".to_string(),
         };
         detector.learn_normal(&txn);
         assert!(detector.detect(&txn).is_none());

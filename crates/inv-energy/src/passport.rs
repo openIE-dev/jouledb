@@ -249,7 +249,7 @@ pub struct PricingInfo {
     pub usdc_per_joule: f64,
     /// CAIP-2 chain identifier for settlement (e.g. "eip155:8453").
     pub settlement_network: String,
-    /// HTTP endpoint for x402 payment negotiation.
+    /// HTTP endpoint for the metering interface.
     pub x402_endpoint: String,
     /// Free-tier energy budget per day (joules).
     pub free_tier_joules_per_day: f64,

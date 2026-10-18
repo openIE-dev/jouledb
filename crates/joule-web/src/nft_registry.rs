@@ -1,5 +1,5 @@
 //! NFT registry — token minting with unique ID, ownership tracking, transfer,
-//! metadata (name, description, attributes), collection management, royalty
+//! metadata (name, description, attributes), collection management
 //! tracking, ownership history, and enumeration.
 
 use serde::{Deserialize, Serialize};
@@ -23,8 +23,6 @@ pub enum NftError {
     DuplicateToken(u64),
     /// Cannot transfer to self.
     SelfTransfer { token_id: u64 },
-    /// Invalid royalty percentage (must be 0..=10000 basis points).
-    InvalidRoyalty(u32),
     /// Not approved for transfer.
     NotApproved { token_id: u64, operator: String },
 }
@@ -41,9 +39,6 @@ impl fmt::Display for NftError {
             Self::DuplicateToken(id) => write!(f, "duplicate token ID: {id}"),
             Self::SelfTransfer { token_id } => {
                 write!(f, "cannot transfer token {token_id} to self")
-            }
-            Self::InvalidRoyalty(bps) => {
-                write!(f, "invalid royalty: {bps} basis points (max 10000)")
             }
             Self::NotApproved { token_id, operator } => {
                 write!(f, "token {token_id}: operator {operator} not approved")
@@ -114,34 +109,6 @@ pub struct OwnershipRecord {
     pub timestamp: u64,
 }
 
-// ── Royalty ──────────────────────────────────────────────────────────────────
-
-/// Royalty information for a token.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Royalty {
-    /// Recipient address for royalty payments.
-    pub recipient: String,
-    /// Royalty in basis points (1 bp = 0.01%, max 10000 = 100%).
-    pub basis_points: u32,
-}
-
-impl Royalty {
-    pub fn new(recipient: impl Into<String>, basis_points: u32) -> Result<Self, NftError> {
-        if basis_points > 10000 {
-            return Err(NftError::InvalidRoyalty(basis_points));
-        }
-        Ok(Self {
-            recipient: recipient.into(),
-            basis_points,
-        })
-    }
-
-    /// Calculate royalty amount from a sale price.
-    pub fn calculate(&self, sale_price: u64) -> u64 {
-        (sale_price as u128 * self.basis_points as u128 / 10000) as u64
-    }
-}
-
 // ── NFT Token ───────────────────────────────────────────────────────────────
 
 /// A non-fungible token.
@@ -151,7 +118,6 @@ pub struct NftToken {
     pub owner: String,
     pub collection: String,
     pub metadata: NftMetadata,
-    pub royalty: Option<Royalty>,
     /// Approved operator for this specific token (if any).
     pub approved: Option<String>,
     /// Ownership history.
@@ -169,8 +135,6 @@ pub struct Collection {
     pub symbol: String,
     pub creator: String,
     pub description: String,
-    /// Default royalty for tokens in this collection.
-    pub default_royalty: Option<Royalty>,
     /// Token IDs in this collection.
     pub token_ids: Vec<u64>,
     /// Maximum supply (None = unlimited).
@@ -188,7 +152,6 @@ impl Collection {
             symbol: symbol.into(),
             creator: creator.into(),
             description: String::new(),
-            default_royalty: None,
             token_ids: Vec::new(),
             max_supply: None,
         }
@@ -201,11 +164,6 @@ impl Collection {
 
     pub fn with_max_supply(mut self, max: u64) -> Self {
         self.max_supply = Some(max);
-        self
-    }
-
-    pub fn with_royalty(mut self, royalty: Royalty) -> Self {
-        self.default_royalty = Some(royalty);
         self
     }
 
@@ -276,7 +234,6 @@ impl NftRegistry {
         self.next_token_id += 1;
 
         let owner_str = owner.into();
-        let royalty = collection.default_royalty.clone();
 
         collection.token_ids.push(token_id);
 
@@ -285,7 +242,6 @@ impl NftRegistry {
             owner: owner_str.clone(),
             collection: collection_name.to_string(),
             metadata,
-            royalty,
             approved: None,
             history: vec![OwnershipRecord {
                 from: None,
@@ -317,7 +273,6 @@ impl NftRegistry {
             .ok_or_else(|| NftError::CollectionNotFound(collection_name.to_string()))?;
 
         let owner_str = owner.into();
-        let royalty = collection.default_royalty.clone();
 
         collection.token_ids.push(token_id);
 
@@ -326,7 +281,6 @@ impl NftRegistry {
             owner: owner_str.clone(),
             collection: collection_name.to_string(),
             metadata,
-            royalty,
             approved: None,
             history: vec![OwnershipRecord {
                 from: None,
@@ -483,40 +437,6 @@ impl NftRegistry {
         Ok(&token.history)
     }
 
-    /// Calculate royalty for a sale.
-    pub fn royalty_info(&self, token_id: u64, sale_price: u64) -> Result<Option<(String, u64)>, NftError> {
-        let token = self
-            .tokens
-            .get(&token_id)
-            .ok_or(NftError::TokenNotFound(token_id))?;
-        match &token.royalty {
-            Some(r) => Ok(Some((r.recipient.clone(), r.calculate(sale_price)))),
-            None => Ok(None),
-        }
-    }
-
-    /// Set royalty on a token (only by current owner).
-    pub fn set_royalty(
-        &mut self,
-        caller: &str,
-        token_id: u64,
-        royalty: Royalty,
-    ) -> Result<(), NftError> {
-        let token = self
-            .tokens
-            .get_mut(&token_id)
-            .ok_or(NftError::TokenNotFound(token_id))?;
-        if token.owner != caller {
-            return Err(NftError::NotOwner {
-                token_id,
-                caller: caller.to_string(),
-                owner: token.owner.clone(),
-            });
-        }
-        token.royalty = Some(royalty);
-        Ok(())
-    }
-
     /// Enumerate all token IDs (sorted).
     pub fn all_token_ids(&self) -> Vec<u64> {
         let mut ids: Vec<u64> = self.tokens.keys().copied().collect();
@@ -540,8 +460,7 @@ mod tests {
     fn setup_registry() -> NftRegistry {
         let mut reg = NftRegistry::new();
         let collection = Collection::new("CryptoPunks", "PUNK", "creator1")
-            .with_description("Test collection")
-            .with_royalty(Royalty::new("creator1", 250).unwrap());
+            .with_description("Test collection");
         reg.create_collection(collection).unwrap();
         reg
     }
@@ -659,22 +578,6 @@ mod tests {
         assert_eq!(history[0].to, "alice");
         assert_eq!(history[1].to, "bob");
         assert_eq!(history[2].to, "charlie");
-    }
-
-    #[test]
-    fn test_royalty_calculation() {
-        let mut reg = setup_registry();
-        let meta = NftMetadata::new("T", "D");
-        let id = reg.mint("CryptoPunks", "alice", meta, 100).unwrap();
-        let info = reg.royalty_info(id, 10000).unwrap().unwrap();
-        assert_eq!(info.0, "creator1");
-        assert_eq!(info.1, 250); // 2.5% of 10000
-    }
-
-    #[test]
-    fn test_invalid_royalty() {
-        let err = Royalty::new("someone", 10001).unwrap_err();
-        assert_eq!(err, NftError::InvalidRoyalty(10001));
     }
 
     #[test]
