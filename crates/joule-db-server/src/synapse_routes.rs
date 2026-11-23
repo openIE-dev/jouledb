@@ -342,6 +342,76 @@ impl SynapseServerRuntime {
         );
         let _ = guard.synapse.observe_and_adapt(&k_vec, &v_vec);
     }
+
+    /// Current `ContinuumSynapse` LSN for causal `JoulePulse` span linking.
+    pub fn current_synapse_lsn(&self) -> u64 {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        guard.synapse.lsn
+    }
+
+    /// Export a signed federated `SynapseSkillDelta` (`Sakana SVF` + `Engram` + L2/DP clipping).
+    #[allow(clippy::too_many_arguments)]
+    pub fn export_federated_delta(
+        &self,
+        cluster_secret: &[u8],
+        delta_id: &str,
+        node_id: &str,
+        fabric_class: &str,
+        expert_name: &str,
+        clip_l2_norm: f32,
+        dp_noise_sigma: f32,
+        engram_facts: Vec<(String, String)>,
+        training_energy_nj: u64,
+        peak_power_mw: u64,
+    ) -> joule_db_weights::federated_mesh::SynapseSkillDelta {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        joule_db_weights::federated_mesh::export_skill_delta(
+            &guard,
+            cluster_secret,
+            delta_id,
+            node_id,
+            fabric_class,
+            expert_name,
+            clip_l2_norm,
+            dp_noise_sigma,
+            engram_facts,
+            training_energy_nj,
+            peak_power_mw,
+        )
+    }
+
+    /// Merge peer federated `SynapseSkillDelta`s using Byzantine Multi-Krum outlier pruning.
+    pub fn merge_federated_deltas(
+        &self,
+        cluster_secret: &[u8],
+        expert_name: &str,
+        deltas: &[joule_db_weights::federated_mesh::SynapseSkillDelta],
+        max_byzantine_peers: usize,
+        max_allowed_l2: f32,
+    ) -> joule_db_weights::federated_mesh::FederatedMergeReceipt {
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let receipt = joule_db_weights::federated_mesh::merge_federated_skill_deltas(
+            &mut guard,
+            cluster_secret,
+            expert_name,
+            deltas,
+            max_byzantine_peers,
+            max_allowed_l2,
+        );
+        if receipt.updated_tensors > 0 || receipt.merged_engram_facts > 0 {
+            self.persist_if_configured(&guard);
+        }
+        receipt
+    }
 }
 
 /// Model metadata surfaced via OpenAI `GET /v1/models` and Ollama `GET /api/tags`.

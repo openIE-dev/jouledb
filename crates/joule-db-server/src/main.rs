@@ -313,9 +313,19 @@ async fn run_server(
 
     // Everything else is on by default — TCP, PgWire, energy monitoring.
     // Auth, replication, TLS are env-var only for operators who need them.
+    // Loopback binds use trust auth unless JOULEDB_JWT_SECRET is explicitly configured,
+    // so psql, psycopg, SQLAlchemy, JDBC, and node-postgres connect out of the box.
+    let loopback = matches!(bind_host.as_str(), "127.0.0.1" | "localhost" | "::1");
+    config.auth_enabled = !loopback;
     if let Ok(secret) = std::env::var("JOULEDB_JWT_SECRET") {
         config.auth_enabled = true;
         config.auth_jwt_secret = Some(secret);
+    }
+    if config.auth_enabled && config.auth_jwt_secret.is_none() {
+        eprintln!(
+            "jouledb: binding {bind_host} without JOULEDB_JWT_SECRET: clients will be refused. \
+             Set JOULEDB_JWT_SECRET (also the pgwire password)."
+        );
     }
     if let Ok(role) = std::env::var("JOULEDB_REPLICATION_ROLE") {
         config.enable_replication = true;
@@ -364,6 +374,12 @@ async fn run_server(
     if !no_jwp {
         config.enable_jwp = true;
         config.jwp_addr = jwp_addr.unwrap_or_else(|| format!("{}:{}", bind_host, port + 3));
+    }
+    if std::env::var_os("JOULEDB_NO_FLIGHT_SQL").is_none() {
+        config.flight_sql_addr = Some(
+            std::env::var("JOULEDB_FLIGHT_SQL_ADDR")
+                .unwrap_or_else(|_| format!("{}:{}", bind_host, port + 4)),
+        );
     }
 
     // Energy receipt ledger (blockchain-anchored attestation)

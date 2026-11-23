@@ -105,6 +105,7 @@ pub mod living_embodied_routes;
 pub mod swot_capsule_routes;
 pub mod synapse_routes;
 pub mod ward_openai_routes;
+pub mod pulse_mesh_routes;
 pub mod wasm_reducers;
 
 // Re-exports
@@ -538,6 +539,7 @@ pub struct Server {
     swot_capsule_runtime: Arc<swot_capsule_routes::SwotCapsuleRuntime>,
     synapse_runtime: Arc<synapse_routes::SynapseServerRuntime>,
     ward_openai_runtime: Arc<ward_openai_routes::WardOpenAiRuntime>,
+    pulse_mesh_runtime: Arc<pulse_mesh_routes::PulseMeshRuntime>,
 }
 
 /// Database handler for TCP server - bridges TCP protocol to actual database
@@ -876,6 +878,8 @@ impl Server {
             synapse_runtime.clone(),
             &db_path,
         );
+        let pulse_mesh_runtime =
+            pulse_mesh_routes::PulseMeshRuntime::new(ward_openai_runtime.clone());
 
         Ok(Self {
             config,
@@ -926,6 +930,7 @@ impl Server {
             swot_capsule_runtime,
             synapse_runtime,
             ward_openai_runtime,
+            pulse_mesh_runtime,
         })
     }
 
@@ -1212,6 +1217,9 @@ impl Server {
             .merge(synapse_routes::synapse_router(self.synapse_runtime.clone()))
             .merge(ward_openai_routes::ward_openai_router(
                 self.ward_openai_runtime.clone(),
+            ))
+            .merge(pulse_mesh_routes::pulse_mesh_router(
+                self.pulse_mesh_runtime.clone(),
             ));
 
         // Merge ledger verification routes (if ledger is enabled)

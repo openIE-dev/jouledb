@@ -1070,17 +1070,17 @@ async fn handle_ollama_generate(
 // 4-Tier Thermodynamic Cascade Core
 // ============================================================================
 
-struct CascadeOutcome {
-    resolved_model: String,
-    reply_text: String,
-    cascade_tier: String,
-    kernel: String,
-    device: String,
-    bits_per_weight: f64,
-    trace: FabricTraceReceipt,
+pub(crate) struct CascadeOutcome {
+    pub(crate) resolved_model: String,
+    pub(crate) reply_text: String,
+    pub(crate) cascade_tier: String,
+    pub(crate) kernel: String,
+    pub(crate) device: String,
+    pub(crate) bits_per_weight: f64,
+    pub(crate) trace: FabricTraceReceipt,
 }
 
-fn run_thermodynamic_cascade(
+pub(crate) fn run_thermodynamic_cascade(
     rt: &WardOpenAiRuntime,
     requested_model: &str,
     prompt: &str,
@@ -1379,7 +1379,7 @@ fn extract_prompt(messages: &[ChatMessage]) -> String {
         .unwrap_or_default()
 }
 
-fn energy_headers(trace: &FabricTraceReceipt, tier: &str) -> HeaderMap {
+pub(crate) fn energy_headers(trace: &FabricTraceReceipt, tier: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
     let r = &trace.aggregate_rails;
     if let Ok(v) = HeaderValue::from_str(&r.total_nj().to_string()) {

@@ -28,6 +28,7 @@ pub mod energy;
 pub mod joulespace;
 pub mod manager;
 pub mod object_tier;
+pub mod pulse_flow;
 pub mod storage;
 pub mod ward;
 
