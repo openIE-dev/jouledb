@@ -79,7 +79,11 @@ def test_synapse_ward_embed_chat_and_messages_sdk(db):
     msg = db.messages("Verify 45 nJ JoulePulse guardrail")
     assert msg.get("type") == "message"
 
-    minted = db.ward_mint_token("py-sdk-tok-1", "pytest-agent", [{"MaxNanojoules": 50_000_000}])
+    minted = db.ward_mint_token(
+        "py-sdk-tok-1",
+        "pytest-agent",
+        [{"kind": "max_total_nanojoules", "value": 50_000_000}],
+    )
     assert minted.get("ok") is True
 
     ledger = db.ward_ledger()
