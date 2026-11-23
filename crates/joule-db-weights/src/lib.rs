@@ -17,6 +17,7 @@
 //! model_id\0_index  →  JSON model index (layer count, expert count, etc.)
 //! ```
 
+pub mod causal_decoder;
 pub mod checkpoint_ingest;
 pub mod compress;
 pub mod federated_mesh;

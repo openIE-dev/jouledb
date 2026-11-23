@@ -16,6 +16,10 @@ use axum::{
 use base64::Engine;
 use joule_db_gpu::{LittleBitGpuKernel, PackedGpuLittleBitWeights};
 use joule_db_weights::{
+    causal_decoder::{
+        BpeTokenizer, CausalDecoderReceipt, CausalGenerationParams, LivePrefixKvStore,
+        detect_causal_decoder, generate_with_littlebit_causal_decoder, parse_hf_causal_config_json,
+    },
     checkpoint_ingest::ingest_safetensors_into_harness,
     synapse::{ContextCandidate, JouleHarnessEngine, LittleBitSVFTensor, WeightShardMeta},
     transformer_encoder::{
@@ -41,6 +45,7 @@ fn shared_gpu_kernel() -> Option<&'static LittleBitGpuKernel> {
 pub struct SynapseServerRuntime {
     inner: Mutex<JouleHarnessEngine>,
     gpu_packed_cache: Mutex<HashMap<String, PackedGpuLittleBitWeights>>,
+    live_kv_store: Mutex<LivePrefixKvStore>,
     executor: Option<Arc<dyn QueryExecutor>>,
     snapshot_path: Option<PathBuf>,
 }
@@ -83,6 +88,7 @@ impl SynapseServerRuntime {
         let rt = Self {
             inner: Mutex::new(engine),
             gpu_packed_cache: Mutex::new(HashMap::new()),
+            live_kv_store: Mutex::new(LivePrefixKvStore::new(8)),
             executor,
             snapshot_path,
         };
@@ -281,6 +287,78 @@ impl SynapseServerRuntime {
         }
 
         self.run_living_forward(model_hint, text, use_gpu, allow_titans_plasticity)
+    }
+
+    /// Execute full multi-layer causal autoregressive token generation (`BpeTokenizer` -> `RoPE` +
+    /// `GQA` + `RMSNorm` + `SwiGLU` + materialized `Mooncake` KV prefix reuse -> `LMHead` sampling)
+    /// when a `Llama`/`SmolLM2`/`Qwen2.5`/`Mistral` causal decoder is loaded under `model_hint`
+    /// (or as the default causal model).
+    pub fn try_generate_causal_completion(
+        &self,
+        model_hint: Option<&str>,
+        prompt: &str,
+        max_new_tokens: usize,
+        temperature: f32,
+        allow_titans_plasticity: bool,
+    ) -> Option<(CausalDecoderReceipt, String, u64)> {
+        let outcome: Option<(CausalDecoderReceipt, u64)> = {
+            let mut guard = match self.inner.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let target_model = if let Some(h) = model_hint {
+                detect_causal_decoder(&guard, h).map(|_| h.to_string())
+            } else {
+                let mut found = None;
+                for fq in guard.littlebit_tensors.keys() {
+                    if let Some((m, _)) = fq.split_once("::")
+                        && detect_causal_decoder(&guard, m).is_some()
+                    {
+                        found = Some(m.to_string());
+                        break;
+                    }
+                }
+                found
+            }?;
+
+            let mut kv_guard = match self.live_kv_store.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let params = CausalGenerationParams {
+                max_new_tokens: max_new_tokens.clamp(1, 256),
+                temperature,
+                ..CausalGenerationParams::default()
+            };
+            let rec = generate_with_littlebit_causal_decoder(
+                &mut guard,
+                &mut kv_guard,
+                &target_model,
+                prompt,
+                &params,
+            )
+            .ok()?;
+
+            let pfx = format!("{target_model}::");
+            let mut touched_bytes = 0u64;
+            for (k, lb) in &guard.littlebit_tensors {
+                if k.starts_with(&pfx) {
+                    touched_bytes = touched_bytes.saturating_add(
+                        (((lb.rows * lb.cols) as f64 * lb.bits_per_weight()) / 8.0).ceil() as u64,
+                    );
+                }
+            }
+            Some((rec, touched_bytes.max(8192)))
+        };
+
+        let (rec, mem_bytes) = outcome?;
+        if allow_titans_plasticity {
+            self.adapt_titans_from_prompt(prompt);
+        }
+        let device = shared_gpu_kernel()
+            .map(|k| format!("{} (UMA Causal LittleBit-2 {}L)", k.adapter_name(), rec.num_layers))
+            .unwrap_or_else(|| "cpu-simd-bitplane".to_string());
+        Some((rec, device, mem_bytes))
     }
 
     /// Execute a real `LittleBit-2` (`wgpu` Metal/Vulkan `countOneBits` WGSL or CPU `XNOR+POPCNT`)
@@ -559,6 +637,9 @@ pub struct IngestSafetensorsReq {
     /// Optional inline `vocab.txt` or `tokenizer.json` content (auto-discovered from sibling file when `file_path` is used).
     #[serde(default)]
     pub vocab_txt: Option<String>,
+    /// Optional inline HuggingFace `config.json` content (auto-discovered from sibling file when `file_path` is used).
+    #[serde(default)]
+    pub config_json: Option<String>,
     #[serde(default = "default_target_rank")]
     pub target_rank: usize,
     #[serde(default = "default_max_outliers")]
@@ -580,6 +661,38 @@ pub struct EncoderEmbedReq {
     pub text: String,
     #[serde(default = "default_max_seq_len")]
     pub max_seq_len: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DecoderGenerateReq {
+    pub model_id: String,
+    pub prompt: String,
+    #[serde(default = "default_gen_tokens")]
+    pub max_new_tokens: usize,
+    #[serde(default)]
+    pub temperature: f32,
+    #[serde(default = "default_top_p")]
+    pub top_p: f32,
+    #[serde(default = "default_rep_pen")]
+    pub repetition_penalty: f32,
+    #[serde(default = "default_rng_seed")]
+    pub seed: u64,
+}
+
+fn default_gen_tokens() -> usize {
+    24
+}
+
+fn default_top_p() -> f32 {
+    0.9
+}
+
+fn default_rep_pen() -> f32 {
+    1.12
+}
+
+fn default_rng_seed() -> u64 {
+    42
 }
 
 fn default_max_seq_len() -> usize {
@@ -773,6 +886,10 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
         )
         .route("/api/v1/synapse/encoder/embed", post(handle_encoder_embed))
         .route(
+            "/api/v1/synapse/decoder/generate",
+            post(handle_decoder_generate),
+        )
+        .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
         )
@@ -860,6 +977,11 @@ async fn handle_status(State(rt): State<Arc<SynapseServerRuntime>>) -> impl Into
             .iter()
             .map(|(k, v)| (k.clone(), v.len()))
             .collect::<std::collections::BTreeMap<_, _>>(),
+        "loaded_bpe_merges": guard
+            .model_bpe_merges
+            .iter()
+            .map(|(k, v)| (k.clone(), v.len()))
+            .collect::<std::collections::BTreeMap<_, _>>(),
     }))
 }
 
@@ -868,6 +990,7 @@ async fn handle_ingest_safetensors(
     Json(req): Json<IngestSafetensorsReq>,
 ) -> impl IntoResponse {
     let mut sibling_vocab_raw: Option<String> = req.vocab_txt.clone();
+    let mut sibling_cfg_raw: Option<String> = req.config_json.clone();
     let raw_bytes = if let Some(ref b64) = req.bytes_base64 {
         match base64::engine::general_purpose::STANDARD.decode(b64) {
             Ok(b) => b,
@@ -878,15 +1001,21 @@ async fn handle_ingest_safetensors(
         if p.extension().and_then(|e| e.to_str()) != Some("safetensors") {
             return bad_request("file_path must end with .safetensors");
         }
-        if sibling_vocab_raw.is_none()
-            && let Some(parent) = p.parent()
-        {
-            let v_txt = parent.join("vocab.txt");
-            let t_json = parent.join("tokenizer.json");
-            if v_txt.exists() {
-                sibling_vocab_raw = std::fs::read_to_string(v_txt).ok();
-            } else if t_json.exists() {
-                sibling_vocab_raw = std::fs::read_to_string(t_json).ok();
+        if let Some(parent) = p.parent() {
+            if sibling_vocab_raw.is_none() {
+                let t_json = parent.join("tokenizer.json");
+                let v_txt = parent.join("vocab.txt");
+                if t_json.exists() {
+                    sibling_vocab_raw = std::fs::read_to_string(t_json).ok();
+                } else if v_txt.exists() {
+                    sibling_vocab_raw = std::fs::read_to_string(v_txt).ok();
+                }
+            }
+            if sibling_cfg_raw.is_none() {
+                let c_json = parent.join("config.json");
+                if c_json.exists() {
+                    sibling_cfg_raw = std::fs::read_to_string(c_json).ok();
+                }
             }
         }
         match std::fs::read(p) {
@@ -897,12 +1026,24 @@ async fn handle_ingest_safetensors(
         return bad_request("must provide either bytes_base64 or file_path");
     };
 
-    let parsed_vocab = match sibling_vocab_raw {
-        Some(ref raw) => parse_vocab_tokens(raw).ok(),
-        None => None,
+    let (parsed_vocab, parsed_merges) = match sibling_vocab_raw {
+        Some(ref raw) => {
+            if raw.trim_start().starts_with('{') {
+                match BpeTokenizer::parse_hf_tokenizer_json(raw) {
+                    Ok((v, m)) => (Some(v), Some(m)),
+                    Err(_) => (parse_vocab_tokens(raw).ok(), None),
+                }
+            } else {
+                (parse_vocab_tokens(raw).ok(), None)
+            }
+        }
+        None => (None, None),
     };
+    let parsed_cfg = sibling_cfg_raw
+        .as_deref()
+        .and_then(|raw| parse_hf_causal_config_json(raw).ok());
 
-    let (report, newly_factorized, vocab_tokens_loaded, encoder_layers) = {
+    let (report, newly_factorized, vocab_tokens_loaded, bpe_merges_loaded, encoder_layers, decoder_layers) = {
         let mut guard = match rt.inner.lock() {
             Ok(g) => g,
             Err(p) => p.into_inner(),
@@ -928,7 +1069,24 @@ async fn handle_ingest_safetensors(
             v_cnt = v_vec.len();
             guard.model_vocabs.insert(req.model_id.clone(), v_vec);
         }
+        let mut m_cnt = guard
+            .model_bpe_merges
+            .get(&req.model_id)
+            .map(Vec::len)
+            .unwrap_or(0);
+        if let Some(m_vec) = parsed_merges
+            && !m_vec.is_empty()
+        {
+            m_cnt = m_vec.len();
+            guard.model_bpe_merges.insert(req.model_id.clone(), m_vec);
+        }
+        if let Some(cfg) = parsed_cfg {
+            guard.model_configs.insert(req.model_id.clone(), cfg);
+        }
         let enc_l = detect_transformer_encoder(&guard, &req.model_id)
+            .map(|(_, l)| l)
+            .unwrap_or(0);
+        let dec_l = detect_causal_decoder(&guard, &req.model_id)
             .map(|(_, l)| l)
             .unwrap_or(0);
         let mut cloned_tensors = Vec::new();
@@ -939,7 +1097,7 @@ async fn handle_ingest_safetensors(
             }
         }
         rt.persist_if_configured(&guard);
-        (rep, cloned_tensors, v_cnt, enc_l)
+        (rep, cloned_tensors, v_cnt, m_cnt, enc_l, dec_l)
     };
 
     for (fq_name, lb) in &newly_factorized {
@@ -985,7 +1143,9 @@ async fn handle_ingest_safetensors(
             "sql_table": "synapse_tensors",
             "sql_rows_materialized": sql_rows_materialized,
             "vocab_tokens_loaded": vocab_tokens_loaded,
+            "bpe_merges_loaded": bpe_merges_loaded,
             "transformer_encoder_layers": encoder_layers,
+            "causal_decoder_layers": decoder_layers,
         })),
     )
 }
@@ -1005,18 +1165,35 @@ async fn handle_tokenizer_load(
         return bad_request("must provide vocab_txt or file_path");
     };
 
-    let vocab_vec = match parse_vocab_tokens(&raw) {
-        Ok(v) if !v.is_empty() => v,
-        Ok(_) => return bad_request("vocabulary is empty"),
-        Err(e) => return bad_request(e),
+    let (vocab_vec, merges_opt) = if raw.trim_start().starts_with('{') {
+        match BpeTokenizer::parse_hf_tokenizer_json(&raw) {
+            Ok((v, m)) if !v.is_empty() => (v, Some(m)),
+            _ => match parse_vocab_tokens(&raw) {
+                Ok(v) if !v.is_empty() => (v, None),
+                Ok(_) => return bad_request("vocabulary is empty"),
+                Err(e) => return bad_request(e),
+            },
+        }
+    } else {
+        match parse_vocab_tokens(&raw) {
+            Ok(v) if !v.is_empty() => (v, None),
+            Ok(_) => return bad_request("vocabulary is empty"),
+            Err(e) => return bad_request(e),
+        }
     };
     let count = vocab_vec.len();
+    let merge_count = merges_opt.as_ref().map(Vec::len).unwrap_or(0);
     {
         let mut guard = match rt.inner.lock() {
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
         guard.model_vocabs.insert(req.model_id.clone(), vocab_vec);
+        if let Some(m) = merges_opt
+            && !m.is_empty()
+        {
+            guard.model_bpe_merges.insert(req.model_id.clone(), m);
+        }
         rt.persist_if_configured(&guard);
     }
     (
@@ -1025,6 +1202,7 @@ async fn handle_tokenizer_load(
             "ok": true,
             "model_id": req.model_id,
             "vocab_size": count,
+            "bpe_merges": merge_count,
         })),
     )
 }
@@ -1043,6 +1221,38 @@ async fn handle_encoder_embed(
         &req.text,
         req.max_seq_len,
         |_, _, _| None,
+    ) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
+}
+
+async fn handle_decoder_generate(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<DecoderGenerateReq>,
+) -> impl IntoResponse {
+    let mut guard = match rt.inner.lock() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    };
+    let mut kv_guard = match rt.live_kv_store.lock() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    };
+    let params = CausalGenerationParams {
+        max_new_tokens: req.max_new_tokens.clamp(1, 256),
+        temperature: req.temperature,
+        top_p: req.top_p,
+        repetition_penalty: req.repetition_penalty,
+        seed: req.seed,
+        stop_token_ids: Vec::new(),
+    };
+    match generate_with_littlebit_causal_decoder(
+        &mut guard,
+        &mut kv_guard,
+        &req.model_id,
+        &req.prompt,
+        &params,
     ) {
         Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
         Err(e) => bad_request(e),

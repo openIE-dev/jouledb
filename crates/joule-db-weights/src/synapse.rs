@@ -1350,6 +1350,51 @@ pub struct HarnessCheckpoint {
     pub observation_count: usize,
 }
 
+/// Architectural metadata parsed from HuggingFace `config.json` for causal decoder models
+/// (`Llama`, `SmolLM2`, `Qwen2.5`, `Mistral`, `Gemma`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CausalModelMeta {
+    pub num_attention_heads: Option<usize>,
+    pub num_key_value_heads: Option<usize>,
+    pub head_dim: Option<usize>,
+    #[serde(default = "default_rope_theta")]
+    pub rope_theta: f32,
+    #[serde(default = "default_rms_eps")]
+    pub rms_norm_eps: f32,
+    pub bos_token_id: Option<usize>,
+    #[serde(default)]
+    pub eos_token_ids: Vec<usize>,
+    #[serde(default = "default_true_bool")]
+    pub tie_word_embeddings: bool,
+}
+
+fn default_rope_theta() -> f32 {
+    10_000.0
+}
+
+fn default_rms_eps() -> f32 {
+    1e-5
+}
+
+fn default_true_bool() -> bool {
+    true
+}
+
+impl Default for CausalModelMeta {
+    fn default() -> Self {
+        Self {
+            num_attention_heads: None,
+            num_key_value_heads: None,
+            head_dim: None,
+            rope_theta: 10_000.0,
+            rms_norm_eps: 1e-5,
+            bos_token_id: None,
+            eos_token_ids: Vec::new(),
+            tie_word_embeddings: true,
+        }
+    }
+}
+
 /// Database-native AI Harness replacing ad-hoc external agent loops, prompt-concatenation scripts,
 /// and static frozen model wrappers.
 #[derive(Serialize, Deserialize)]
@@ -1359,13 +1404,19 @@ pub struct JouleHarnessEngine {
     pub kv_pool: RadixKvCachePool,
     pub airstream: AirStreamScheduler,
     pub littlebit_tensors: BTreeMap<String, LittleBitSVFTensor>,
-    /// Compact 1D bias & LayerNorm vectors (`model_id::tensor_name -> Vec<f32>`) enabling full
-    /// multi-layer Transformer encoder execution directly over sub-1-bit `LittleBitSVFTensor`s.
+    /// Compact 1D bias & LayerNorm/RMSNorm vectors (`model_id::tensor_name -> Vec<f32>`) enabling full
+    /// multi-layer Transformer encoder & causal decoder execution directly over sub-1-bit `LittleBitSVFTensor`s.
     #[serde(default)]
     pub vectors_1d: BTreeMap<String, Vec<f32>>,
-    /// Persisted WordPiece / subword vocabularies (`model_id -> ordered vocab tokens`).
+    /// Persisted WordPiece / BPE vocabularies (`model_id -> ordered vocab tokens`).
     #[serde(default)]
     pub model_vocabs: BTreeMap<String, Vec<String>>,
+    /// Persisted HuggingFace BPE merge pairs (`model_id -> ordered (left, right) merges`).
+    #[serde(default)]
+    pub model_bpe_merges: BTreeMap<String, Vec<(String, String)>>,
+    /// Persisted causal decoder `config.json` hyperparameters (`RoPE` theta, `GQA` heads, `EOS` ids).
+    #[serde(default)]
+    pub model_configs: BTreeMap<String, CausalModelMeta>,
     observations: VecDeque<HarnessObservation>,
     raw_cas: HashMap<String, String>,
     checkpoints: VecDeque<HarnessCheckpoint>,
@@ -1384,6 +1435,8 @@ impl JouleHarnessEngine {
             littlebit_tensors: BTreeMap::new(),
             vectors_1d: BTreeMap::new(),
             model_vocabs: BTreeMap::new(),
+            model_bpe_merges: BTreeMap::new(),
+            model_configs: BTreeMap::new(),
             observations: VecDeque::new(),
             raw_cas: HashMap::new(),
             checkpoints: VecDeque::new(),

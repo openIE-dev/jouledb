@@ -1,6 +1,6 @@
 [package]
 name = "jouledb"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.74"
 description = "Energy-metered database — HDC primitives, joules per query. Stub installer; `cargo binstall jouledb` fetches the real binary."

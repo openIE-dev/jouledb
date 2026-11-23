@@ -1337,6 +1337,71 @@ pub(crate) fn run_thermodynamic_cascade(
     } else {
         Some(requested_model)
     };
+
+    // Tier 4a: Full Causal Autoregressive Decoder (`RoPE` + `GQA` + `RMSNorm` + `SwiGLU` + `Mooncake` KV)
+    if let Some((dec, device, mem_bytes)) =
+        rt.synapse_rt
+            .try_generate_causal_completion(hint, trimmed, 24, 0.0, allow_plasticity)
+    {
+        let kernel = format!(
+            "littlebit_svf_causal_{}L_{}Q_{}KV",
+            dec.num_layers, dec.num_q_heads, dec.num_kv_heads
+        );
+        let (rails, cal_src, _hw_fused) =
+            rt.estimate_rails_fused(&kernel, dec.elapsed_ns, mem_bytes, 0, 0);
+        let saved_kv_nj = (dec.kv_prefix_receipt.saved_prefill_joules_uj * 1_000.0).round() as u64;
+
+        let reply_text = if dec.generated_text.trim().is_empty() {
+            format!(
+                "[JouleSynapse Causal {} | {:.4} BPW | {:.1} tok/s] tokens={:?}",
+                dec.model_id, dec.avg_bits_per_weight, dec.tokens_per_sec, dec.generated_token_ids
+            )
+        } else {
+            dec.generated_text.clone()
+        };
+
+        {
+            let mut lc = match rt.swot_rt.lang_cache.write() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            lc.put(
+                "default",
+                "main",
+                0,
+                trimmed,
+                serde_json::json!({ "text": reply_text }),
+                rails.total_uj_ceil().max(1),
+            );
+        }
+
+        let mut trace = FabricTraceReceipt {
+            hops: Vec::new(),
+            aggregate_rails: HeterogeneousRailSample::default(),
+            per_class_totals_nj: BTreeMap::new(),
+            saved_by_memoization_nj: saved_kv_nj,
+        };
+        trace.push_hop(FabricHopEnergyReceipt {
+            node_id: rt.ward.node_id().to_string(),
+            fabric_class: rt.ward.fabric_class(),
+            silicon_lane: kernel.clone(),
+            calibration_source: cal_src,
+            grid_carbon_g_per_kwh: rt.ward.grid_carbon_g_per_kwh(),
+            rails,
+        });
+        rt.ward.ledger.record_trace(root_tid, &trace);
+
+        return Ok(CascadeOutcome {
+            resolved_model: dec.model_id,
+            reply_text,
+            cascade_tier: "tier4_littlebit_causal_decoder".to_string(),
+            kernel,
+            device,
+            bits_per_weight: dec.avg_bits_per_weight,
+            trace,
+        });
+    }
+
     let fwd = rt
         .synapse_rt
         .run_living_forward(hint, trimmed, true, allow_plasticity);

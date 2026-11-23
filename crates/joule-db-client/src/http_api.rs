@@ -197,6 +197,24 @@ impl HttpFabricClient {
         self.request_json("POST", "/api/v1/flow/execute", Some(flow_req))
             .await
     }
+
+    /// Execute autoregressive causal token generation directly over sub-1-bit `LittleBit-2` bitplanes (`POST /api/v1/synapse/decoder/generate`).
+    pub async fn decoder_generate(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        max_new_tokens: usize,
+        temperature: f32,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "prompt": prompt,
+            "max_new_tokens": max_new_tokens,
+            "temperature": temperature,
+        });
+        self.request_json("POST", "/api/v1/synapse/decoder/generate", Some(&body))
+            .await
+    }
 }
 
 fn decode_chunked_body(raw: &[u8]) -> Result<Vec<u8>> {

@@ -183,6 +183,25 @@ class Connection:
         """Execute a crash-idempotent durable JouleFlow DAG via POST /api/v1/flow/execute."""
         return self._json_request("POST", "/api/v1/flow/execute", flow_spec)
 
+    def decoder_generate(
+        self,
+        model_id: str,
+        prompt: str,
+        max_new_tokens: int = 24,
+        temperature: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Run autoregressive causal token generation over sub-1-bit LittleBit-2 bitplanes."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/decoder/generate",
+            {
+                "model_id": model_id,
+                "prompt": prompt,
+                "max_new_tokens": max_new_tokens,
+                "temperature": temperature,
+            },
+        )
+
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass
 
