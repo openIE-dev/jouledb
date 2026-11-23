@@ -4,6 +4,14 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-23
+
+### Added
+- **Universal `< 30 GB` Open-Weight Adaptation Engine (`checkpoint_ingest`, `causal_decoder`, `transformer_encoder`, `synapse_routes`)**:
+  - **Multi-Format Checkpoint Compiler:** Added MLX packed affine `U32` (`1`/`2`/`4`/`8`-bit `weight` + `scales` + `biases`) `.safetensors` unpacking (`prism-ml/Bonsai-1.7B-mlx-1bit`, `Bonsai-27B-mlx-1bit`), pure-Rust memory-mapped GGUF v2/v3 -> `LittleBit-2` compilation (`POST /api/v1/synapse/ingest/gguf`, supporting `Q1_0_G128`, `Q1_0`, `TQ1_0`, `TQ2_0`, `Q4_0`, `Q4_1`, `Q8_0`, `Q4_K`, `Q6_K`, `F16`, `BF16`, `F32` + embedded `tokenizer.ggml.tokens`/`merges`), depthwise 1D convolution kernel preservation, and automatic multi-shard / nested-directory discovery in `POST /api/v1/synapse/hf/pull`.
+  - **Universal Next-Gen Block Operators:** Native execution of **Liquid AI `LFM2` / `LFM2.5` / `LFM3`** hybrid `ShortConv` (`LIV` gated depthwise 1D conv) + `GQA` + `SwiGLU` (`w1/w3/w2`), **`Qwen3` / `PrismML Bonsai`** per-head `QK-Norm` (`q_dim != hidden_dim`), **Microsoft `BitNet b1.58`** `attn_sub_norm`/`ffn_sub_norm` + `ReLU²`, **Google `Gemma 4`** `+1` `RMSNorm` + `GeGLU` + dual FFN norms + SentencePiece `▁` BPE + softcapping, **Cactus Compute `Needle`** `self_attn_gate` + `fc1/fc2`, **`SmolVLM` / `IBM Granite-Docling`** (`idefics3` `SigLIP` + `Llama`), **IBM Granite `ModernBERT`** (`Wqkv` + `RoPE` + `GeGLU`), and **`Qwen3-Embedding`**.
+  - **Curated `< 30 GB` Open-Weight Catalog & License-Preserving `.jsyn` Export (`GET /api/v1/synapse/hf/catalog`):** Built-in 22-model catalog across 11 ecosystems (`Liquid AI`, `PrismML`, `Cactus Compute`, `Poolside`, `Google Gemma 4`, `Qwen3`, `Microsoft BitNet`, `SmolLM`/`SmolVLM`, `IBM Granite`, `Snowflake Arctic`, `OpenAI Whisper`) with automatic SPDX / `LFM Open License v1.0` / `OpenMDW-1.1` / `MIT` / `Apache-2.0` Model Card frontmatter (`hf_catalog()` & `ingest_gguf()` in Python & Rust `0.2.4` SDKs).
+
 ## [0.2.3] - 2026-11-23
 
 ### Added

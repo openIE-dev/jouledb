@@ -506,6 +506,31 @@ impl HttpFabricClient {
         });
         self.request_json("POST", &path, Some(&body)).await
     }
+
+    /// List JouleDB's curated `< 30 GB` permissive open-weight model catalog (`GET /api/v1/synapse/hf/catalog`).
+    pub async fn hf_catalog(&self) -> Result<JsonValue> {
+        self.request_json("GET", "/api/v1/synapse/hf/catalog", None)
+            .await
+    }
+
+    /// Compile a local `.gguf` (`Q1_0_G128`, `TQ1_0`, `Q4_0`, `Q4_K`, `Q6_K`, `Q8_0`, `F16`) checkpoint
+    /// directly into sub-1-bit `LittleBit-2` living bitplanes (`POST /api/v1/synapse/ingest/gguf`).
+    pub async fn ingest_gguf_path(
+        &self,
+        model_id: &str,
+        file_path: &str,
+        target_rank: usize,
+        distill_svf: bool,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "file_path": file_path,
+            "target_rank": target_rank,
+            "distill_svf": distill_svf,
+        });
+        self.request_json("POST", "/api/v1/synapse/ingest/gguf", Some(&body))
+            .await
+    }
 }
 
 fn decode_chunked_body(raw: &[u8]) -> Result<Vec<u8>> {

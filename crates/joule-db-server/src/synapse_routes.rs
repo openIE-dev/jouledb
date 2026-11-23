@@ -21,7 +21,10 @@ use joule_db_weights::{
         detect_causal_decoder, generate_with_littlebit_causal_decoder_accelerated,
         parse_hf_causal_config_json,
     },
-    checkpoint_ingest::ingest_safetensors_with_options,
+    checkpoint_ingest::{
+        ingest_gguf_bytes_with_options, ingest_gguf_file_with_options,
+        ingest_safetensors_with_options,
+    },
     grammar_constrain::{
         ConstrainedJsonReceipt, ConstrainedJsonSchema, ConstrainedToolCall, ToolSpec,
         generate_schema_constrained_json, select_and_constrain_tool_call,
@@ -574,6 +577,27 @@ impl SynapseServerRuntime {
         base_model_repo: Option<&str>,
         hf_repo_id: Option<&str>,
     ) -> Result<serde_json::Value, String> {
+        self.export_hf_model_bundle_with_license(
+            model_id,
+            output_dir,
+            base_model_repo,
+            hf_repo_id,
+            None,
+            None,
+        )
+    }
+
+    /// Export a standalone `.jsyn` Hugging Face Hub model bundle with explicit or catalog-inferred
+    /// upstream license metadata (`apache-2.0`, `mit`, `lfm1.0`, `openmdw-1.1`).
+    pub fn export_hf_model_bundle_with_license(
+        &self,
+        model_id: &str,
+        output_dir: &std::path::Path,
+        base_model_repo: Option<&str>,
+        hf_repo_id: Option<&str>,
+        explicit_license: Option<&str>,
+        explicit_notice: Option<&str>,
+    ) -> Result<serde_json::Value, String> {
         std::fs::create_dir_all(output_dir)
             .map_err(|e| format!("create export dir '{}': {e}", output_dir.display()))?;
 
@@ -632,12 +656,16 @@ impl SynapseServerRuntime {
         let base_repo = base_model_repo.unwrap_or(model_id);
         let pub_repo = hf_repo_id.unwrap_or(model_id);
 
+        let (lic_yaml, spdx_id, upstream_notice) =
+            resolve_model_license_metadata(base_repo, explicit_license, explicit_notice);
+
         let manifest = serde_json::json!({
             "format": "JSYN-v1",
             "engine": "JouleDB LittleBit-2 + Sakana SVF",
             "model_id": model_id,
             "base_model": base_repo,
             "hf_repo_id": pub_repo,
+            "license": spdx_id,
             "tensor_count_2d": standalone.littlebit_tensors.len(),
             "norm_bias_vectors_1d": standalone.vectors_1d.len(),
             "vocab_tokens": standalone.model_vocabs.get(model_id).map(Vec::len).unwrap_or(0),
@@ -653,10 +681,16 @@ impl SynapseServerRuntime {
         )
         .map_err(|e| format!("write jouledb_manifest.json: {e}"))?;
 
+        let notice_section = if upstream_notice.is_empty() {
+            String::new()
+        } else {
+            format!("\n## License & Upstream Attribution\n\n{upstream_notice}\n")
+        };
+
         let readme = format!(
             "---\n\
 library_name: jouledb\n\
-license: apache-2.0\n\
+{lic_yaml}\n\
 base_model: {base_repo}\n\
 tags:\n\
 - jouledb\n\
@@ -667,20 +701,22 @@ tags:\n\
 - kubernetes-native\n\
 ---\n\n\
 # `{pub_repo}` — Sub-1-Bit Living Weights (`JouleDB` `.jsyn`)\n\n\
-Pre-factorized **`LittleBit-2 ⊕ Sakana SVF`** living-weights checkpoint for [**JouleDB**](https://github.com/openIE-dev/jouledb) \
+Pre-factorized **`LittleBit-2 ⊕ Sakana SVF`** living-weights checkpoint adapted from [`{base_repo}`](https://huggingface.co/{base_repo}) for [**JouleDB**](https://github.com/openIE-dev/jouledb) \
 (thermodynamic database, `JouleKube` Kubernetes-native AI/agent substrate, and zero-PyTorch inference runtime).\n\n\
 ## Compression & Thermodynamic Profile\n\n\
 | Metric | Value |\n\
 | :--- | :--- |\n\
-| **Base Model** | `{base_repo}` |\n\
+| **Base Model** | [`{base_repo}`](https://huggingface.co/{base_repo}) |\n\
+| **Upstream License** | `{spdx_id}` |\n\
 | **Internal `model_id`** | `{model_id}` |\n\
 | **2D Bitplane Tensors** | `{}` |\n\
-| **1D LayerNorm / Bias Vectors** | `{}` |\n\
+| **1D LayerNorm / Bias / Depthwise Vectors** | `{}` |\n\
 | **Total Parameters** | `{total_params}` |\n\
 | **FP16 Equivalent Size** | `{:.2} MB` |\n\
 | **Compressed `.jsyn` Size (zstd + CRC32)** | **`{:.2} MB` (`{comp_vs_fp16:.2}x` smaller)** |\n\
-| **Average Bits-Per-Weight (BPW)** | **`{avg_bpw:.4}` BPW** |\n\n\
-## Quickstart (`JouleDB v0.2.3+`)\n\n\
+| **Average Bits-Per-Weight (BPW)** | **`{avg_bpw:.4}` BPW** |\n\
+{notice_section}\n\
+## Quickstart (`JouleDB v0.2.4+`)\n\n\
 ```bash\n\
 cargo binstall jouledb\n\
 jouledb serve --http-addr 127.0.0.1:8080\n\
@@ -1513,6 +1549,10 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             post(handle_ingest_safetensors),
         )
         .route(
+            "/api/v1/synapse/ingest/gguf",
+            post(handle_ingest_safetensors),
+        )
+        .route(
             "/api/v1/synapse/tokenizer/load",
             post(handle_tokenizer_load),
         )
@@ -1540,6 +1580,7 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
         )
         .route("/api/v1/synapse/hf/export", post(handle_hf_export))
         .route("/api/v1/synapse/hf/pull", post(handle_hf_pull))
+        .route("/api/v1/synapse/hf/catalog", get(handle_hf_catalog))
         .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
@@ -1655,20 +1696,26 @@ async fn handle_ingest_safetensors(
 ) -> impl IntoResponse {
     let mut sibling_vocab_raw: Option<String> = req.vocab_txt.clone();
     let mut sibling_cfg_raw: Option<String> = req.config_json.clone();
-    let raw_bytes = if let Some(ref b64) = req.bytes_base64 {
+    let mut gguf_file_path: Option<std::path::PathBuf> = None;
+
+    let raw_bytes_opt = if let Some(ref b64) = req.bytes_base64 {
         match base64::engine::general_purpose::STANDARD.decode(b64) {
-            Ok(b) => b,
-            Err(e) => return bad_request(format!("invalid base64 safetensors payload: {e}")),
+            Ok(b) => Some(b),
+            Err(e) => return bad_request(format!("invalid base64 checkpoint payload: {e}")),
         }
     } else if let Some(ref path_str) = req.file_path {
         let p = std::path::Path::new(path_str);
-        if p.extension().and_then(|e| e.to_str()) != Some("safetensors") {
-            return bad_request("file_path must end with .safetensors");
+        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if ext != "safetensors" && ext != "gguf" {
+            return bad_request("file_path must end with .safetensors or .gguf");
         }
-        if let Some(parent) = p.parent() {
+        for anc in [p.parent(), p.parent().and_then(|par| par.parent())]
+            .into_iter()
+            .flatten()
+        {
             if sibling_vocab_raw.is_none() {
-                let t_json = parent.join("tokenizer.json");
-                let v_txt = parent.join("vocab.txt");
+                let t_json = anc.join("tokenizer.json");
+                let v_txt = anc.join("vocab.txt");
                 if t_json.exists() {
                     sibling_vocab_raw = std::fs::read_to_string(t_json).ok();
                 } else if v_txt.exists() {
@@ -1676,15 +1723,20 @@ async fn handle_ingest_safetensors(
                 }
             }
             if sibling_cfg_raw.is_none() {
-                let c_json = parent.join("config.json");
+                let c_json = anc.join("config.json");
                 if c_json.exists() {
                     sibling_cfg_raw = std::fs::read_to_string(c_json).ok();
                 }
             }
         }
-        match std::fs::read(p) {
-            Ok(b) => b,
-            Err(e) => return bad_request(format!("failed to read '{}': {e}", p.display())),
+        if ext == "gguf" {
+            gguf_file_path = Some(p.to_path_buf());
+            None
+        } else {
+            match std::fs::read(p) {
+                Ok(b) => Some(b),
+                Err(e) => return bad_request(format!("failed to read '{}': {e}", p.display())),
+            }
         }
     } else {
         return bad_request("must provide either bytes_base64 or file_path");
@@ -1721,14 +1773,39 @@ async fn handle_ingest_safetensors(
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
-        let rep = match ingest_safetensors_with_options(
-            &req.model_id,
-            &raw_bytes,
-            req.target_rank,
-            req.max_outliers,
-            req.distill_svf,
-            &mut guard,
-        ) {
+        let rep_res = if let Some(ref gp) = gguf_file_path {
+            ingest_gguf_file_with_options(
+                &req.model_id,
+                gp,
+                req.target_rank,
+                req.max_outliers,
+                req.distill_svf,
+                &mut guard,
+            )
+        } else if let Some(ref raw_bytes) = raw_bytes_opt {
+            if raw_bytes.len() >= 4 && &raw_bytes[0..4] == b"GGUF" {
+                ingest_gguf_bytes_with_options(
+                    &req.model_id,
+                    raw_bytes,
+                    req.target_rank,
+                    req.max_outliers,
+                    req.distill_svf,
+                    &mut guard,
+                )
+            } else {
+                ingest_safetensors_with_options(
+                    &req.model_id,
+                    raw_bytes,
+                    req.target_rank,
+                    req.max_outliers,
+                    req.distill_svf,
+                    &mut guard,
+                )
+            }
+        } else {
+            Err("no checkpoint data resolved".to_string())
+        };
+        let rep = match rep_res {
             Ok(r) => r,
             Err(e) => return bad_request(e),
         };
@@ -1799,12 +1876,10 @@ async fn handle_ingest_safetensors(
         "CREATE TABLE IF NOT EXISTS synapse_tensors (id TEXT PRIMARY KEY, model_id TEXT, tensor_name TEXT, layer_idx INT, source_dtype TEXT, rows INT, cols INT, rank INT, original_fp16_bytes INT, compressed_bytes INT, bits_per_weight FLOAT, compression_vs_fp16 FLOAT, reconstruction_cosine FLOAT, hot_score FLOAT)".to_string(),
     );
     let esc_model = sql_escape_literal(&report.model_id);
-    let _ = rt.run_sql(format!(
-        "DELETE FROM synapse_tensors WHERE model_id = '{esc_model}'"
-    ));
     let mut sql_rows_materialized = 0usize;
     for row in &report.tensors {
         let pk = sql_escape_literal(&format!("{}::{}", row.model_id, row.tensor_name));
+        let _ = rt.run_sql(format!("DELETE FROM synapse_tensors WHERE id = '{pk}'"));
         let tname = sql_escape_literal(&row.tensor_name);
         let dtype = sql_escape_literal(&row.source_dtype);
         let insert_sql = format!(
@@ -2076,6 +2151,10 @@ pub struct HfExportReq {
     pub base_model_repo: Option<String>,
     #[serde(default)]
     pub hf_repo_id: Option<String>,
+    #[serde(default)]
+    pub license: Option<String>,
+    #[serde(default)]
+    pub license_notice: Option<String>,
 }
 
 async fn handle_hf_export(
@@ -2083,11 +2162,13 @@ async fn handle_hf_export(
     Json(req): Json<HfExportReq>,
 ) -> impl IntoResponse {
     let out_p = std::path::PathBuf::from(&req.output_dir);
-    match rt.export_hf_model_bundle(
+    match rt.export_hf_model_bundle_with_license(
         &req.model_id,
         &out_p,
         req.base_model_repo.as_deref(),
         req.hf_repo_id.as_deref(),
+        req.license.as_deref(),
+        req.license_notice.as_deref(),
     ) {
         Ok(manifest) => (
             StatusCode::OK,
@@ -2107,6 +2188,8 @@ pub struct HfPullReq {
     pub repo_id: Option<String>,
     #[serde(default)]
     pub local_dir: Option<String>,
+    #[serde(default)]
+    pub filename: Option<String>,
     pub model_id: String,
     #[serde(default = "default_hf_rev")]
     pub revision: String,
@@ -2130,6 +2213,40 @@ fn default_hf_outliers() -> usize {
     64
 }
 
+fn discover_checkpoint_files_in_dir(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let direct_st = dir.join("model.safetensors");
+    if direct_st.exists() {
+        return vec![direct_st];
+    }
+    let mut st_files = Vec::new();
+    let mut gguf_files = Vec::new();
+    let mut scan_dirs = vec![dir.to_path_buf(), dir.join("checkpoints")];
+    while let Some(d) = scan_dirs.pop() {
+        let Ok(rd) = std::fs::read_dir(&d) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                match p.extension().and_then(|e| e.to_str()) {
+                    Some("safetensors") => st_files.push(p),
+                    Some("gguf") => gguf_files.push(p),
+                    _ => {}
+                }
+            }
+        }
+    }
+    st_files.sort();
+    gguf_files.sort();
+    if !st_files.is_empty() {
+        st_files
+    } else if let Some(first_gguf) = gguf_files.into_iter().next() {
+        vec![first_gguf]
+    } else {
+        Vec::new()
+    }
+}
+
 async fn handle_hf_pull(
     State(rt): State<Arc<SynapseServerRuntime>>,
     Json(req): Json<HfPullReq>,
@@ -2147,7 +2264,7 @@ async fn handle_hf_pull(
             .clone()
             .or_else(|| std::env::var("HF_TOKEN").ok());
         let client = match reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(180))
+            .timeout(std::time::Duration::from_secs(600))
             .build()
         {
             Ok(c) => c,
@@ -2177,7 +2294,9 @@ async fn handle_hf_pull(
         };
 
         // 1. Fast path: pre-factorized `.jsyn` living-weights bundle on Hugging Face Hub!
-        if let Some(jsyn_bytes) = fetch_file("model.jsyn".to_string()).await {
+        if req.filename.is_none()
+            && let Some(jsyn_bytes) = fetch_file("model.jsyn".to_string()).await
+        {
             let p = cache_dir.join("model.jsyn");
             if let Err(e) = std::fs::write(&p, &jsyn_bytes) {
                 return bad_request(format!("write cached model.jsyn: {e}")).into_response();
@@ -2188,20 +2307,75 @@ async fn handle_hf_pull(
             };
         }
 
-        // 2. Standard Hugging Face `.safetensors` repo: pull config/tokenizer + `model.safetensors`
+        // Pull sibling config & tokenizer metadata if present
         for aux in ["config.json", "tokenizer.json", "vocab.txt"] {
             if let Some(b) = fetch_file(aux.to_string()).await {
                 let _ = std::fs::write(cache_dir.join(aux), &b);
             }
         }
-        let Some(st_bytes) = fetch_file("model.safetensors".to_string()).await else {
-            return bad_request(format!(
-                "neither model.jsyn nor model.safetensors found in Hugging Face repo '{repo}'"
-            ))
-            .into_response();
-        };
-        if let Err(e) = std::fs::write(cache_dir.join("model.safetensors"), &st_bytes) {
-            return bad_request(format!("write cached model.safetensors: {e}")).into_response();
+
+        // 2. Explicit `filename` or standard `model.safetensors`, or auto-discover sub-path/sharded `.safetensors` / `.gguf`!
+        let mut target_rel_files: Vec<String> = Vec::new();
+        if let Some(ref explicit_fn) = req.filename {
+            target_rel_files.push(explicit_fn.trim_start_matches('/').to_string());
+        } else if let Some(st_bytes) = fetch_file("model.safetensors".to_string()).await {
+            if let Err(e) = std::fs::write(cache_dir.join("model.safetensors"), &st_bytes) {
+                return bad_request(format!("write cached model.safetensors: {e}")).into_response();
+            }
+        } else {
+            // Query Hugging Face Hub API for repo siblings (`checkpoints/*.safetensors`, shards, or `.gguf`)
+            let api_url = format!(
+                "https://huggingface.co/api/models/{}",
+                repo.trim_matches('/')
+            );
+            let mut rb = client.get(&api_url);
+            if let Some(t) = token.as_deref().filter(|s| !s.trim().is_empty()) {
+                rb = rb.bearer_auth(t.trim());
+            }
+            if let Ok(resp) = rb.send().await
+                && resp.status().is_success()
+                && let Ok(meta_json) = resp.json::<serde_json::Value>().await
+                && let Some(sibs) = meta_json.get("siblings").and_then(|s| s.as_array())
+            {
+                let mut st_sibs = Vec::new();
+                let mut gguf_sibs = Vec::new();
+                for s in sibs {
+                    if let Some(rf) = s.get("rfilename").and_then(|x| x.as_str()) {
+                        if rf.ends_with(".safetensors") {
+                            st_sibs.push(rf.to_string());
+                        } else if rf.ends_with(".gguf") && !rf.contains("mmproj") {
+                            gguf_sibs.push(rf.to_string());
+                        }
+                    }
+                }
+                st_sibs.sort();
+                gguf_sibs.sort();
+                if !st_sibs.is_empty() {
+                    target_rel_files = st_sibs;
+                } else if let Some(first_g) = gguf_sibs.into_iter().next() {
+                    target_rel_files.push(first_g);
+                }
+            }
+            if target_rel_files.is_empty() {
+                return bad_request(format!(
+                    "no model.jsyn, .safetensors, or .gguf checkpoint found in Hugging Face repo '{repo}'"
+                ))
+                .into_response();
+            }
+        }
+
+        for rel in &target_rel_files {
+            let Some(raw_b) = fetch_file(rel.clone()).await else {
+                return bad_request(format!("failed to download '{rel}' from '{repo}'"))
+                    .into_response();
+            };
+            let dst = cache_dir.join(rel);
+            if let Some(par) = dst.parent() {
+                let _ = std::fs::create_dir_all(par);
+            }
+            if let Err(e) = std::fs::write(&dst, &raw_b) {
+                return bad_request(format!("write cached '{rel}': {e}")).into_response();
+            }
         }
         cache_dir
     } else {
@@ -2209,35 +2383,380 @@ async fn handle_hf_pull(
     };
 
     let jsyn_candidate = resolved_dir.join("model.jsyn");
-    if jsyn_candidate.exists() {
+    if req.filename.is_none() && jsyn_candidate.exists() {
         return match rt.import_jsyn_snapshot_path(&jsyn_candidate, Some(&req.model_id)) {
             Ok(v) => (StatusCode::OK, Json(v)).into_response(),
             Err(e) => bad_request(e).into_response(),
         };
     }
 
-    let st_candidate = resolved_dir.join("model.safetensors");
-    if !st_candidate.exists() {
+    let ckpt_files = if let Some(ref explicit_fn) = req.filename {
+        let p = resolved_dir.join(explicit_fn.trim_start_matches('/'));
+        if p.exists() { vec![p] } else { Vec::new() }
+    } else {
+        discover_checkpoint_files_in_dir(&resolved_dir)
+    };
+
+    if ckpt_files.is_empty() {
         return bad_request(format!(
-            "directory '{}' contains neither model.jsyn nor model.safetensors",
+            "directory '{}' contains no model.jsyn, .safetensors, or .gguf checkpoints",
             resolved_dir.display()
         ))
         .into_response();
     }
 
-    let ingest_req = IngestSafetensorsReq {
-        model_id: req.model_id,
-        file_path: Some(st_candidate.to_string_lossy().to_string()),
-        bytes_base64: None,
-        config_json: None,
-        vocab_txt: None,
-        target_rank: req.target_rank,
-        max_outliers: req.max_outliers,
-        distill_svf: req.distill_svf,
-    };
-    handle_ingest_safetensors(State(rt), Json(ingest_req))
-        .await
-        .into_response()
+    let mut last_resp = None;
+    for ckpt in ckpt_files {
+        let ingest_req = IngestSafetensorsReq {
+            model_id: req.model_id.clone(),
+            file_path: Some(ckpt.to_string_lossy().to_string()),
+            bytes_base64: None,
+            config_json: None,
+            vocab_txt: None,
+            target_rank: req.target_rank,
+            max_outliers: req.max_outliers,
+            distill_svf: req.distill_svf,
+        };
+        last_resp = Some(
+            handle_ingest_safetensors(State(rt.clone()), Json(ingest_req))
+                .await
+                .into_response(),
+        );
+    }
+    last_resp.unwrap_or_else(|| bad_request("no checkpoint ingested").into_response())
+}
+
+/// Curated `< 30 GB` permissive open-weight frontier model entry surfaced by `GET /api/v1/synapse/hf/catalog`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CuratedOpenWeightModelEntry {
+    pub ecosystem: &'static str,
+    pub model_id: &'static str,
+    pub upstream_repo: &'static str,
+    pub openie_jsyn_repo: &'static str,
+    pub architecture: &'static str,
+    pub modality: &'static str,
+    pub license: &'static str,
+    pub upstream_size_mb: u64,
+    pub source_format: &'static str,
+}
+
+pub fn builtin_open_weight_catalog() -> Vec<CuratedOpenWeightModelEntry> {
+    vec![
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Liquid AI",
+            model_id: "lfm2.5-350m",
+            upstream_repo: "LiquidAI/LFM2.5-350M",
+            openie_jsyn_repo: "dcharlot65-openie/LFM2.5-350M-LittleBit",
+            architecture: "lfm2_shortconv_gqa_swiglu",
+            modality: "causal_text",
+            license: "lfm1.0",
+            upstream_size_mb: 676,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Liquid AI",
+            model_id: "lfm3-1.7b",
+            upstream_repo: "LiquidAI/LFM3-1.7B",
+            openie_jsyn_repo: "dcharlot65-openie/LFM3-1.7B-LittleBit",
+            architecture: "lfm3_shortconv_gqa_swiglu",
+            modality: "causal_text_reasoning",
+            license: "lfm1.0",
+            upstream_size_mb: 3340,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PrismML",
+            model_id: "bonsai-1.7b",
+            upstream_repo: "prism-ml/Bonsai-1.7B-mlx-1bit",
+            openie_jsyn_repo: "dcharlot65-openie/Bonsai-1.7B-LittleBit",
+            architecture: "qwen3_1bit_qknorm",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 237,
+            source_format: "safetensors_mlx_1bit_and_gguf_q1_0",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PrismML",
+            model_id: "bonsai-27b-1bit",
+            upstream_repo: "prism-ml/Bonsai-27B-mlx-1bit",
+            openie_jsyn_repo: "dcharlot65-openie/Bonsai-27B-LittleBit",
+            architecture: "qwen3_5_1bit_qknorm",
+            modality: "causal_text_reasoning",
+            license: "apache-2.0",
+            upstream_size_mb: 4890,
+            source_format: "safetensors_mlx_1bit",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PrismML",
+            model_id: "ternary-bonsai-2-2b",
+            upstream_repo: "prism-ml/Ternary-Bonsai-2-2B-gguf",
+            openie_jsyn_repo: "dcharlot65-openie/Ternary-Bonsai-2-2B-LittleBit",
+            architecture: "bonsai2_ternary_1_58bit",
+            modality: "multimodal_text_vision",
+            license: "apache-2.0",
+            upstream_size_mb: 409,
+            source_format: "gguf",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Cactus Compute",
+            model_id: "cactus-needle",
+            upstream_repo: "Cactus-Compute/needle",
+            openie_jsyn_repo: "dcharlot65-openie/Cactus-Needle-LittleBit",
+            architecture: "needle_qknorm_gated_tool_caller",
+            modality: "tool_calling",
+            license: "mit",
+            upstream_size_mb: 58,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Cactus Compute",
+            model_id: "cactus-needle3",
+            upstream_repo: "Cactus-Compute/needle3",
+            openie_jsyn_repo: "dcharlot65-openie/Cactus-Needle3-LittleBit",
+            architecture: "needle3_engram_tool_caller",
+            modality: "tool_calling",
+            license: "apache-2.0",
+            upstream_size_mb: 231,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Cactus Compute",
+            model_id: "cactus-whistle",
+            upstream_repo: "Cactus-Compute/whistle",
+            openie_jsyn_repo: "dcharlot65-openie/Cactus-Whistle-LittleBit",
+            architecture: "whistle_zcrmsnorm_hadamard_asr",
+            modality: "audio_speech_to_text",
+            license: "apache-2.0",
+            upstream_size_mb: 210,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Cactus Compute",
+            model_id: "cactus-mirage",
+            upstream_repo: "Cactus-Compute/mirage",
+            openie_jsyn_repo: "dcharlot65-openie/Cactus-Mirage-LittleBit",
+            architecture: "mirage_hconv_grn_vision",
+            modality: "vision_diffusion_encoder",
+            license: "apache-2.0",
+            upstream_size_mb: 206,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Poolside",
+            model_id: "poolside-laguna-xs-2.1",
+            upstream_repo: "poolside/Laguna-XS-2.1-GGUF",
+            openie_jsyn_repo: "dcharlot65-openie/Poolside-Laguna-XS-2.1-LittleBit",
+            architecture: "laguna_moe_code_agent",
+            modality: "code_and_software_engineering",
+            license: "openmdw-1.1",
+            upstream_size_mb: 19300,
+            source_format: "gguf",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Google Gemma 4",
+            model_id: "gemma-4-e2b-it",
+            upstream_repo: "google/gemma-4-E2B-it",
+            openie_jsyn_repo: "dcharlot65-openie/Gemma-4-E2B-it-LittleBit",
+            architecture: "gemma4_geglu_qknorm_multimodal",
+            modality: "multimodal_text_vision_audio",
+            license: "apache-2.0",
+            upstream_size_mb: 9770,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Google Gemma 4",
+            model_id: "gemma-4-e4b-it",
+            upstream_repo: "google/gemma-4-E4B-it",
+            openie_jsyn_repo: "dcharlot65-openie/Gemma-4-E4B-it-LittleBit",
+            architecture: "gemma4_geglu_qknorm_multimodal",
+            modality: "multimodal_text_vision_audio",
+            license: "apache-2.0",
+            upstream_size_mb: 15250,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Qwen3",
+            model_id: "qwen3-0.6b",
+            upstream_repo: "Qwen/Qwen3-0.6B",
+            openie_jsyn_repo: "dcharlot65-openie/Qwen3-0.6B-LittleBit",
+            architecture: "qwen3_gqa_qknorm_swiglu",
+            modality: "causal_text_reasoning",
+            license: "apache-2.0",
+            upstream_size_mb: 1430,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Qwen3",
+            model_id: "qwen3-embedding-0.6b",
+            upstream_repo: "Qwen/Qwen3-Embedding-0.6B",
+            openie_jsyn_repo: "dcharlot65-openie/Qwen3-Embedding-0.6B-LittleBit",
+            architecture: "qwen3_embedding_qknorm",
+            modality: "text_embedding",
+            license: "apache-2.0",
+            upstream_size_mb: 1130,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Microsoft BitNet",
+            model_id: "bitnet-b1.58-2b-4t",
+            upstream_repo: "microsoft/bitnet-b1.58-2B-4T-bf16",
+            openie_jsyn_repo: "dcharlot65-openie/BitNet-b1.58-2B-4T-LittleBit",
+            architecture: "bitnet_subln_relu2_ternary",
+            modality: "causal_text",
+            license: "mit",
+            upstream_size_mb: 4600,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "HuggingFace SmolLM",
+            model_id: "smollm2-135m-instruct",
+            upstream_repo: "HuggingFaceTB/SmolLM2-135M-Instruct",
+            openie_jsyn_repo: "dcharlot65-openie/SmolLM2-135M-Instruct-LittleBit",
+            architecture: "llama_gqa_rope_swiglu",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 257,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "HuggingFace SmolLM",
+            model_id: "smollm2-360m-instruct",
+            upstream_repo: "HuggingFaceTB/SmolLM2-360M-Instruct",
+            openie_jsyn_repo: "dcharlot65-openie/SmolLM2-360M-Instruct-LittleBit",
+            architecture: "llama_gqa_rope_swiglu",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 690,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "HuggingFace SmolVLM",
+            model_id: "smolvlm-256m-instruct",
+            upstream_repo: "HuggingFaceTB/SmolVLM-256M-Instruct",
+            openie_jsyn_repo: "dcharlot65-openie/SmolVLM-256M-Instruct-LittleBit",
+            architecture: "idefics3_siglip_llama",
+            modality: "vision_language",
+            license: "apache-2.0",
+            upstream_size_mb: 489,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "IBM Granite",
+            model_id: "granite-embedding-small-r2",
+            upstream_repo: "ibm-granite/granite-embedding-small-english-r2",
+            openie_jsyn_repo: "dcharlot65-openie/Granite-Embedding-Small-R2-LittleBit",
+            architecture: "modernbert_wqkv_rope_geglu",
+            modality: "text_embedding",
+            license: "apache-2.0",
+            upstream_size_mb: 91,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "IBM Granite",
+            model_id: "granite-docling-258m",
+            upstream_repo: "ibm-granite/granite-docling-258M",
+            openie_jsyn_repo: "dcharlot65-openie/Granite-Docling-258M-LittleBit",
+            architecture: "idefics3_docling_vlm",
+            modality: "document_vision_language",
+            license: "apache-2.0",
+            upstream_size_mb: 491,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Snowflake Arctic",
+            model_id: "arctic-embed-s",
+            upstream_repo: "Snowflake/snowflake-arctic-embed-s",
+            openie_jsyn_repo: "dcharlot65-openie/Arctic-Embed-S-LittleBit",
+            architecture: "bert_bidirectional_encoder",
+            modality: "text_embedding",
+            license: "apache-2.0",
+            upstream_size_mb: 133,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "OpenAI Whisper",
+            model_id: "whisper-tiny.en",
+            upstream_repo: "openai/whisper-tiny.en",
+            openie_jsyn_repo: "dcharlot65-openie/whisper-tiny.en-LittleBit",
+            architecture: "whisper_logmel_conv_seq2seq",
+            modality: "audio_speech_to_text",
+            license: "mit",
+            upstream_size_mb: 144,
+            source_format: "safetensors",
+        },
+    ]
+}
+
+fn resolve_model_license_metadata(
+    base_repo: &str,
+    explicit_license: Option<&str>,
+    explicit_notice: Option<&str>,
+) -> (String, String, String) {
+    let lower_repo = base_repo.to_ascii_lowercase();
+    let inferred = explicit_license
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_else(|| {
+            if lower_repo.starts_with("liquidai/") || lower_repo.contains("lfm") {
+                "lfm1.0".to_string()
+            } else if lower_repo.starts_with("poolside/") || lower_repo.contains("laguna") {
+                "openmdw-1.1".to_string()
+            } else if lower_repo == "cactus-compute/needle"
+                || lower_repo.starts_with("microsoft/bitnet")
+                || lower_repo.starts_with("openai/whisper")
+            {
+                "mit".to_string()
+            } else {
+                "apache-2.0".to_string()
+            }
+        });
+
+    if inferred == "lfm1.0" || inferred == "lfm-1.0" {
+        let yaml =
+            "license: other\nlicense_name: lfm1.0\nlicense_link: https://www.liquid.ai/lfm-license"
+                .to_string();
+        let notice = explicit_notice
+            .map(String::from)
+            .unwrap_or_else(|| format!(
+                "Adapted from `{base_repo}` by Liquid AI under the [**LFM Open License v1.0**](https://www.liquid.ai/lfm-license). \
+Free for academic, research, and commercial deployment by entities under $10M USD annual revenue; above that threshold, \
+contact Liquid AI for commercial licensing. Built with Liquid AI LFM."
+            ));
+        (yaml, "lfm1.0".to_string(), notice)
+    } else if inferred == "openmdw-1.1" {
+        let yaml = "license: other\nlicense_name: openmdw-1.1\nlicense_link: https://openmdw.ai/"
+            .to_string();
+        let notice = explicit_notice
+            .map(String::from)
+            .unwrap_or_else(|| format!("Adapted from `{base_repo}` under the permissive **OpenMDW-1.1** Open Model Weights License."));
+        (yaml, "openmdw-1.1".to_string(), notice)
+    } else if inferred == "mit" {
+        let notice = explicit_notice
+            .map(String::from)
+            .unwrap_or_else(|| format!("Adapted from `{base_repo}` under the **MIT License**."));
+        ("license: mit".to_string(), "mit".to_string(), notice)
+    } else {
+        let notice = explicit_notice.map(String::from).unwrap_or_else(|| {
+            format!("Adapted from `{base_repo}` under the **Apache License 2.0**.")
+        });
+        (
+            "license: apache-2.0".to_string(),
+            "apache-2.0".to_string(),
+            notice,
+        )
+    }
+}
+
+async fn handle_hf_catalog() -> impl IntoResponse {
+    let entries = builtin_open_weight_catalog();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "max_checkpoint_budget_gb": 30,
+            "total_models": entries.len(),
+            "models": entries,
+        })),
+    )
 }
 
 async fn handle_littlebit_factorize(

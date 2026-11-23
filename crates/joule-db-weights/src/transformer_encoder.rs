@@ -47,7 +47,10 @@ impl WordPieceTokenizer {
 
     /// Parse standard HuggingFace `vocab.txt` content (`1` token per line).
     pub fn from_vocab_txt(raw: &str) -> Self {
-        let list: Vec<String> = raw.lines().map(|l| l.trim_end_matches('\r').to_string()).collect();
+        let list: Vec<String> = raw
+            .lines()
+            .map(|l| l.trim_end_matches('\r').to_string())
+            .collect();
         Self::from_vocab_list(&list)
     }
 
@@ -277,21 +280,44 @@ fn infer_num_heads(hidden_dim: usize) -> usize {
     }
 }
 
-/// Discover whether `harness` holds a complete BERT/MiniLM-family Transformer encoder under `model_id`
-/// (with or without `"bert."` prefix) and return `(prefix, num_layers)`.
+/// Discover whether `harness` holds a complete `BERT` / `MiniLM` / `RoBERTa` / `Snowflake Arctic` /
+/// `IBM Granite ModernBERT` / `Qwen3-Embedding` Transformer encoder under `model_id` and return `(prefix, num_layers)`.
 pub fn detect_transformer_encoder(
     harness: &JouleHarnessEngine,
     model_id: &str,
 ) -> Option<(String, usize)> {
-    for pfx in [format!("{model_id}::"), format!("{model_id}::bert.")] {
+    // 1. BERT / MiniLM / RoBERTa / Snowflake Arctic
+    for pfx in [
+        format!("{model_id}::"),
+        format!("{model_id}::bert."),
+        format!("{model_id}::roberta."),
+    ] {
         let word_key = format!("{pfx}embeddings.word_embeddings.weight");
         if !harness.littlebit_tensors.contains_key(&word_key) {
             continue;
         }
         let mut layers = 0usize;
+        while harness.littlebit_tensors.contains_key(&format!(
+            "{pfx}encoder.layer.{layers}.attention.self.query.weight"
+        )) {
+            layers += 1;
+        }
+        if layers > 0 {
+            return Some((pfx, layers));
+        }
+    }
+    // 2. IBM Granite `ModernBERT` (`embeddings.tok_embeddings.weight` + `layers.{l}.attn.Wqkv.weight`)
+    for pfx in [format!("{model_id}::"), format!("{model_id}::model.")] {
+        if !harness
+            .littlebit_tensors
+            .contains_key(&format!("{pfx}embeddings.tok_embeddings.weight"))
+        {
+            continue;
+        }
+        let mut layers = 0usize;
         while harness
             .littlebit_tensors
-            .contains_key(&format!("{pfx}encoder.layer.{layers}.attention.self.query.weight"))
+            .contains_key(&format!("{pfx}layers.{layers}.attn.Wqkv.weight"))
         {
             layers += 1;
         }
@@ -299,11 +325,46 @@ pub fn detect_transformer_encoder(
             return Some((pfx, layers));
         }
     }
+    // 3. Decoder-backbone Embedding models without `lm_head` (e.g. `Qwen/Qwen3-Embedding-0.6B`)
+    if !harness
+        .littlebit_tensors
+        .contains_key(&format!("{model_id}::lm_head.weight"))
+        && let Some((pfx, layers)) = crate::causal_decoder::detect_causal_decoder(harness, model_id)
+    {
+        return Some((pfx, layers));
+    }
     None
 }
 
-/// Execute a full $L$-layer bidirectional Transformer encoder pass (`WordPiece` -> embeddings ->
-/// Multi-Head Self-Attention + `GELU` FFN + `LayerNorm` -> Mean-Pooling + L2 normalization)
+fn rope_rotate_in_place(
+    vec: &mut [f32],
+    num_heads: usize,
+    head_dim: usize,
+    pos: usize,
+    theta: f32,
+) {
+    let half = head_dim / 2;
+    if half == 0 {
+        return;
+    }
+    for h in 0..num_heads {
+        let base = h * head_dim;
+        if base + head_dim > vec.len() {
+            break;
+        }
+        let sl = &mut vec[base..base + head_dim];
+        for i in 0..half {
+            let angle = (pos as f32) * theta.powf(-((2 * i) as f32) / (head_dim as f32));
+            let (s, c) = angle.sin_cos();
+            let (x0, x1) = (sl[i], sl[i + half]);
+            sl[i] = x0 * c - x1 * s;
+            sl[i + half] = x1 * c + x0 * s;
+        }
+    }
+}
+
+/// Execute a full $L$-layer bidirectional Transformer encoder pass (`WordPiece`/`BPE` -> embeddings ->
+/// Multi-Head Self-Attention + `GELU`/`GeGLU`/`SwiGLU` FFN + `LayerNorm`/`RMSNorm` -> Pooling + L2 normalization)
 /// directly over sub-1-bit `LittleBitSVFTensor` bitplanes!
 ///
 /// Callers may optionally supply `custom_linear_fn` (e.g. hardware `wgpu` Metal/Vulkan `POPCNT`
@@ -321,8 +382,415 @@ where
 {
     let t0 = Instant::now();
     let (pfx, num_layers) = detect_transformer_encoder(harness, model_id).ok_or_else(|| {
-        format!("model '{model_id}' does not contain BERT/MiniLM encoder layers")
+        format!("model '{model_id}' does not contain BERT/MiniLM/ModernBERT/Embedding layers")
     })?;
+
+    // Fast dispatch for IBM Granite `ModernBERT` (`embeddings.tok_embeddings.weight` + `attn.Wqkv`)
+    if let Some(tok_emb) = harness
+        .littlebit_tensors
+        .get(&format!("{pfx}embeddings.tok_embeddings.weight"))
+    {
+        let hidden_dim = tok_emb.cols;
+        let num_heads = harness
+            .model_configs
+            .get(model_id)
+            .and_then(|c| c.num_attention_heads)
+            .unwrap_or_else(|| infer_num_heads(hidden_dim));
+        let head_dim = (hidden_dim / num_heads.max(1)).max(1);
+        let token_ids = if let Some(v_vec) = harness.model_vocabs.get(model_id)
+            && !v_vec.is_empty()
+        {
+            if let Some(merges) = harness.model_bpe_merges.get(model_id)
+                && !merges.is_empty()
+            {
+                crate::causal_decoder::BpeTokenizer::from_vocab_and_merges(v_vec, merges)
+                    .encode(text, max_seq_len.clamp(4, 512))
+            } else {
+                WordPieceTokenizer::from_vocab_list(v_vec).encode(text, max_seq_len)
+            }
+        } else {
+            WordPieceTokenizer::fallback_for_vocab_size(tok_emb.rows).encode(text, max_seq_len)
+        };
+        let seq_len = token_ids.len().max(1);
+        let emb_ln_w = harness
+            .vectors_1d
+            .get(&format!("{pfx}embeddings.norm.weight"))
+            .map(Vec::as_slice);
+        let mut hidden_states = Vec::with_capacity(seq_len);
+        for &tid in &token_ids {
+            let mut h = reconstruct_embedding_row(tok_emb, tid.min(tok_emb.rows - 1));
+            if emb_ln_w.is_some() {
+                layer_norm_in_place(&mut h, emb_ln_w, None, 1e-5);
+            }
+            hidden_states.push(h);
+        }
+        let mut bpw_sum = tok_emb.bits_per_weight();
+        let mut bpw_cnt = 1usize;
+        let mut linear_ops = 0usize;
+        let inv_sqrt_dh = 1.0 / (head_dim as f32).sqrt();
+        for l in 0..num_layers {
+            let lp = format!("{pfx}layers.{l}");
+            let attn_ln_w = harness
+                .vectors_1d
+                .get(&format!("{lp}.attn_norm.weight"))
+                .map(Vec::as_slice);
+            let wqkv_key = format!("{lp}.attn.Wqkv.weight");
+            let wqkv = harness
+                .littlebit_tensors
+                .get(&wqkv_key)
+                .ok_or_else(|| format!("missing '{wqkv_key}'"))?;
+            bpw_sum += wqkv.bits_per_weight();
+            bpw_cnt += 1;
+            let mut q_seq = Vec::with_capacity(seq_len);
+            let mut k_seq = Vec::with_capacity(seq_len);
+            let mut v_seq = Vec::with_capacity(seq_len);
+            for (pos, h) in hidden_states.iter().enumerate() {
+                let mut hn = h.clone();
+                if attn_ln_w.is_some() {
+                    layer_norm_in_place(&mut hn, attn_ln_w, None, 1e-5);
+                }
+                linear_ops += 1;
+                let qkv = custom_linear_fn(&wqkv_key, wqkv, &hn)
+                    .map(Ok)
+                    .unwrap_or_else(|| wqkv.forward_vec(&hn, &[]))?;
+                let mut q = qkv[0..hidden_dim].to_vec();
+                let mut k = qkv[hidden_dim..2 * hidden_dim].to_vec();
+                let v = qkv[2 * hidden_dim..3 * hidden_dim].to_vec();
+                rope_rotate_in_place(&mut q, num_heads, head_dim, pos, 10_000.0);
+                rope_rotate_in_place(&mut k, num_heads, head_dim, pos, 10_000.0);
+                q_seq.push(q);
+                k_seq.push(k);
+                v_seq.push(v);
+            }
+            let mut attn_cat = vec![vec![0.0f32; hidden_dim]; seq_len];
+            for head in 0..num_heads {
+                let off = head * head_dim;
+                let end = (off + head_dim).min(hidden_dim);
+                for t in 0..seq_len {
+                    let qt = &q_seq[t][off..end];
+                    let mut scores = Vec::with_capacity(seq_len);
+                    let mut mx = f32::NEG_INFINITY;
+                    for ks in &k_seq {
+                        let dot: f32 = qt.iter().zip(ks[off..end].iter()).map(|(a, b)| a * b).sum();
+                        let sc = dot * inv_sqrt_dh;
+                        if sc > mx {
+                            mx = sc;
+                        }
+                        scores.push(sc);
+                    }
+                    let mut den = 0.0f32;
+                    for sc in &mut scores {
+                        *sc = (*sc - mx).exp();
+                        den += *sc;
+                    }
+                    let inv_d = 1.0 / den.max(1e-12);
+                    let dst = &mut attn_cat[t][off..end];
+                    for (s, &w) in scores.iter().enumerate() {
+                        let p = w * inv_d;
+                        for (d, &vv) in dst.iter_mut().zip(v_seq[s][off..end].iter()) {
+                            *d += p * vv;
+                        }
+                    }
+                }
+            }
+            let wo_key = format!("{lp}.attn.Wo.weight");
+            let wo = harness
+                .littlebit_tensors
+                .get(&wo_key)
+                .ok_or_else(|| format!("missing '{wo_key}'"))?;
+            let wi_key = format!("{lp}.mlp.Wi.weight");
+            let wi = harness
+                .littlebit_tensors
+                .get(&wi_key)
+                .ok_or_else(|| format!("missing '{wi_key}'"))?;
+            let mwo_key = format!("{lp}.mlp.Wo.weight");
+            let mwo = harness
+                .littlebit_tensors
+                .get(&mwo_key)
+                .ok_or_else(|| format!("missing '{mwo_key}'"))?;
+            bpw_sum += wo.bits_per_weight() + wi.bits_per_weight() + mwo.bits_per_weight();
+            bpw_cnt += 3;
+            let mlp_ln_w = harness
+                .vectors_1d
+                .get(&format!("{lp}.mlp_norm.weight"))
+                .map(Vec::as_slice);
+            for t in 0..seq_len {
+                linear_ops += 3;
+                let ao = custom_linear_fn(&wo_key, wo, &attn_cat[t])
+                    .map(Ok)
+                    .unwrap_or_else(|| wo.forward_vec(&attn_cat[t], &[]))?;
+                for (hi, &ai) in hidden_states[t].iter_mut().zip(ao.iter()) {
+                    *hi += ai;
+                }
+                let mut hm = hidden_states[t].clone();
+                if mlp_ln_w.is_some() {
+                    layer_norm_in_place(&mut hm, mlp_ln_w, None, 1e-5);
+                }
+                let gu = custom_linear_fn(&wi_key, wi, &hm)
+                    .map(Ok)
+                    .unwrap_or_else(|| wi.forward_vec(&hm, &[]))?;
+                let inter = gu.len() / 2;
+                let geglu: Vec<f32> = (0..inter).map(|i| gelu(gu[i]) * gu[inter + i]).collect();
+                let mo = custom_linear_fn(&mwo_key, mwo, &geglu)
+                    .map(Ok)
+                    .unwrap_or_else(|| mwo.forward_vec(&geglu, &[]))?;
+                for (hi, &mi) in hidden_states[t].iter_mut().zip(mo.iter()) {
+                    *hi += mi;
+                }
+            }
+        }
+        let final_ln_w = harness
+            .vectors_1d
+            .get(&format!("{pfx}final_norm.weight"))
+            .map(Vec::as_slice);
+        let mut pooled = vec![0.0f32; hidden_dim];
+        let inv_s = 1.0 / (seq_len as f32);
+        for h in &mut hidden_states {
+            if final_ln_w.is_some() {
+                layer_norm_in_place(h, final_ln_w, None, 1e-5);
+            }
+            for (pi, &hi) in pooled.iter_mut().zip(h.iter()) {
+                *pi += hi * inv_s;
+            }
+        }
+        let norm = pooled.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+        for pi in &mut pooled {
+            *pi /= norm;
+        }
+        return Ok(TransformerEncoderReceipt {
+            model_id: model_id.to_string(),
+            num_layers,
+            num_heads,
+            hidden_dim,
+            token_ids,
+            embedding: pooled,
+            avg_bits_per_weight: bpw_sum / (bpw_cnt.max(1) as f64),
+            elapsed_ns: (t0.elapsed().as_nanos() as u64).max(1),
+            linear_projections_executed: linear_ops,
+        });
+    }
+
+    // Fast dispatch for Decoder-backbone Embedding models (e.g. `Qwen/Qwen3-Embedding-0.6B`)
+    if !harness
+        .littlebit_tensors
+        .contains_key(&format!("{pfx}embeddings.word_embeddings.weight"))
+        && let Some(dec_emb) = harness
+            .littlebit_tensors
+            .get(&format!("{pfx}embed_tokens.weight"))
+    {
+        let hidden_dim = dec_emb.cols;
+        let cfg = harness.model_configs.get(model_id);
+        let q0 = harness
+            .littlebit_tensors
+            .get(&format!("{pfx}layers.0.self_attn.q_proj.weight"));
+        let k0 = harness
+            .littlebit_tensors
+            .get(&format!("{pfx}layers.0.self_attn.k_proj.weight"));
+        let q_rows = q0.map(|t| t.rows).unwrap_or(hidden_dim);
+        let kv_rows = k0.map(|t| t.rows).unwrap_or(hidden_dim);
+        let head_dim = cfg.and_then(|c| c.head_dim).unwrap_or(
+            if kv_rows >= 128 && kv_rows.is_multiple_of(128) && q_rows.is_multiple_of(128) {
+                128
+            } else {
+                64.min(kv_rows.max(1))
+            },
+        );
+        let num_heads = (q_rows / head_dim.max(1)).max(1);
+        let num_kv = (kv_rows / head_dim.max(1)).max(1);
+        let group = (num_heads / num_kv.max(1)).max(1);
+        let rope_theta = cfg.map(|c| c.rope_theta).unwrap_or(1_000_000.0);
+        let eps = cfg.map(|c| c.rms_norm_eps).unwrap_or(1e-6);
+
+        let token_ids = if let Some(v_vec) = harness.model_vocabs.get(model_id)
+            && !v_vec.is_empty()
+        {
+            let merges = harness
+                .model_bpe_merges
+                .get(model_id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            crate::causal_decoder::BpeTokenizer::from_vocab_and_merges(v_vec, merges)
+                .encode(text, max_seq_len.clamp(4, 512))
+        } else {
+            crate::causal_decoder::BpeTokenizer::fallback_for_vocab_size(dec_emb.rows)
+                .encode(text, max_seq_len.clamp(4, 512))
+        };
+        let seq_len = token_ids.len().max(1);
+        let mut hs: Vec<Vec<f32>> = token_ids
+            .iter()
+            .map(|&tid| reconstruct_embedding_row(dec_emb, tid.min(dec_emb.rows - 1)))
+            .collect();
+        let mut bpw_sum = dec_emb.bits_per_weight();
+        let mut bpw_cnt = 1usize;
+        let mut linear_ops = 0usize;
+        let rms = |x: &[f32], w: Option<&[f32]>| -> Vec<f32> {
+            let ms = x.iter().map(|&v| v * v).sum::<f32>() / (x.len().max(1) as f32);
+            let inv = 1.0 / (ms + eps).sqrt();
+            x.iter()
+                .enumerate()
+                .map(|(i, &v)| v * inv * w.and_then(|wv| wv.get(i)).copied().unwrap_or(1.0))
+                .collect()
+        };
+        let inv_sqrt = 1.0 / (head_dim as f32).sqrt();
+        for l in 0..num_layers {
+            let lp = format!("{pfx}layers.{l}");
+            let in_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.input_layernorm.weight"))
+                .map(Vec::as_slice);
+            let q_t = harness
+                .littlebit_tensors
+                .get(&format!("{lp}.self_attn.q_proj.weight"))
+                .ok_or_else(|| format!("missing {lp} q_proj"))?;
+            let k_t = harness
+                .littlebit_tensors
+                .get(&format!("{lp}.self_attn.k_proj.weight"))
+                .ok_or_else(|| format!("missing {lp} k_proj"))?;
+            let v_t = harness
+                .littlebit_tensors
+                .get(&format!("{lp}.self_attn.v_proj.weight"))
+                .ok_or_else(|| format!("missing {lp} v_proj"))?;
+            let o_t = harness
+                .littlebit_tensors
+                .get(&format!("{lp}.self_attn.o_proj.weight"))
+                .ok_or_else(|| format!("missing {lp} o_proj"))?;
+            let qn_w = harness
+                .vectors_1d
+                .get(&format!("{lp}.self_attn.q_norm.weight"))
+                .map(Vec::as_slice);
+            let kn_w = harness
+                .vectors_1d
+                .get(&format!("{lp}.self_attn.k_norm.weight"))
+                .map(Vec::as_slice);
+            bpw_sum += q_t.bits_per_weight()
+                + k_t.bits_per_weight()
+                + v_t.bits_per_weight()
+                + o_t.bits_per_weight();
+            bpw_cnt += 4;
+
+            let mut qs = Vec::with_capacity(seq_len);
+            let mut ks = Vec::with_capacity(seq_len);
+            let mut vs = Vec::with_capacity(seq_len);
+            for (pos, h) in hs.iter().enumerate() {
+                let hn = rms(h, in_ln);
+                linear_ops += 3;
+                let mut q = q_t.forward_vec(&hn, &[])?;
+                let mut k = k_t.forward_vec(&hn, &[])?;
+                let v = v_t.forward_vec(&hn, &[])?;
+                if let Some(qnw) = qn_w
+                    && qnw.len() == head_dim
+                {
+                    for hd_i in 0..num_heads {
+                        let sl = &mut q[hd_i * head_dim..(hd_i + 1) * head_dim];
+                        sl.copy_from_slice(&rms(sl, Some(qnw)));
+                    }
+                }
+                if let Some(knw) = kn_w
+                    && knw.len() == head_dim
+                {
+                    for hd_i in 0..num_kv {
+                        let sl = &mut k[hd_i * head_dim..(hd_i + 1) * head_dim];
+                        sl.copy_from_slice(&rms(sl, Some(knw)));
+                    }
+                }
+                rope_rotate_in_place(&mut q, num_heads, head_dim, pos, rope_theta);
+                rope_rotate_in_place(&mut k, num_kv, head_dim, pos, rope_theta);
+                qs.push(q);
+                ks.push(k);
+                vs.push(v);
+            }
+            for t in 0..seq_len {
+                let mut a_out = vec![0.0f32; q_rows];
+                for qh in 0..num_heads {
+                    let kvh = (qh / group).min(num_kv - 1);
+                    let q_sl = &qs[t][qh * head_dim..(qh + 1) * head_dim];
+                    let kv_off = kvh * head_dim;
+                    let mut scs = Vec::with_capacity(t + 1);
+                    let mut mx = f32::NEG_INFINITY;
+                    for s in 0..=t {
+                        let dot: f32 = q_sl
+                            .iter()
+                            .zip(ks[s][kv_off..kv_off + head_dim].iter())
+                            .map(|(a, b)| a * b)
+                            .sum();
+                        let sc = dot * inv_sqrt;
+                        if sc > mx {
+                            mx = sc;
+                        }
+                        scs.push(sc);
+                    }
+                    let mut den = 0.0f32;
+                    for sc in &mut scs {
+                        *sc = (*sc - mx).exp();
+                        den += *sc;
+                    }
+                    let inv_d = 1.0 / den.max(1e-12);
+                    let dst = &mut a_out[qh * head_dim..(qh + 1) * head_dim];
+                    for (s, &w) in scs.iter().enumerate() {
+                        let p = w * inv_d;
+                        for (d, &vv) in dst.iter_mut().zip(vs[s][kv_off..kv_off + head_dim].iter())
+                        {
+                            *d += p * vv;
+                        }
+                    }
+                }
+                linear_ops += 4;
+                let o = o_t.forward_vec(&a_out, &[])?;
+                for (hi, &oi) in hs[t].iter_mut().zip(o.iter()) {
+                    *hi += oi;
+                }
+                let post_ln = harness
+                    .vectors_1d
+                    .get(&format!("{lp}.post_attention_layernorm.weight"))
+                    .map(Vec::as_slice);
+                let hff = rms(&hs[t], post_ln);
+                let g_t = harness
+                    .littlebit_tensors
+                    .get(&format!("{lp}.mlp.gate_proj.weight"))
+                    .ok_or_else(|| format!("missing {lp} gate_proj"))?;
+                let u_t = harness
+                    .littlebit_tensors
+                    .get(&format!("{lp}.mlp.up_proj.weight"))
+                    .ok_or_else(|| format!("missing {lp} up_proj"))?;
+                let d_t = harness
+                    .littlebit_tensors
+                    .get(&format!("{lp}.mlp.down_proj.weight"))
+                    .ok_or_else(|| format!("missing {lp} down_proj"))?;
+                let g = g_t.forward_vec(&hff, &[])?;
+                let u = u_t.forward_vec(&hff, &[])?;
+                let sw: Vec<f32> = g
+                    .iter()
+                    .zip(u.iter())
+                    .map(|(&gi, &ui)| (gi / (1.0 + (-gi).exp())) * ui)
+                    .collect();
+                let dn = d_t.forward_vec(&sw, &[])?;
+                for (hi, &di) in hs[t].iter_mut().zip(dn.iter()) {
+                    *hi += di;
+                }
+            }
+        }
+        let final_ln = harness
+            .vectors_1d
+            .get(&format!("{pfx}norm.weight"))
+            .map(Vec::as_slice);
+        // `Qwen3-Embedding` uses EOS / last-token pooling -> unit L2 norm!
+        let mut pooled = rms(&hs[seq_len - 1], final_ln);
+        let norm = pooled.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+        for pi in &mut pooled {
+            *pi /= norm;
+        }
+        return Ok(TransformerEncoderReceipt {
+            model_id: model_id.to_string(),
+            num_layers,
+            num_heads,
+            hidden_dim,
+            token_ids,
+            embedding: pooled,
+            avg_bits_per_weight: bpw_sum / (bpw_cnt.max(1) as f64),
+            elapsed_ns: (t0.elapsed().as_nanos() as u64).max(1),
+            linear_projections_executed: linear_ops,
+        });
+    }
 
     let word_emb = harness
         .littlebit_tensors
@@ -581,17 +1049,42 @@ mod tests {
         for l in 0..2 {
             let p = format!("encoder.layer.{l}");
             entries.extend([
-                mk_2d(&format!("{p}.attention.self.query.weight"), d, d, 0.3 + l as f32),
+                mk_2d(
+                    &format!("{p}.attention.self.query.weight"),
+                    d,
+                    d,
+                    0.3 + l as f32,
+                ),
                 mk_1d(&format!("{p}.attention.self.query.bias"), d, 0.0),
-                mk_2d(&format!("{p}.attention.self.key.weight"), d, d, 0.4 + l as f32),
+                mk_2d(
+                    &format!("{p}.attention.self.key.weight"),
+                    d,
+                    d,
+                    0.4 + l as f32,
+                ),
                 mk_1d(&format!("{p}.attention.self.key.bias"), d, 0.0),
-                mk_2d(&format!("{p}.attention.self.value.weight"), d, d, 0.5 + l as f32),
+                mk_2d(
+                    &format!("{p}.attention.self.value.weight"),
+                    d,
+                    d,
+                    0.5 + l as f32,
+                ),
                 mk_1d(&format!("{p}.attention.self.value.bias"), d, 0.0),
-                mk_2d(&format!("{p}.attention.output.dense.weight"), d, d, 0.6 + l as f32),
+                mk_2d(
+                    &format!("{p}.attention.output.dense.weight"),
+                    d,
+                    d,
+                    0.6 + l as f32,
+                ),
                 mk_1d(&format!("{p}.attention.output.dense.bias"), d, 0.0),
                 mk_1d(&format!("{p}.attention.output.LayerNorm.weight"), d, 1.0),
                 mk_1d(&format!("{p}.attention.output.LayerNorm.bias"), d, 0.0),
-                mk_2d(&format!("{p}.intermediate.dense.weight"), ffn, d, 0.7 + l as f32),
+                mk_2d(
+                    &format!("{p}.intermediate.dense.weight"),
+                    ffn,
+                    d,
+                    0.7 + l as f32,
+                ),
                 mk_1d(&format!("{p}.intermediate.dense.bias"), ffn, 0.0),
                 mk_2d(&format!("{p}.output.dense.weight"), d, ffn, 0.8 + l as f32),
                 mk_1d(&format!("{p}.output.dense.bias"), d, 0.0),
@@ -603,10 +1096,9 @@ mod tests {
         let raw = build_safetensors_bytes(&BTreeMap::new(), &entries).unwrap();
         let mut harness = JouleHarnessEngine::new(16, 16, 16 * 1024 * 1024).unwrap();
         ingest_safetensors_into_harness("mini-enc", &raw, 8, 4, &mut harness).unwrap();
-        harness.model_vocabs.insert(
-            "mini-enc".into(),
-            vocab.lines().map(String::from).collect(),
-        );
+        harness
+            .model_vocabs
+            .insert("mini-enc".into(), vocab.lines().map(String::from).collect());
 
         let rec_a = encode_text_with_littlebit_transformer(
             &harness,

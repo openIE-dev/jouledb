@@ -10,16 +10,20 @@
 //!   conditional lookup, and every tensor emits a relational [`IngestedTensorSummary`] row for
 //!   live SQL querying (`SELECT * FROM synapse_tensors`).
 
-use crate::synapse::{JouleHarnessEngine, LittleBitSVFTensor, WeightShardMeta};
+use crate::synapse::{CausalModelMeta, JouleHarnessEngine, LittleBitSVFTensor, WeightShardMeta};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// Safety bound on `.safetensors` JSON header size (16 MiB) against hostile OOM headers.
-const MAX_SAFETENSORS_HEADER_BYTES: usize = 16 * 1024 * 1024;
-/// Safety bound on single tensor element count during in-memory factorization (64M floats).
+/// Safety bound on `.safetensors` JSON header size (32 MiB) against hostile OOM headers.
+const MAX_SAFETENSORS_HEADER_BYTES: usize = 32 * 1024 * 1024;
+/// Safety bound on single tensor element count during in-memory factorization (`1 Gi` on 64-bit for
+/// 262k-vocab `< 30 GB` frontier checkpoints such as `Gemma 4`, `Qwen3`, and `PrismML Bonsai`).
+#[cfg(target_pointer_width = "64")]
+const MAX_TENSOR_ELEMENTS: usize = 1024 * 1024 * 1024;
+#[cfg(not(target_pointer_width = "64"))]
 const MAX_TENSOR_ELEMENTS: usize = 64 * 1024 * 1024;
 
-/// Supported `.safetensors` element types for ingestion and serialization.
+/// Supported `.safetensors` element types for ingestion and serialization (including MLX packed `U32`/`U16`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SafetensorDtype {
     F64,
@@ -28,7 +32,9 @@ pub enum SafetensorDtype {
     BF16,
     I64,
     I32,
+    U32,
     I16,
+    U16,
     I8,
     U8,
     Bool,
@@ -43,7 +49,9 @@ impl SafetensorDtype {
             Self::BF16 => "BF16",
             Self::I64 => "I64",
             Self::I32 => "I32",
+            Self::U32 => "U32",
             Self::I16 => "I16",
+            Self::U16 => "U16",
             Self::I8 => "I8",
             Self::U8 => "U8",
             Self::Bool => "BOOL",
@@ -53,8 +61,8 @@ impl SafetensorDtype {
     pub fn bytes_per_elem(self) -> usize {
         match self {
             Self::F64 | Self::I64 => 8,
-            Self::F32 | Self::I32 => 4,
-            Self::F16 | Self::BF16 | Self::I16 => 2,
+            Self::F32 | Self::I32 | Self::U32 => 4,
+            Self::F16 | Self::BF16 | Self::I16 | Self::U16 => 2,
             Self::I8 | Self::U8 | Self::Bool => 1,
         }
     }
@@ -71,7 +79,9 @@ impl SafetensorDtype {
             "BF16" => Ok(Self::BF16),
             "I64" => Ok(Self::I64),
             "I32" => Ok(Self::I32),
+            "U32" => Ok(Self::U32),
             "I16" => Ok(Self::I16),
+            "U16" => Ok(Self::U16),
             "I8" => Ok(Self::I8),
             "U8" => Ok(Self::U8),
             "BOOL" => Ok(Self::Bool),
@@ -189,9 +199,19 @@ pub fn build_safetensors_bytes(
                     data_buf.extend_from_slice(&(v as i32).to_le_bytes());
                 }
             }
+            SafetensorDtype::U32 => {
+                for &v in &entry.values_f32 {
+                    data_buf.extend_from_slice(&(v as u32).to_le_bytes());
+                }
+            }
             SafetensorDtype::I16 => {
                 for &v in &entry.values_f32 {
                     data_buf.extend_from_slice(&(v as i16).to_le_bytes());
+                }
+            }
+            SafetensorDtype::U16 => {
+                for &v in &entry.values_f32 {
+                    data_buf.extend_from_slice(&(v as u16).to_le_bytes());
                 }
             }
             SafetensorDtype::I8 => {
@@ -307,15 +327,28 @@ pub fn ingest_safetensors_with_options(
     let mut pre_mse_sum = 0.0f64;
     let mut post_mse_sum = 0.0f64;
 
-    // Sort tensor names deterministically
+    // Sort tensor names deterministically and pre-parse header descriptors so MLX affine
+    // quantized triplets (`*.weight: U32`, `*.scales: F16/BF16/F32`, `*.biases: F16/BF16/F32`)
+    // can be fused cleanly into living `LittleBitSVFTensor` bitplanes!
     let mut tensor_keys: Vec<&String> = header_obj
         .keys()
         .filter(|k| k.as_str() != "__metadata__")
         .collect();
     tensor_keys.sort();
 
-    for tname in tensor_keys {
-        let Some(desc) = header_obj.get(tname).and_then(|v| v.as_object()) else {
+    #[derive(Clone)]
+    struct ParsedHeaderDesc {
+        dtype: SafetensorDtype,
+        shape: Vec<usize>,
+        elem_count: usize,
+        abs_start: usize,
+        abs_end: usize,
+    }
+
+    let mut desc_map: BTreeMap<String, ParsedHeaderDesc> = BTreeMap::new();
+    let mut norm_1d_dims: Vec<usize> = Vec::new();
+    for tname in &tensor_keys {
+        let Some(desc) = header_obj.get(*tname).and_then(|v| v.as_object()) else {
             continue;
         };
         let dtype_str = desc
@@ -323,7 +356,6 @@ pub fn ingest_safetensors_with_options(
             .and_then(|v| v.as_str())
             .ok_or_else(|| format!("tensor '{tname}' missing dtype"))?;
         let dtype = SafetensorDtype::parse(dtype_str)?;
-
         let shape_arr = desc
             .get("shape")
             .and_then(|v| v.as_array())
@@ -336,7 +368,6 @@ pub fn ingest_safetensors_with_options(
                 as usize;
             shape.push(d);
         }
-
         let offsets = desc
             .get("data_offsets")
             .and_then(|v| v.as_array())
@@ -360,7 +391,6 @@ pub fn ingest_safetensors_with_options(
             .checked_add(off_end)
             .filter(|&e| e <= raw_bytes.len())
             .ok_or_else(|| format!("tensor '{tname}' data_offsets past EOF"))?;
-
         let elem_count = shape
             .iter()
             .try_fold(1usize, |acc, &d| acc.checked_mul(d))
@@ -379,52 +409,174 @@ pub fn ingest_safetensors_with_options(
                 abs_end - abs_start
             ));
         }
+        if dtype.is_floating_point()
+            && shape.len() == 1
+            && shape[0] >= 16
+            && !norm_1d_dims.contains(&shape[0])
+        {
+            norm_1d_dims.push(shape[0]);
+        }
+        desc_map.insert(
+            (*tname).clone(),
+            ParsedHeaderDesc {
+                dtype,
+                shape,
+                elem_count,
+                abs_start,
+                abs_end,
+            },
+        );
+    }
 
-        let decoded = decode_tensor_to_f32(&raw_bytes[abs_start..abs_end], dtype, elem_count);
+    for tname in tensor_keys {
+        let Some(pdesc) = desc_map.get(tname.as_str()).cloned() else {
+            continue;
+        };
+        // Skip standalone MLX `.scales` / `.biases` helper tensors when paired with a `U32` `.weight`
+        if let Some(stem) = tname
+            .strip_suffix(".scales")
+            .or_else(|| tname.strip_suffix(".biases"))
+            && let Some(w_desc) = desc_map.get(&format!("{stem}.weight"))
+            && w_desc.dtype == SafetensorDtype::U32
+        {
+            continue;
+        }
+
+        let mut dtype = pdesc.dtype;
+        let mut shape = pdesc.shape;
+        let mut elem_count = pdesc.elem_count;
+        let mut source_dtype_label = dtype.as_str().to_string();
+
+        // Check for MLX packed affine quantized 2D tensor (`U32 [rows, u32_cols]` + `.scales` + optional `.biases`)
+        let decoded = if dtype == SafetensorDtype::U32
+            && shape.len() == 2
+            && let Some(stem) = tname.strip_suffix(".weight")
+            && let Some(sc_desc) = desc_map.get(&format!("{stem}.scales"))
+            && sc_desc.shape.len() == 2
+            && sc_desc.shape[0] == shape[0]
+        {
+            let rows = shape[0];
+            let u32_cols = shape[1].max(1);
+            let n_groups = sc_desc.shape[1].max(1);
+            let scales_f32 = decode_tensor_to_f32(
+                &raw_bytes[sc_desc.abs_start..sc_desc.abs_end],
+                sc_desc.dtype,
+                sc_desc.elem_count,
+            );
+            let biases_f32 = if let Some(bi_desc) = desc_map.get(&format!("{stem}.biases")) {
+                decode_tensor_to_f32(
+                    &raw_bytes[bi_desc.abs_start..bi_desc.abs_end],
+                    bi_desc.dtype,
+                    bi_desc.elem_count,
+                )
+            } else {
+                vec![0.0f32; sc_desc.elem_count]
+            };
+
+            let mut resolved_bits = 0usize;
+            for &nd in &norm_1d_dims {
+                if nd >= u32_cols
+                    && nd.is_multiple_of(u32_cols)
+                    && nd.is_multiple_of(n_groups)
+                    && matches!(nd / u32_cols, 32 | 16 | 8 | 4)
+                {
+                    resolved_bits = 32 / (nd / u32_cols);
+                    break;
+                }
+            }
+            if resolved_bits == 0 {
+                for gs in [128usize, 64, 32] {
+                    let cand_cols = n_groups * gs;
+                    if cand_cols >= u32_cols
+                        && cand_cols.is_multiple_of(u32_cols)
+                        && matches!(cand_cols / u32_cols, 32 | 16 | 8 | 4)
+                    {
+                        resolved_bits = 32 / (cand_cols / u32_cols);
+                        break;
+                    }
+                }
+            }
+            let bits = if resolved_bits > 0 { resolved_bits } else { 4 };
+            let vals_per_u32 = (32 / bits).max(1);
+            let cols = u32_cols * vals_per_u32;
+            let group_size = (cols / n_groups).max(1);
+            let mask = ((1u64 << bits) - 1) as u32;
+            let total_unpacked = rows
+                .checked_mul(cols)
+                .filter(|&n| n <= MAX_TENSOR_ELEMENTS)
+                .ok_or_else(|| format!("MLX unpacked tensor '{tname}' exceeds element bound"))?;
+
+            let mut unpacked = Vec::with_capacity(total_unpacked);
+            let w_raw = &raw_bytes[pdesc.abs_start..pdesc.abs_end];
+            for r in 0..rows {
+                let sc_row = &scales_f32[r * n_groups..(r + 1) * n_groups];
+                let bi_row = &biases_f32[r * n_groups..(r + 1) * n_groups];
+                for w_idx in 0..u32_cols {
+                    let byte_off = (r * u32_cols + w_idx) * 4;
+                    let word = u32::from_le_bytes([
+                        w_raw[byte_off],
+                        w_raw[byte_off + 1],
+                        w_raw[byte_off + 2],
+                        w_raw[byte_off + 3],
+                    ]);
+                    for sub in 0..vals_per_u32 {
+                        let col = w_idx * vals_per_u32 + sub;
+                        let g = (col / group_size).min(n_groups - 1);
+                        let q = ((word >> (sub * bits)) & mask) as f32;
+                        unpacked.push(q * sc_row[g] + bi_row[g]);
+                    }
+                }
+            }
+            dtype = SafetensorDtype::F16;
+            shape = vec![rows, cols];
+            elem_count = total_unpacked;
+            source_dtype_label = format!("MLX_U32_{bits}BIT");
+            unpacked
+        } else {
+            decode_tensor_to_f32(
+                &raw_bytes[pdesc.abs_start..pdesc.abs_end],
+                dtype,
+                elem_count,
+            )
+        };
+
         let layer_idx = extract_layer_number(tname);
         let hot_score = infer_powerinfer_hot_score(tname);
         let fp16_equiv_bytes = (elem_count as u64) * 2;
         total_fp16_bytes += fp16_equiv_bytes;
 
+        // Preserve compact depthwise 1D convolution kernels (`shape == [d, 1, K]`, `K <= 16`, e.g.,
+        // Liquid AI `LFM2`/`LFM2.5`/`LFM3` `ShortConv` `conv.conv.weight` `[1024, 1, 3]` and
+        // Cactus `Whistle` `dw`) in exact FP32 `vectors_1d` rather than low-rank SVD!
+        let is_depthwise_1d_conv =
+            shape.len() == 3 && shape[1] == 1 && shape[2] <= 16 && elem_count <= 262_144;
+
         if dtype.is_floating_point()
+            && !is_depthwise_1d_conv
             && shape.len() >= 2
             && shape[0] >= 2
             && (elem_count / shape[0]) >= 2
         {
             let rows = shape[0];
             let cols = elem_count / rows;
-            let is_vocab_dict = tname.contains("embed_tokens")
-                || tname.contains("word_embeddings")
-                || tname.contains("token_embedding")
-                || tname.contains("embed_positions")
-                || tname.contains("position_embedding")
-                || tname.contains("lm_head");
-            let eff_rank = if distill_svf && is_vocab_dict && cols >= 64 {
-                target_rank.max(cols.min(192)).clamp(1, rows.min(cols))
-            } else {
-                target_rank.clamp(1, rows.min(cols))
-            };
-            let itq_iters = if rows >= 8 * cols { 2 } else { 6 };
-            let fq_name = format!("{model_id}::{tname}");
-            let mut lb = LittleBitSVFTensor::factorize(
-                fq_name.clone(),
+            let (lb, eff_rank, d_pre, d_post) = factorize_2d_with_adaptive_budget(
+                model_id,
+                tname,
                 &decoded,
                 rows,
                 cols,
-                eff_rank,
-                itq_iters,
+                target_rank,
                 max_outliers,
+                distill_svf,
             )?;
-            if distill_svf && let Ok(d_rec) = lb.distill_svf_against_dense(&decoded, 16, 3) {
-                pre_mse_sum += d_rec.pre_probe_mse;
-                post_mse_sum += d_rec.post_probe_mse;
-            }
+            pre_mse_sum += d_pre;
+            post_mse_sum += d_post;
             let bpw = lb.bits_per_weight();
             let comp = lb.compression_vs_fp16();
             let cos = lb.reconstruction_cosine;
             let comp_bytes = (((elem_count as f64) * bpw) / 8.0).ceil() as u64;
+            let fq_name = format!("{model_id}::{tname}");
 
-            // Register compressed shard into AirStreamScheduler (if within VRAM budget)
             let _ = harness.airstream.register_shard(WeightShardMeta {
                 layer_idx: layer_idx.max(0) as usize,
                 shard_id: fq_name.clone(),
@@ -443,7 +595,7 @@ pub fn ingest_safetensors_with_options(
                 model_id: model_id.to_string(),
                 tensor_name: tname.clone(),
                 layer_idx,
-                source_dtype: dtype.as_str().to_string(),
+                source_dtype: source_dtype_label,
                 rows,
                 cols,
                 rank: eff_rank,
@@ -455,10 +607,9 @@ pub fn ingest_safetensors_with_options(
                 hot_score,
             });
         } else {
-            // 1D norm / bias vector: store exact FP32 vector (for full multi-layer Transformer
-            // LayerNorm + bias execution) when bounded (`<= 65,536` elems), plus Engram digest.
-            if dtype.is_floating_point() && elem_count <= 65_536 {
-                if harness.vectors_1d.len() >= 8192
+            // 1D norm / bias / scalar / depthwise-conv vector: store exact FP32 vector when bounded (`<= 262,144` elems)
+            if dtype.is_floating_point() && elem_count <= 262_144 {
+                if harness.vectors_1d.len() >= 16_384
                     && let Some(oldest_k) = harness.vectors_1d.keys().next().cloned()
                 {
                     harness.vectors_1d.remove(&oldest_k);
@@ -480,7 +631,7 @@ pub fn ingest_safetensors_with_options(
                 model_id: model_id.to_string(),
                 tensor_name: tname.clone(),
                 layer_idx,
-                source_dtype: dtype.as_str().to_string(),
+                source_dtype: source_dtype_label,
                 rows: elem_count,
                 cols: 1,
                 rank: 1,
@@ -536,6 +687,772 @@ pub fn ingest_safetensors_with_options(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn factorize_2d_with_adaptive_budget(
+    model_id: &str,
+    tname: &str,
+    decoded: &[f32],
+    rows: usize,
+    cols: usize,
+    target_rank: usize,
+    max_outliers: usize,
+    distill_svf: bool,
+) -> Result<(LittleBitSVFTensor, usize, f64, f64), String> {
+    let elem_count = rows * cols;
+    let is_vocab_dict = tname.contains("embed_tokens")
+        || tname.contains("word_embeddings")
+        || tname.contains("tok_embeddings")
+        || tname.contains("token_embedding")
+        || tname.contains("embed_positions")
+        || tname.contains("position_embedding")
+        || tname.contains("lm_head");
+    let (eff_rank, itq_iters, n_probes, n_sweeps) = if elem_count > 35_000_000 {
+        (
+            target_rank.max(32).min(48).clamp(1, rows.min(cols)),
+            1usize,
+            8usize,
+            2usize,
+        )
+    } else if distill_svf && is_vocab_dict && cols >= 64 {
+        (
+            target_rank.max(cols.min(160)).clamp(1, rows.min(cols)),
+            2usize,
+            16usize,
+            3usize,
+        )
+    } else {
+        (
+            target_rank.clamp(1, rows.min(cols)),
+            if rows >= 8 * cols { 2 } else { 6 },
+            16usize,
+            3usize,
+        )
+    };
+    let fq_name = format!("{model_id}::{tname}");
+    let mut lb = LittleBitSVFTensor::factorize(
+        fq_name,
+        decoded,
+        rows,
+        cols,
+        eff_rank,
+        itq_iters,
+        max_outliers,
+    )?;
+    let (mut pre_m, mut post_m) = (0.0, 0.0);
+    if distill_svf && let Ok(d_rec) = lb.distill_svf_against_dense(decoded, n_probes, n_sweeps) {
+        pre_m = d_rec.pre_probe_mse;
+        post_m = d_rec.post_probe_mse;
+    }
+    Ok((lb, eff_rank, pre_m, post_m))
+}
+
+/// Memory-map a `.gguf` checkpoint file on disk and compile its quantized tensors (`Q1_0_G128`,
+/// `TQ1_0`, `TQ2_0`, `Q4_0`, `Q4_K`, `Q6_K`, `Q8_0`, `F16`, `BF16`, `F32`) + embedded BPE tokenizer
+/// + `CausalModelMeta` directly into [`JouleHarnessEngine`]!
+pub fn ingest_gguf_file_with_options(
+    model_id: &str,
+    path: &std::path::Path,
+    target_rank: usize,
+    max_outliers: usize,
+    distill_svf: bool,
+    harness: &mut JouleHarnessEngine,
+) -> Result<CheckpointIngestReport, String> {
+    let file =
+        std::fs::File::open(path).map_err(|e| format!("open GGUF '{}': {e}", path.display()))?;
+    #[allow(unsafe_code)]
+    let mmap = unsafe { memmap2::Mmap::map(&file) }
+        .map_err(|e| format!("mmap GGUF '{}': {e}", path.display()))?;
+    ingest_gguf_bytes_with_options(
+        model_id,
+        &mmap[..],
+        target_rank,
+        max_outliers,
+        distill_svf,
+        harness,
+    )
+}
+
+/// Parse and compile a GGUF v2/v3 byte slice directly into living sub-1-bit [`LittleBitSVFTensor`]
+/// bitplanes, canonical HuggingFace layer names, `CausalModelMeta`, and `BpeTokenizer` vocab/merges!
+pub fn ingest_gguf_bytes_with_options(
+    model_id: &str,
+    data: &[u8],
+    target_rank: usize,
+    max_outliers: usize,
+    distill_svf: bool,
+    harness: &mut JouleHarnessEngine,
+) -> Result<CheckpointIngestReport, String> {
+    if model_id.trim().is_empty() {
+        return Err("model_id must not be empty".to_string());
+    }
+    if data.len() < 24 || &data[0..4] != b"GGUF" {
+        return Err("invalid GGUF magic header".to_string());
+    }
+    let _version = gguf_u32(data, 4)?;
+    let tensor_count = gguf_u64(data, 8)? as usize;
+    let kv_count = gguf_u64(data, 16)? as usize;
+
+    let mut pos = 24usize;
+    let mut alignment = 32usize;
+    let mut arch = String::new();
+    let mut head_count: Option<usize> = None;
+    let mut head_count_kv: Option<usize> = None;
+    let mut key_length: Option<usize> = None;
+    let mut rope_theta = 10_000.0f32;
+    let mut rms_eps = 1e-5f32;
+    let mut bos_id: Option<usize> = None;
+    let mut add_bos = false;
+    let mut eos_ids: Vec<usize> = Vec::new();
+    let mut vocab_tokens: Vec<String> = Vec::new();
+    let mut bpe_merges: Vec<(String, String)> = Vec::new();
+    let mut engram_entries_added = 0usize;
+
+    for _ in 0..kv_count {
+        let (k, next_p) = gguf_str(data, pos)?;
+        pos = next_p;
+        let vtype = gguf_u32(data, pos)?;
+        pos += 4;
+
+        if k == "general.alignment" && vtype == 4 {
+            alignment = (gguf_u32(data, pos)? as usize).max(1);
+            pos += 4;
+        } else if k == "general.architecture" && vtype == 8 {
+            let (s, np) = gguf_str(data, pos)?;
+            arch = s.clone();
+            harness
+                .engram
+                .upsert(&format!("{model_id} metadata architecture"), vec![], &s);
+            engram_entries_added += 1;
+            pos = np;
+        } else if k.ends_with(".attention.head_count") && vtype == 4 {
+            head_count = Some(gguf_u32(data, pos)? as usize);
+            pos += 4;
+        } else if k.ends_with(".attention.head_count_kv") && vtype == 4 {
+            head_count_kv = Some(gguf_u32(data, pos)? as usize);
+            pos += 4;
+        } else if k.ends_with(".attention.key_length") && vtype == 4 {
+            key_length = Some(gguf_u32(data, pos)? as usize);
+            pos += 4;
+        } else if k.ends_with(".rope.freq_base") && vtype == 6 {
+            rope_theta = gguf_f32(data, pos)?;
+            pos += 4;
+        } else if k.ends_with(".attention.layer_norm_rms_epsilon") && vtype == 6 {
+            rms_eps = gguf_f32(data, pos)?;
+            pos += 4;
+        } else if k == "tokenizer.ggml.bos_token_id" && vtype == 4 {
+            bos_id = Some(gguf_u32(data, pos)? as usize);
+            pos += 4;
+        } else if k == "tokenizer.ggml.add_bos_token" && vtype == 7 {
+            add_bos = data.get(pos).copied().unwrap_or(0) != 0;
+            pos += 1;
+        } else if k == "tokenizer.ggml.eos_token_id" && vtype == 4 {
+            eos_ids.push(gguf_u32(data, pos)? as usize);
+            pos += 4;
+        } else if k == "tokenizer.ggml.tokens" && vtype == 9 {
+            let et = gguf_u32(data, pos)?;
+            let cnt = gguf_u64(data, pos + 4)? as usize;
+            pos += 12;
+            if et == 8 && cnt <= 512_000 {
+                vocab_tokens.reserve(cnt);
+                for _ in 0..cnt {
+                    let (tok, np) = gguf_str(data, pos)?;
+                    vocab_tokens.push(tok);
+                    pos = np;
+                }
+            } else {
+                for _ in 0..cnt {
+                    pos = gguf_skip_val(data, pos, et)?;
+                }
+            }
+        } else if k == "tokenizer.ggml.merges" && vtype == 9 {
+            let et = gguf_u32(data, pos)?;
+            let cnt = gguf_u64(data, pos + 4)? as usize;
+            pos += 12;
+            if et == 8 && cnt <= 1_000_000 {
+                bpe_merges.reserve(cnt);
+                for _ in 0..cnt {
+                    let (m_str, np) = gguf_str(data, pos)?;
+                    if let Some((l, r)) = m_str.split_once(' ') {
+                        bpe_merges.push((l.to_string(), r.to_string()));
+                    }
+                    pos = np;
+                }
+            } else {
+                for _ in 0..cnt {
+                    pos = gguf_skip_val(data, pos, et)?;
+                }
+            }
+        } else {
+            pos = gguf_skip_val(data, pos, vtype)?;
+        }
+    }
+
+    if !vocab_tokens.is_empty() {
+        harness
+            .model_vocabs
+            .insert(model_id.to_string(), vocab_tokens);
+    }
+    if !bpe_merges.is_empty() {
+        harness
+            .model_bpe_merges
+            .insert(model_id.to_string(), bpe_merges);
+    }
+    harness.model_configs.insert(
+        model_id.to_string(),
+        CausalModelMeta {
+            num_attention_heads: head_count,
+            num_key_value_heads: head_count_kv,
+            head_dim: key_length,
+            rope_theta,
+            rms_norm_eps: rms_eps,
+            bos_token_id: if add_bos { bos_id } else { None },
+            eos_token_ids: eos_ids,
+            tie_word_embeddings: true,
+            model_type: arch.clone(),
+            hidden_act: if arch.contains("gemma") {
+                "gelu_pytorch_tanh".to_string()
+            } else if arch.contains("bitnet") {
+                "relu2".to_string()
+            } else {
+                "silu".to_string()
+            },
+            gemma_rms_norm_offset: arch.contains("gemma"),
+            final_logit_softcapping: None,
+            conv_l_cache: 3,
+        },
+    );
+
+    struct GgufTensorHeader {
+        raw_name: String,
+        dims: Vec<usize>,
+        type_id: u32,
+        rel_offset: usize,
+    }
+    let mut theaders = Vec::with_capacity(tensor_count.min(65_536));
+    for _ in 0..tensor_count {
+        let (name, np) = gguf_str(data, pos)?;
+        pos = np;
+        let nd = gguf_u32(data, pos)? as usize;
+        pos += 4;
+        if nd > 16 {
+            return Err(format!("GGUF tensor '{name}' n_dims {nd} > 16"));
+        }
+        let mut dims = Vec::with_capacity(nd);
+        for _ in 0..nd {
+            dims.push(gguf_u64(data, pos)? as usize);
+            pos += 8;
+        }
+        let tid = gguf_u32(data, pos)?;
+        let roff = gguf_u64(data, pos + 4)? as usize;
+        pos += 12;
+        theaders.push(GgufTensorHeader {
+            raw_name: name,
+            dims,
+            type_id: tid,
+            rel_offset: roff,
+        });
+    }
+
+    let data_section = pos.div_ceil(alignment) * alignment;
+    let mut summaries = Vec::new();
+    let mut factorized_2d_tensors = 0usize;
+    let mut total_fp16_bytes = 0u64;
+    let mut total_compressed_bytes = 0u64;
+    let mut total_elements_2d = 0usize;
+    let mut total_bits_2d = 0.0f64;
+    let mut cosine_sum = 0.0f64;
+    let mut pre_mse_sum = 0.0f64;
+    let mut post_mse_sum = 0.0f64;
+
+    for th in &theaders {
+        let elem_count = th
+            .dims
+            .iter()
+            .try_fold(1usize, |a, &d| a.checked_mul(d))
+            .ok_or_else(|| format!("GGUF tensor '{}' overflow", th.raw_name))?;
+        if elem_count == 0 || elem_count > MAX_TENSOR_ELEMENTS {
+            continue;
+        }
+        let byte_len = gguf_tensor_byte_size(elem_count, th.type_id)?;
+        let start = data_section
+            .checked_add(th.rel_offset)
+            .ok_or_else(|| "GGUF tensor offset overflow".to_string())?;
+        let end = start
+            .checked_add(byte_len)
+            .filter(|&e| e <= data.len())
+            .ok_or_else(|| format!("GGUF tensor '{}' extends past EOF", th.raw_name))?;
+
+        let tname = canonicalize_gguf_tensor_name(&th.raw_name);
+        let decoded = dequantize_gguf_tensor(&data[start..end], elem_count, th.type_id)?;
+        let dtype_label = gguf_type_label(th.type_id);
+        let layer_idx = extract_layer_number(&tname);
+        let hot_score = infer_powerinfer_hot_score(&tname);
+        let fp16_equiv_bytes = (elem_count as u64) * 2;
+        total_fp16_bytes += fp16_equiv_bytes;
+
+        // GGUF stores `dims` inner-first (`dims[0] = cols`, `dims[1] = rows`)!
+        let is_depthwise_1d =
+            th.dims.len() == 3 && th.dims[1] == 1 && th.dims[0] <= 16 && elem_count <= 262_144;
+        if !is_depthwise_1d
+            && th.dims.len() >= 2
+            && th.dims[0] >= 2
+            && (elem_count / th.dims[0]) >= 2
+        {
+            let cols = th.dims[0];
+            let rows = elem_count / cols;
+            let (lb, eff_rank, d_pre, d_post) = factorize_2d_with_adaptive_budget(
+                model_id,
+                &tname,
+                &decoded,
+                rows,
+                cols,
+                target_rank,
+                max_outliers,
+                distill_svf,
+            )?;
+            pre_mse_sum += d_pre;
+            post_mse_sum += d_post;
+            let bpw = lb.bits_per_weight();
+            let comp = lb.compression_vs_fp16();
+            let cos = lb.reconstruction_cosine;
+            let comp_bytes = (((elem_count as f64) * bpw) / 8.0).ceil() as u64;
+            let fq_name = format!("{model_id}::{tname}");
+            let _ = harness.airstream.register_shard(WeightShardMeta {
+                layer_idx: layer_idx.max(0) as usize,
+                shard_id: fq_name.clone(),
+                size_bytes: comp_bytes.max(64),
+                hot_score,
+            });
+            harness.littlebit_tensors.insert(fq_name, lb);
+
+            factorized_2d_tensors += 1;
+            total_compressed_bytes += comp_bytes;
+            total_elements_2d += elem_count;
+            total_bits_2d += bpw * (elem_count as f64);
+            cosine_sum += cos;
+
+            summaries.push(IngestedTensorSummary {
+                model_id: model_id.to_string(),
+                tensor_name: tname,
+                layer_idx,
+                source_dtype: dtype_label.to_string(),
+                rows,
+                cols,
+                rank: eff_rank,
+                original_fp16_bytes: fp16_equiv_bytes,
+                compressed_bytes: comp_bytes,
+                bits_per_weight: bpw,
+                compression_vs_fp16: comp,
+                reconstruction_cosine: cos,
+                hot_score,
+            });
+        } else {
+            if elem_count <= 262_144 {
+                if harness.vectors_1d.len() >= 16_384
+                    && let Some(oldest_k) = harness.vectors_1d.keys().next().cloned()
+                {
+                    harness.vectors_1d.remove(&oldest_k);
+                }
+                harness
+                    .vectors_1d
+                    .insert(format!("{model_id}::{tname}"), decoded);
+            }
+            total_compressed_bytes += fp16_equiv_bytes;
+            summaries.push(IngestedTensorSummary {
+                model_id: model_id.to_string(),
+                tensor_name: tname,
+                layer_idx,
+                source_dtype: dtype_label.to_string(),
+                rows: elem_count,
+                cols: 1,
+                rank: 1,
+                original_fp16_bytes: fp16_equiv_bytes,
+                compressed_bytes: fp16_equiv_bytes,
+                bits_per_weight: 16.0,
+                compression_vs_fp16: 1.0,
+                reconstruction_cosine: 1.0,
+                hot_score: 0.95,
+            });
+        }
+    }
+
+    let overall_bpw = if total_elements_2d > 0 {
+        total_bits_2d / (total_elements_2d as f64)
+    } else {
+        16.0
+    };
+    let overall_comp = if total_compressed_bytes > 0 {
+        (total_fp16_bytes as f64) / (total_compressed_bytes as f64)
+    } else {
+        1.0
+    };
+    let mean_cos = if factorized_2d_tensors > 0 {
+        cosine_sum / (factorized_2d_tensors as f64)
+    } else {
+        1.0
+    };
+    let denom_2d = factorized_2d_tensors.max(1) as f64;
+    Ok(CheckpointIngestReport {
+        model_id: model_id.to_string(),
+        total_tensors: summaries.len(),
+        factorized_2d_tensors,
+        engram_entries_added,
+        original_fp16_bytes: total_fp16_bytes,
+        compressed_bytes: total_compressed_bytes,
+        overall_bits_per_weight: overall_bpw,
+        overall_compression_vs_fp16: overall_comp,
+        mean_reconstruction_cosine: mean_cos,
+        svf_distilled: distill_svf,
+        pre_distill_probe_mse: if distill_svf {
+            pre_mse_sum / denom_2d
+        } else {
+            0.0
+        },
+        post_distill_probe_mse: if distill_svf {
+            post_mse_sum / denom_2d
+        } else {
+            0.0
+        },
+        tensors: summaries,
+    })
+}
+
+fn canonicalize_gguf_tensor_name(raw: &str) -> String {
+    match raw {
+        "token_embd.weight" => return "model.embed_tokens.weight".to_string(),
+        "token_embd_norm.weight" => return "model.embedding_norm.weight".to_string(),
+        "output_norm.weight" => return "model.norm.weight".to_string(),
+        "output.weight" => return "lm_head.weight".to_string(),
+        _ => {}
+    }
+    if let Some(rest) = raw.strip_prefix("blk.")
+        && let Some((l_str, tail)) = rest.split_once('.')
+    {
+        let mapped = match tail {
+            "attn_norm.weight" => "input_layernorm.weight",
+            "attn_q.weight" => "self_attn.q_proj.weight",
+            "attn_q.bias" => "self_attn.q_proj.bias",
+            "attn_k.weight" => "self_attn.k_proj.weight",
+            "attn_k.bias" => "self_attn.k_proj.bias",
+            "attn_v.weight" => "self_attn.v_proj.weight",
+            "attn_v.bias" => "self_attn.v_proj.bias",
+            "attn_output.weight" => "self_attn.o_proj.weight",
+            "attn_output.bias" => "self_attn.o_proj.bias",
+            "attn_q_norm.weight" => "self_attn.q_norm.weight",
+            "attn_k_norm.weight" => "self_attn.k_norm.weight",
+            "attn_sub_norm.weight" => "self_attn.attn_sub_norm.weight",
+            "ffn_norm.weight" => "post_attention_layernorm.weight",
+            "post_attention_norm.weight" => "post_attention_layernorm.weight",
+            "post_ffw_norm.weight" => "post_feedforward_layernorm.weight",
+            "ffn_sub_norm.weight" => "mlp.ffn_sub_norm.weight",
+            "ffn_gate.weight" => "mlp.gate_proj.weight",
+            "ffn_up.weight" => "mlp.up_proj.weight",
+            "ffn_down.weight" => "mlp.down_proj.weight",
+            "shortconv.in_proj.weight" => "conv.in_proj.weight",
+            "shortconv.conv.weight" => "conv.conv.weight",
+            "shortconv.out_proj.weight" => "conv.out_proj.weight",
+            other => other,
+        };
+        return format!("model.layers.{l_str}.{mapped}");
+    }
+    raw.to_string()
+}
+
+fn gguf_type_label(type_id: u32) -> &'static str {
+    match type_id {
+        0 => "GGUF_F32",
+        1 => "GGUF_F16",
+        2 => "GGUF_Q4_0",
+        3 => "GGUF_Q4_1",
+        8 => "GGUF_Q8_0",
+        12 => "GGUF_Q4_K",
+        14 => "GGUF_Q6_K",
+        30 => "GGUF_BF16",
+        34 => "GGUF_TQ1_0",
+        35 => "GGUF_TQ2_0",
+        40 => "GGUF_Q1_0",
+        41 => "GGUF_Q1_0_G128",
+        _ => "GGUF_QUANT",
+    }
+}
+
+fn gguf_tensor_byte_size(elem_count: usize, type_id: u32) -> Result<usize, String> {
+    let (block_bytes, block_elems) = match type_id {
+        0 => (4usize, 1usize),
+        1 | 30 => (2, 1),
+        2 => (18, 32),
+        3 => (20, 32),
+        8 => (34, 32),
+        12 => (144, 256),
+        14 => (210, 256),
+        34 => (54, 256),
+        35 => (66, 256),
+        40 => (6, 32),
+        41 => (18, 128), // PrismML Bonsai `Q1_0_G128`: f16 scale + 16B packed 128-bit signs
+        other => return Err(format!("unsupported GGUF tensor type_id {other}")),
+    };
+    if !elem_count.is_multiple_of(block_elems) {
+        return Err(format!(
+            "GGUF elem_count {elem_count} not divisible by block_elems {block_elems} (type_id={type_id})"
+        ));
+    }
+    Ok((elem_count / block_elems) * block_bytes)
+}
+
+fn dequantize_gguf_tensor(raw: &[u8], elem_count: usize, type_id: u32) -> Result<Vec<f32>, String> {
+    let mut out = Vec::with_capacity(elem_count);
+    match type_id {
+        0 => {
+            for c in raw.chunks_exact(4) {
+                out.push(f32::from_le_bytes([c[0], c[1], c[2], c[3]]));
+            }
+        }
+        1 => {
+            for c in raw.chunks_exact(2) {
+                out.push(f16_bits_to_f32(u16::from_le_bytes([c[0], c[1]])));
+            }
+        }
+        30 => {
+            for c in raw.chunks_exact(2) {
+                out.push(f32::from_bits(
+                    (u16::from_le_bytes([c[0], c[1]]) as u32) << 16,
+                ));
+            }
+        }
+        2 => {
+            // Q4_0: 2B f16 d + 16B nibbles (low 16 elems, high 16 elems)
+            for blk in raw.chunks_exact(18) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                for j in 0..16 {
+                    out.push(((blk[2 + j] & 0x0F) as i32 - 8) as f32 * d);
+                }
+                for j in 0..16 {
+                    out.push(((blk[2 + j] >> 4) as i32 - 8) as f32 * d);
+                }
+            }
+        }
+        3 => {
+            // Q4_1: 2B f16 d + 2B f16 m + 16B nibbles
+            for blk in raw.chunks_exact(20) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                let m = f16_bits_to_f32(u16::from_le_bytes([blk[2], blk[3]]));
+                for j in 0..16 {
+                    out.push((blk[4 + j] & 0x0F) as f32 * d + m);
+                }
+                for j in 0..16 {
+                    out.push((blk[4 + j] >> 4) as f32 * d + m);
+                }
+            }
+        }
+        8 => {
+            // Q8_0: 2B f16 d + 32B i8
+            for blk in raw.chunks_exact(34) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                for &q in &blk[2..34] {
+                    out.push((q as i8) as f32 * d);
+                }
+            }
+        }
+        12 => {
+            // Q4_K: 2B f16 d + 2B f16 dmin + 12B scales + 128B qs (256 elems)
+            for blk in raw.chunks_exact(144) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                let dmin = f16_bits_to_f32(u16::from_le_bytes([blk[2], blk[3]]));
+                let sc = &blk[4..16];
+                let qs = &blk[16..144];
+                let get_scale_min = |is: usize| -> (f32, f32) {
+                    if is < 4 {
+                        ((sc[is] & 63) as f32, (sc[is + 4] & 63) as f32)
+                    } else {
+                        (
+                            ((sc[is + 4] & 0x0F) | ((sc[is - 4] >> 6) << 4)) as f32,
+                            ((sc[is + 4] >> 4) | ((sc[is] >> 6) << 4)) as f32,
+                        )
+                    }
+                };
+                for chunk_idx in 0..4 {
+                    let (s1, m1) = get_scale_min(chunk_idx * 2);
+                    let (s2, m2) = get_scale_min(chunk_idx * 2 + 1);
+                    let q_slice = &qs[chunk_idx * 32..(chunk_idx + 1) * 32];
+                    for &qb in q_slice {
+                        out.push(d * s1 * ((qb & 0x0F) as f32) - dmin * m1);
+                    }
+                    for &qb in q_slice {
+                        out.push(d * s2 * ((qb >> 4) as f32) - dmin * m2);
+                    }
+                }
+            }
+        }
+        14 => {
+            // Q6_K: 128B ql + 64B qh + 16B i8 scales + 2B f16 d (210B / 256 elems)
+            for blk in raw.chunks_exact(210) {
+                let ql = &blk[0..128];
+                let qh = &blk[128..192];
+                let sc = &blk[192..208];
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[208], blk[209]]));
+                for n in 0..2 {
+                    let ql_n = &ql[n * 64..(n + 1) * 64];
+                    let qh_n = &qh[n * 32..(n + 1) * 32];
+                    let sc_n = &sc[n * 8..(n + 1) * 8];
+                    let mut sub = [0.0f32; 128];
+                    for l in 0..32 {
+                        let is = l / 16;
+                        let q1 = ((ql_n[l] & 0x0F) | ((qh_n[l] & 0x03) << 4)) as i32 - 32;
+                        let q2 =
+                            ((ql_n[l + 32] & 0x0F) | (((qh_n[l] >> 2) & 0x03) << 4)) as i32 - 32;
+                        let q3 = ((ql_n[l] >> 4) | (((qh_n[l] >> 4) & 0x03) << 4)) as i32 - 32;
+                        let q4 = ((ql_n[l + 32] >> 4) | (((qh_n[l] >> 6) & 0x03) << 4)) as i32 - 32;
+                        sub[l] = d * (sc_n[is] as i8 as f32) * (q1 as f32);
+                        sub[l + 32] = d * (sc_n[is + 2] as i8 as f32) * (q2 as f32);
+                        sub[l + 64] = d * (sc_n[is + 4] as i8 as f32) * (q3 as f32);
+                        sub[l + 96] = d * (sc_n[is + 6] as i8 as f32) * (q4 as f32);
+                    }
+                    out.extend_from_slice(&sub);
+                }
+            }
+        }
+        34 => {
+            // TQ1_0: 48B qs + 4B qh + 2B f16 d (54B / 256 ternary {-1, 0, +1} elems)
+            for blk in raw.chunks_exact(54) {
+                let qs = &blk[0..48];
+                let qh = &blk[48..52];
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[52], blk[53]]));
+                let pow3 = [1u16, 3, 9, 27, 81];
+                for (j, &b) in qs.iter().enumerate() {
+                    if j < 32 {
+                        for &p in &pow3 {
+                            let trit = (((b as u16 * p) * 3) >> 8) as i32 - 1;
+                            out.push(trit as f32 * d);
+                        }
+                    }
+                }
+                // Remaining 96 trits from qs[32..48] (80 trits) + qh[0..4] (16 trits)
+                for &b in &qs[32..48] {
+                    for &p in &pow3 {
+                        let trit = (((b as u16 * p) * 3) >> 8) as i32 - 1;
+                        out.push(trit as f32 * d);
+                    }
+                }
+                for &b in qh {
+                    for shift in [0, 2, 4, 6] {
+                        let trit = ((b >> shift) & 0x03) as i32 - 1;
+                        out.push(trit.clamp(-1, 1) as f32 * d);
+                    }
+                }
+            }
+        }
+        35 => {
+            // TQ2_0: 64B 2-bit trits + 2B f16 d (66B / 256 elems)
+            for blk in raw.chunks_exact(66) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[64], blk[65]]));
+                for &b in &blk[0..64] {
+                    for shift in [0, 2, 4, 6] {
+                        let q = ((b >> shift) & 0x03) as i32 - 1;
+                        out.push(q.clamp(-1, 1) as f32 * d);
+                    }
+                }
+            }
+        }
+        40 => {
+            // Q1_0 (32-elem block: 2B f16 d + 4B bits)
+            for blk in raw.chunks_exact(6) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                for &b in &blk[2..6] {
+                    for bit in 0..8 {
+                        out.push(if ((b >> bit) & 1) == 1 { d } else { -d });
+                    }
+                }
+            }
+        }
+        41 => {
+            // PrismML Bonsai Q1_0_G128 (128-elem block: 2B f16 d + 16B packed 1-bit signs)
+            for blk in raw.chunks_exact(18) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                for &b in &blk[2..18] {
+                    for bit in 0..8 {
+                        out.push(if ((b >> bit) & 1) == 1 { d } else { -d });
+                    }
+                }
+            }
+        }
+        other => return Err(format!("unsupported GGUF dequant type_id {other}")),
+    }
+    Ok(out)
+}
+
+fn gguf_u32(data: &[u8], off: usize) -> Result<u32, String> {
+    let sl = data
+        .get(off..off.saturating_add(4))
+        .filter(|s| s.len() == 4)
+        .ok_or_else(|| "GGUF u32 out of bounds".to_string())?;
+    Ok(u32::from_le_bytes([sl[0], sl[1], sl[2], sl[3]]))
+}
+
+fn gguf_f32(data: &[u8], off: usize) -> Result<f32, String> {
+    let sl = data
+        .get(off..off.saturating_add(4))
+        .filter(|s| s.len() == 4)
+        .ok_or_else(|| "GGUF f32 out of bounds".to_string())?;
+    Ok(f32::from_le_bytes([sl[0], sl[1], sl[2], sl[3]]))
+}
+
+fn gguf_u64(data: &[u8], off: usize) -> Result<u64, String> {
+    let sl = data
+        .get(off..off.saturating_add(8))
+        .filter(|s| s.len() == 8)
+        .ok_or_else(|| "GGUF u64 out of bounds".to_string())?;
+    let mut b = [0u8; 8];
+    b.copy_from_slice(sl);
+    Ok(u64::from_le_bytes(b))
+}
+
+fn gguf_str(data: &[u8], off: usize) -> Result<(String, usize), String> {
+    let len = gguf_u64(data, off)? as usize;
+    let start = off
+        .checked_add(8)
+        .ok_or_else(|| "GGUF str overflow".to_string())?;
+    let end = start
+        .checked_add(len)
+        .filter(|&e| e <= data.len())
+        .ok_or_else(|| "GGUF str out of bounds".to_string())?;
+    Ok((String::from_utf8_lossy(&data[start..end]).to_string(), end))
+}
+
+fn gguf_skip_val(data: &[u8], off: usize, vtype: u32) -> Result<usize, String> {
+    match vtype {
+        0 | 1 | 7 => off
+            .checked_add(1)
+            .filter(|&p| p <= data.len())
+            .ok_or_else(|| "GGUF val oob".to_string()),
+        2 | 3 => off
+            .checked_add(2)
+            .filter(|&p| p <= data.len())
+            .ok_or_else(|| "GGUF val oob".to_string()),
+        4..=6 => off
+            .checked_add(4)
+            .filter(|&p| p <= data.len())
+            .ok_or_else(|| "GGUF val oob".to_string()),
+        10..=12 => off
+            .checked_add(8)
+            .filter(|&p| p <= data.len())
+            .ok_or_else(|| "GGUF val oob".to_string()),
+        8 => Ok(gguf_str(data, off)?.1),
+        9 => {
+            let et = gguf_u32(data, off)?;
+            let cnt = gguf_u64(data, off.saturating_add(4))? as usize;
+            let mut p = off
+                .checked_add(12)
+                .filter(|&x| x <= data.len())
+                .ok_or_else(|| "GGUF array oob".to_string())?;
+            for _ in 0..cnt {
+                p = gguf_skip_val(data, p, et)?;
+            }
+            Ok(p)
+        }
+        other => Err(format!("unknown GGUF KV type {other}")),
+    }
+}
+
 fn decode_tensor_to_f32(raw: &[u8], dtype: SafetensorDtype, elem_count: usize) -> Vec<f32> {
     let mut out = Vec::with_capacity(elem_count);
     match dtype {
@@ -574,9 +1491,19 @@ fn decode_tensor_to_f32(raw: &[u8], dtype: SafetensorDtype, elem_count: usize) -
                 out.push(i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32);
             }
         }
+        SafetensorDtype::U32 => {
+            for chunk in raw.chunks_exact(4) {
+                out.push(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32);
+            }
+        }
         SafetensorDtype::I16 => {
             for chunk in raw.chunks_exact(2) {
                 out.push(i16::from_le_bytes([chunk[0], chunk[1]]) as f32);
+            }
+        }
+        SafetensorDtype::U16 => {
+            for chunk in raw.chunks_exact(2) {
+                out.push(u16::from_le_bytes([chunk[0], chunk[1]]) as f32);
             }
         }
         SafetensorDtype::I8 => {

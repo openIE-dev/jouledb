@@ -1977,8 +1977,9 @@ pub struct HarnessCheckpoint {
     pub observation_count: usize,
 }
 
-/// Architectural metadata parsed from HuggingFace `config.json` for causal decoder models
-/// (`Llama`, `SmolLM2`, `Qwen2.5`, `Mistral`, `Gemma`).
+/// Architectural metadata parsed from HuggingFace `config.json` or GGUF KV metadata for causal
+/// and hybrid decoder models (`Llama`, `SmolLM2`, `Qwen2.5`/`Qwen3`, `LiquidAI LFM2`/`LFM3`,
+/// `PrismML Bonsai`, `BitNet b1.58`, `Google Gemma 4`, `Cactus Needle`, `Poolside Laguna`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CausalModelMeta {
     pub num_attention_heads: Option<usize>,
@@ -1993,6 +1994,20 @@ pub struct CausalModelMeta {
     pub eos_token_ids: Vec<usize>,
     #[serde(default = "default_true_bool")]
     pub tie_word_embeddings: bool,
+    #[serde(default)]
+    pub model_type: String,
+    #[serde(default)]
+    pub hidden_act: String,
+    #[serde(default)]
+    pub gemma_rms_norm_offset: bool,
+    #[serde(default)]
+    pub final_logit_softcapping: Option<f32>,
+    #[serde(default = "default_conv_l_cache")]
+    pub conv_l_cache: usize,
+}
+
+fn default_conv_l_cache() -> usize {
+    3
 }
 
 fn default_rope_theta() -> f32 {
@@ -2018,6 +2033,11 @@ impl Default for CausalModelMeta {
             bos_token_id: None,
             eos_token_ids: Vec::new(),
             tie_word_embeddings: true,
+            model_type: String::new(),
+            hidden_act: String::new(),
+            gemma_rms_norm_offset: false,
+            final_logit_softcapping: None,
+            conv_l_cache: 3,
         }
     }
 }

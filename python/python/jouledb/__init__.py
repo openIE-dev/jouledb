@@ -378,6 +378,8 @@ class Connection:
         output_dir: str,
         base_model_repo: Optional[str] = None,
         hf_repo_id: Optional[str] = None,
+        license: Optional[str] = None,
+        license_notice: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Export a loaded model as a CRC32-verified .jsyn Hugging Face Hub bundle directory."""
         return self._json_request(
@@ -388,6 +390,8 @@ class Connection:
                 "output_dir": output_dir,
                 "base_model_repo": base_model_repo,
                 "hf_repo_id": hf_repo_id,
+                "license": license,
+                "license_notice": license_notice,
             },
         )
 
@@ -396,11 +400,12 @@ class Connection:
         model_id: str,
         repo_id: Optional[str] = None,
         local_dir: Optional[str] = None,
+        filename: Optional[str] = None,
         revision: str = "main",
         target_rank: int = 16,
         distill_svf: bool = True,
     ) -> Dict[str, Any]:
-        """Pull a pre-factorized .jsyn or .safetensors checkpoint from Hugging Face Hub or local_dir."""
+        """Pull a pre-factorized .jsyn, .safetensors (including MLX 1-bit & sharded), or .gguf checkpoint."""
         return self._json_request(
             "POST",
             "/api/v1/synapse/hf/pull",
@@ -408,7 +413,31 @@ class Connection:
                 "model_id": model_id,
                 "repo_id": repo_id,
                 "local_dir": local_dir,
+                "filename": filename,
                 "revision": revision,
+                "target_rank": target_rank,
+                "distill_svf": distill_svf,
+            },
+        )
+
+    def hf_catalog(self) -> Dict[str, Any]:
+        """List JouleDB's curated <30 GB permissive open-weight frontier model catalog."""
+        return self._json_request("GET", "/api/v1/synapse/hf/catalog")
+
+    def ingest_gguf(
+        self,
+        model_id: str,
+        file_path: str,
+        target_rank: int = 16,
+        distill_svf: bool = True,
+    ) -> Dict[str, Any]:
+        """Compile a local .gguf checkpoint directly into sub-1-bit LittleBit-2 living bitplanes."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/ingest/gguf",
+            {
+                "model_id": model_id,
+                "file_path": file_path,
                 "target_rank": target_rank,
                 "distill_svf": distill_svf,
             },

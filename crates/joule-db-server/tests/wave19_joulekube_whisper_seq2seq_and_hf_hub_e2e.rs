@@ -256,7 +256,7 @@ metadata:
   name: claim-ops
   namespace: ai-ops
   annotations:
-    jouledb.io/energy-budget-nj: "500mJ"
+    jouledb.io/energy-budget-nj: "250J"
     jouledb.io/allow-sql-tables: "sensor_logs"
 spec:
   warmPoolRef:

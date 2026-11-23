@@ -232,6 +232,9 @@ pub fn detect_vision_encoder(
 ) -> Option<(VisionLayoutKind, usize)> {
     for pfx in [
         format!("{model_id}::vision_model."),
+        format!("{model_id}::model.vision_model."),
+        format!("{model_id}::vision_tower.vision_model."),
+        format!("{model_id}::model.vision_tower.vision_model."),
         format!("{model_id}::"),
     ] {
         if harness
