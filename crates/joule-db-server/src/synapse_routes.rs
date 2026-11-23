@@ -20,7 +20,11 @@ use joule_db_weights::{
         BpeTokenizer, CausalDecoderReceipt, CausalGenerationParams, LivePrefixKvStore,
         detect_causal_decoder, generate_with_littlebit_causal_decoder, parse_hf_causal_config_json,
     },
-    checkpoint_ingest::ingest_safetensors_into_harness,
+    checkpoint_ingest::ingest_safetensors_with_options,
+    grammar_constrain::{
+        ConstrainedJsonReceipt, ConstrainedJsonSchema, ConstrainedToolCall, ToolSpec,
+        generate_schema_constrained_json, select_and_constrain_tool_call,
+    },
     synapse::{ContextCandidate, JouleHarnessEngine, LittleBitSVFTensor, WeightShardMeta},
     transformer_encoder::{
         TransformerEncoderReceipt, detect_transformer_encoder,
@@ -361,6 +365,52 @@ impl SynapseServerRuntime {
         Some((rec, device, mem_bytes))
     }
 
+    /// Generate a **100% schema-valid JSON object** using jump-forward structural skeleton emission
+    /// + token-level logit masking over sub-1-bit `LittleBit-2` weights!
+    pub fn constrain_json(
+        &self,
+        model_hint: Option<&str>,
+        prompt: &str,
+        schema_val: &serde_json::Value,
+    ) -> Result<ConstrainedJsonReceipt, String> {
+        let compiled = ConstrainedJsonSchema::from_json_value(schema_val)?;
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut kv_guard = match self.live_kv_store.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        generate_schema_constrained_json(&mut guard, &mut kv_guard, model_hint, prompt, &compiled)
+    }
+
+    /// Select highest-affinity tool and generate **100% schema-validated JSON arguments**!
+    pub fn constrain_tool_call(
+        &self,
+        model_hint: Option<&str>,
+        prompt: &str,
+        tools: &[ToolSpec],
+        forced_tool_name: Option<&str>,
+    ) -> Result<ConstrainedToolCall, String> {
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut kv_guard = match self.live_kv_store.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        select_and_constrain_tool_call(
+            &mut guard,
+            &mut kv_guard,
+            model_hint,
+            prompt,
+            tools,
+            forced_tool_name,
+        )
+    }
+
     /// Execute a real `LittleBit-2` (`wgpu` Metal/Vulkan `countOneBits` WGSL or CPU `XNOR+POPCNT`)
     /// or `Titans` continuum forward pass for OpenAI `/v1/*` and Ollama `/api/*` disintermediation.
     pub fn run_living_forward(
@@ -644,6 +694,13 @@ pub struct IngestSafetensorsReq {
     pub target_rank: usize,
     #[serde(default = "default_max_outliers")]
     pub max_outliers: usize,
+    /// Run single-pass Teacher->Student Coordinate-Ridge `SVF` + Per-Row Gain Self-Distillation during ingestion (`true` by default).
+    #[serde(default = "default_distill_svf")]
+    pub distill_svf: bool,
+}
+
+fn default_distill_svf() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -693,6 +750,14 @@ fn default_rep_pen() -> f32 {
 
 fn default_rng_seed() -> u64 {
     42
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GrammarConstrainReq {
+    #[serde(default)]
+    pub model_id: Option<String>,
+    pub prompt: String,
+    pub schema: serde_json::Value,
 }
 
 fn default_max_seq_len() -> usize {
@@ -890,6 +955,10 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             post(handle_decoder_generate),
         )
         .route(
+            "/api/v1/synapse/grammar/constrain",
+            post(handle_grammar_constrain),
+        )
+        .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
         )
@@ -1048,11 +1117,12 @@ async fn handle_ingest_safetensors(
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
-        let rep = match ingest_safetensors_into_harness(
+        let rep = match ingest_safetensors_with_options(
             &req.model_id,
             &raw_bytes,
             req.target_rank,
             req.max_outliers,
+            req.distill_svf,
             &mut guard,
         ) {
             Ok(r) => r,
@@ -1254,6 +1324,16 @@ async fn handle_decoder_generate(
         &req.prompt,
         &params,
     ) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
+}
+
+async fn handle_grammar_constrain(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<GrammarConstrainReq>,
+) -> impl IntoResponse {
+    match rt.constrain_json(req.model_id.as_deref(), &req.prompt, &req.schema) {
         Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
         Err(e) => bad_request(e),
     }

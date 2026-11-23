@@ -16,7 +16,7 @@ use crate::ward_openai_routes::{WardOpenAiRuntime, energy_headers, run_thermodyn
 use axum::{
     Json, Router,
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     response::IntoResponse,
     routing::{get, post},
 };
@@ -27,7 +27,7 @@ use joule_db_branch::{
     },
     ward::{FabricHopEnergyReceipt, FabricTraceReceipt, HeterogeneousRailSample, WardCapabilityToken},
 };
-use joule_db_weights::federated_mesh::SynapseSkillDelta;
+use joule_db_weights::{federated_mesh::SynapseSkillDelta, grammar_constrain::ToolSpec};
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -83,6 +83,12 @@ pub struct AnthropicMessagesReq {
     #[serde(default)]
     pub system: Option<String>,
     pub messages: Vec<AnthropicMessage>,
+    #[serde(default)]
+    pub stream: bool,
+    #[serde(default)]
+    pub tools: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub tool_choice: Option<serde_json::Value>,
     #[serde(default)]
     pub x_ward_token: Option<WardCapabilityToken>,
     #[serde(default)]
@@ -221,6 +227,149 @@ async fn handle_anthropic_messages(
     }
 
     let _max_tok = req.max_tokens;
+    let in_tokens = guardrail.sanitized_text.split_whitespace().count().max(1);
+    let hint = if req.model == "jouledb-cascade-v1" {
+        None
+    } else {
+        Some(req.model.as_str())
+    };
+
+    // Anthropic Native Tool-Use Grammar Constraining (`tools` provided)
+    if !req.tools.is_empty() {
+        let specs: Vec<ToolSpec> = req
+            .tools
+            .iter()
+            .filter_map(|t| {
+                let name = t.get("name").and_then(|v| v.as_str())?;
+                let desc = t
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let schema = t
+                    .get("input_schema")
+                    .or_else(|| t.get("parameters"))
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({}));
+                Some(ToolSpec {
+                    name: name.to_string(),
+                    description: desc,
+                    parameters_schema: schema,
+                })
+            })
+            .collect();
+        let forced = req
+            .tool_choice
+            .as_ref()
+            .and_then(|tc| tc.get("name"))
+            .and_then(|n| n.as_str());
+
+        if !specs.is_empty() {
+            match rt
+                .ward_rt
+                .synapse_rt
+                .constrain_tool_call(hint, &guardrail.sanitized_text, &specs, forced)
+            {
+                Ok(tc) => {
+                    let (mut rails, cal_src, hw_fused) = rt.ward_rt.estimate_rails_fused(
+                        "xgrammar_jump_forward_dfa",
+                        tc.receipt.elapsed_ns,
+                        16 * 1024,
+                        0,
+                        0,
+                    );
+                    rails.cpu_nj = rails
+                        .cpu_nj
+                        .saturating_add(guardrail.scan_cost_nj)
+                        .saturating_add(tc.receipt.mask_eval_cost_nj);
+                    let mut trace = FabricTraceReceipt::default();
+                    trace.push_hop(FabricHopEnergyReceipt {
+                        node_id: rt.ward_rt.ward.node_id().to_string(),
+                        fabric_class: rt.ward_rt.ward.fabric_class(),
+                        silicon_lane: "xgrammar_jump_forward_dfa".to_string(),
+                        calibration_source: cal_src,
+                        grid_carbon_g_per_kwh: rt.ward_rt.ward.grid_carbon_g_per_kwh(),
+                        rails,
+                    });
+                    let ts = now_ms();
+                    let msg_id = format!("msg_jdb_{ts}");
+                    let trace_id = format!("tr-msg-{ts}");
+                    let syn_lsn = rt.ward_rt.synapse_rt.current_synapse_lsn();
+                    rt.pulse.record_from_trace(
+                        &trace_id,
+                        "anthropic.messages.tool_use",
+                        "main",
+                        0,
+                        syn_lsn,
+                        "tier4_xgrammar_constrained_tool_call",
+                        &trace,
+                    );
+                    let energy_meta = serde_json::json!({
+                        "trace_id": trace_id,
+                        "guardrail_rules_fired": guardrail.triggered_rules,
+                        "guardrail_scan_nj": guardrail.scan_cost_nj,
+                        "cascade_tier": "tier4_xgrammar_constrained_tool_call",
+                        "kernel": "xgrammar_jump_forward_dfa",
+                        "hardware_sensor_fused": hw_fused,
+                        "aggregate_rails": trace.aggregate_rails,
+                        "trace": trace,
+                    });
+
+                    if req.stream {
+                        let mut hdrs = energy_headers(&trace, "tier4_xgrammar_constrained_tool_call");
+                        hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                        hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
+                        let sse = build_anthropic_tool_sse(
+                            &msg_id,
+                            &req.model,
+                            &tc.call_id,
+                            &tc.name,
+                            &tc.arguments_json,
+                            in_tokens,
+                            trace.aggregate_rails.total_nj(),
+                            &energy_meta,
+                        );
+                        return (StatusCode::OK, hdrs, sse).into_response();
+                    }
+
+                    return (
+                        StatusCode::OK,
+                        energy_headers(&trace, "tier4_xgrammar_constrained_tool_call"),
+                        Json(serde_json::json!({
+                            "id": msg_id,
+                            "type": "message",
+                            "role": "assistant",
+                            "model": req.model,
+                            "content": [{
+                                "type": "tool_use",
+                                "id": tc.call_id,
+                                "name": tc.name,
+                                "input": tc.arguments_parsed,
+                            }],
+                            "stop_reason": "tool_use",
+                            "usage": {
+                                "input_tokens": in_tokens,
+                                "output_tokens": 8,
+                            },
+                            "x_jouledb_energy": energy_meta,
+                        })),
+                    )
+                        .into_response();
+                }
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({
+                            "type": "error",
+                            "error": { "type": "invalid_request_error", "message": e }
+                        })),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
+
     match run_thermodynamic_cascade(
         &rt.ward_rt,
         &req.model,
@@ -237,6 +386,7 @@ async fn handle_anthropic_messages(
                 .saturating_add(guardrail.scan_cost_nj);
 
             let ts = now_ms();
+            let msg_id = format!("msg_jdb_{ts}");
             let trace_id = format!("tr-msg-{ts}");
             let syn_lsn = rt.ward_rt.synapse_rt.current_synapse_lsn();
             rt.pulse.record_from_trace(
@@ -249,13 +399,41 @@ async fn handle_anthropic_messages(
                 &outcome.trace,
             );
 
-            let in_tokens = guardrail.sanitized_text.split_whitespace().count().max(1);
             let out_tokens = outcome.reply_text.split_whitespace().count().max(1);
+            let energy_meta = serde_json::json!({
+                "trace_id": trace_id,
+                "guardrail_rules_fired": guardrail.triggered_rules,
+                "guardrail_scan_nj": guardrail.scan_cost_nj,
+                "cascade_tier": outcome.cascade_tier,
+                "kernel": outcome.kernel,
+                "device": outcome.device,
+                "bits_per_weight": outcome.bits_per_weight,
+                "aggregate_rails": outcome.trace.aggregate_rails,
+                "saved_by_memoization_nj": outcome.trace.saved_by_memoization_nj,
+                "trace": outcome.trace,
+            });
+
+            if req.stream {
+                let mut hdrs = energy_headers(&outcome.trace, &outcome.cascade_tier);
+                hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
+                let sse = build_anthropic_text_sse(
+                    &msg_id,
+                    &outcome.resolved_model,
+                    &outcome.reply_text,
+                    in_tokens,
+                    out_tokens,
+                    outcome.trace.aggregate_rails.total_nj(),
+                    &energy_meta,
+                );
+                return (StatusCode::OK, hdrs, sse).into_response();
+            }
+
             (
                 StatusCode::OK,
                 energy_headers(&outcome.trace, &outcome.cascade_tier),
                 Json(serde_json::json!({
-                    "id": format!("msg_jdb_{ts}"),
+                    "id": msg_id,
                     "type": "message",
                     "role": "assistant",
                     "model": outcome.resolved_model,
@@ -268,18 +446,7 @@ async fn handle_anthropic_messages(
                         "input_tokens": in_tokens,
                         "output_tokens": out_tokens,
                     },
-                    "x_jouledb_energy": {
-                        "trace_id": trace_id,
-                        "guardrail_rules_fired": guardrail.triggered_rules,
-                        "guardrail_scan_nj": guardrail.scan_cost_nj,
-                        "cascade_tier": outcome.cascade_tier,
-                        "kernel": outcome.kernel,
-                        "device": outcome.device,
-                        "bits_per_weight": outcome.bits_per_weight,
-                        "aggregate_rails": outcome.trace.aggregate_rails,
-                        "saved_by_memoization_nj": outcome.trace.saved_by_memoization_nj,
-                        "trace": outcome.trace,
-                    }
+                    "x_jouledb_energy": energy_meta,
                 })),
             )
                 .into_response()
@@ -296,6 +463,136 @@ async fn handle_anthropic_messages(
         )
             .into_response(),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_anthropic_text_sse(
+    msg_id: &str,
+    model: &str,
+    full_text: &str,
+    in_tokens: usize,
+    out_tokens: usize,
+    total_nj: u64,
+    energy_meta: &serde_json::Value,
+) -> String {
+    let mut chunks = Vec::new();
+    let mut cur = String::new();
+    for ch in full_text.chars() {
+        cur.push(ch);
+        if ch.is_whitespace() && cur.len() >= 4 {
+            chunks.push(std::mem::take(&mut cur));
+        }
+    }
+    if !cur.is_empty() || chunks.is_empty() {
+        chunks.push(cur);
+    }
+
+    let n = chunks.len().max(1) as u64;
+    let per_tok_nj = (total_nj / n).max(1);
+    let mut buf = String::with_capacity(full_text.len() + 640);
+
+    let m_start = serde_json::json!({
+        "type": "message_start",
+        "message": {
+            "id": msg_id,
+            "type": "message",
+            "role": "assistant",
+            "model": model,
+            "content": [],
+            "stop_reason": serde_json::Value::Null,
+            "usage": { "input_tokens": in_tokens, "output_tokens": 0 }
+        }
+    });
+    buf.push_str(&format!("event: message_start\ndata: {m_start}\n\n"));
+
+    let cb_start = serde_json::json!({
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": { "type": "text", "text": "" }
+    });
+    buf.push_str(&format!("event: content_block_start\ndata: {cb_start}\n\n"));
+
+    let mut cum_nj = 0u64;
+    for (idx, piece) in chunks.iter().enumerate() {
+        let tok_nj = if idx + 1 == chunks.len() {
+            total_nj.saturating_sub(cum_nj).max(1)
+        } else {
+            per_tok_nj
+        };
+        cum_nj = cum_nj.saturating_add(tok_nj);
+        let delta = serde_json::json!({
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": { "type": "text_delta", "text": piece },
+            "x_jouledb_token_nj": tok_nj,
+            "x_jouledb_cumulative_nj": cum_nj,
+        });
+        buf.push_str(&format!("event: content_block_delta\ndata: {delta}\n\n"));
+    }
+
+    buf.push_str("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+    let m_delta = serde_json::json!({
+        "type": "message_delta",
+        "delta": { "stop_reason": "end_turn" },
+        "usage": { "output_tokens": out_tokens },
+        "x_jouledb_energy": energy_meta,
+    });
+    buf.push_str(&format!("event: message_delta\ndata: {m_delta}\n\n"));
+    buf.push_str("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
+    buf
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_anthropic_tool_sse(
+    msg_id: &str,
+    model: &str,
+    tool_id: &str,
+    tool_name: &str,
+    args_json: &str,
+    in_tokens: usize,
+    total_nj: u64,
+    energy_meta: &serde_json::Value,
+) -> String {
+    let mut buf = String::with_capacity(args_json.len() + 640);
+    let m_start = serde_json::json!({
+        "type": "message_start",
+        "message": {
+            "id": msg_id,
+            "type": "message",
+            "role": "assistant",
+            "model": model,
+            "content": [],
+            "stop_reason": serde_json::Value::Null,
+            "usage": { "input_tokens": in_tokens, "output_tokens": 0 }
+        }
+    });
+    buf.push_str(&format!("event: message_start\ndata: {m_start}\n\n"));
+
+    let cb_start = serde_json::json!({
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": { "type": "tool_use", "id": tool_id, "name": tool_name, "input": {} }
+    });
+    buf.push_str(&format!("event: content_block_start\ndata: {cb_start}\n\n"));
+
+    let cb_delta = serde_json::json!({
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": { "type": "input_json_delta", "partial_json": args_json },
+        "x_jouledb_token_nj": total_nj.max(1),
+    });
+    buf.push_str(&format!("event: content_block_delta\ndata: {cb_delta}\n\n"));
+    buf.push_str("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+
+    let m_delta = serde_json::json!({
+        "type": "message_delta",
+        "delta": { "stop_reason": "tool_use" },
+        "usage": { "output_tokens": 8 },
+        "x_jouledb_energy": energy_meta,
+    });
+    buf.push_str(&format!("event: message_delta\ndata: {m_delta}\n\n"));
+    buf.push_str("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
+    buf
 }
 
 async fn handle_otlp_traces(

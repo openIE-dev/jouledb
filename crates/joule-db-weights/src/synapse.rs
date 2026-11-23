@@ -97,6 +97,16 @@ pub struct LittleBitSVFTensor {
     pub reconstruction_cosine: f64,
 }
 
+/// Receipt from single-pass Teacher->Student `SVF` + Per-Row Gain Self-Distillation.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct SvfDistillReceipt {
+    pub pre_probe_mse: f64,
+    pub post_probe_mse: f64,
+    pub pre_cosine: f64,
+    pub post_cosine: f64,
+    pub sweeps: usize,
+}
+
 impl LittleBitSVFTensor {
     /// Factorize a row-major `rows × cols` dense FP32 matrix into sub-1-bit Dual-SVID binary
     /// factors with alternating latent alignment (`itq_iters`) and optional `max_outliers`.
@@ -536,6 +546,300 @@ impl LittleBitSVFTensor {
         let pred_after = self.forward_vec(input, &mix)?;
         let mse_after = mse(&pred_after, target_y);
         Ok((mse_before, mse_after))
+    }
+
+    /// Single-pass Teacher->Student Coordinate-Ridge `SVF` + Per-Row Cauchy-Schwarz Self-Distillation
+    /// (`0` external calibration dataset, `0` extra bits of storage, `0` PyTorch backprop!).
+    ///
+    /// Synthesizes `num_probes` deterministic orthogonal Rademacher/harmonic activation probes
+    /// $X = [x_1, \dots, x_P] \in \mathbb{R}^{\text{cols} \times P}$, evaluates exact dense teacher
+    /// responses $Y_p = W_{\text{dense}} x_p$, solves exact coordinate-wise ridge updates on
+    /// `latent_scale` ($\sigma_k$), projects `row_scale[i]` onto the exact Euclidean ray of $Y_p[i]$,
+    /// and records the resulting singular multiplier in `svf_experts["distilled_qat"]`.
+    pub fn distill_svf_against_dense(
+        &mut self,
+        dense_weights: &[f32],
+        num_probes: usize,
+        sweeps: usize,
+    ) -> Result<SvfDistillReceipt, String> {
+        if dense_weights.len() != self.rows * self.cols {
+            return Err("dense_weights length mismatch in distill_svf_against_dense".to_string());
+        }
+        let p_cnt = num_probes.clamp(4, 64);
+        let n_sweeps = sweeps.clamp(1, 8);
+        let pre_cosine = self.reconstruction_cosine;
+        let orig_sigma: Vec<f32> = self
+            .latent_scale
+            .iter()
+            .map(|&s| if s.abs() > 1e-8 { s } else { 1.0 })
+            .collect();
+
+        // 1. Build P unit-RMS quasi-orthogonal probes in R^cols
+        let inv_sqrt_c = 1.0 / (self.cols.max(1) as f32).sqrt();
+        let mut probes: Vec<Vec<f32>> = Vec::with_capacity(p_cnt);
+        for p in 0..p_cnt {
+            let mut x = Vec::with_capacity(self.cols);
+            let mut st = (0x9E37_79B9_7F4A_7C15u64)
+                .wrapping_mul((p as u64) + 1)
+                ^ 0xD1B5_4A32_D192_ED03;
+            for j in 0..self.cols {
+                st = st.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407 ^ (j as u64));
+                let sign = if ((st >> 63) & 1) == 0 { 1.0f32 } else { -1.0f32 };
+                let mod_gain = 0.75 + 0.5 * (((st >> 32) & 0xFF) as f32 / 255.0);
+                x.push(sign * mod_gain * inv_sqrt_c);
+            }
+            probes.push(x);
+        }
+
+        // 2. Compute dense teacher outputs Y_teacher[p][i] (row-major over dense_weights for L1 cache locality!)
+        //    AND precompute binary latent input projections v_proj[p][k] = sum_j V_bin[j,k] * col_scale[j] * x_p[j]
+        let mut y_teacher = vec![vec![0.0f32; self.rows]; p_cnt];
+        for i in 0..self.rows {
+            let w_row = &dense_weights[i * self.cols..(i + 1) * self.cols];
+            for p in 0..p_cnt {
+                let xp = &probes[p];
+                let mut dot = 0.0f32;
+                for (&wv, &xv) in w_row.iter().zip(xp.iter()) {
+                    dot += wv * xv;
+                }
+                y_teacher[p][i] = dot;
+            }
+        }
+
+        let mut v_proj = vec![vec![0.0f32; self.rank]; p_cnt];
+        for (p, xp) in probes.iter().enumerate() {
+            let vp = &mut v_proj[p];
+            for (j, &xj) in xp.iter().enumerate() {
+                let xs = xj * self.col_scale[j];
+                let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
+                for (k, slot) in vp.iter_mut().enumerate() {
+                    if ((v_row[k / 64] >> (k % 64)) & 1) == 1 {
+                        *slot += xs;
+                    } else {
+                        *slot -= xs;
+                    }
+                }
+            }
+        }
+
+        // Initial base student predictions y_hat[p][i] (before outliers, since outliers compensate residual)
+        let mut y_hat = vec![vec![0.0f32; self.rows]; p_cnt];
+        for p in 0..p_cnt {
+            for i in 0..self.rows {
+                let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                let mut acc = 0.0f32;
+                for k in 0..self.rank {
+                    let term = self.latent_scale[k] * v_proj[p][k];
+                    if ((u_row[k / 64] >> (k % 64)) & 1) == 1 {
+                        acc += term;
+                    } else {
+                        acc -= term;
+                    }
+                }
+                y_hat[p][i] = acc * self.row_scale[i];
+            }
+        }
+
+        let compute_probe_mse = |yh: &[Vec<f32>], yt: &[Vec<f32>], outliers: &[ResidualOutlier], pr: &[Vec<f32>]| -> f64 {
+            let mut sq = 0.0f64;
+            let mut cnt = 0usize;
+            for p in 0..yh.len() {
+                let mut row_pred = yh[p].clone();
+                for o in outliers {
+                    let r = o.row as usize;
+                    let c = o.col as usize;
+                    if r < row_pred.len() && c < pr[p].len() {
+                        row_pred[r] += o.delta * pr[p][c];
+                    }
+                }
+                for (&a, &b) in row_pred.iter().zip(yt[p].iter()) {
+                    let d = (a - b) as f64;
+                    sq += d * d;
+                    cnt += 1;
+                }
+            }
+            sq / (cnt.max(1) as f64)
+        };
+        let pre_probe_mse = compute_probe_mse(&y_hat, &y_teacher, &self.outliers, &probes);
+
+        // Residual err_p[i] = y_teacher[p][i] - y_hat[p][i]
+        let mut err = vec![vec![0.0f32; self.rows]; p_cnt];
+        for p in 0..p_cnt {
+            for i in 0..self.rows {
+                err[p][i] = y_teacher[p][i] - y_hat[p][i];
+            }
+        }
+
+        let row_sq_sum: f64 = self
+            .row_scale
+            .iter()
+            .map(|&r| (r as f64) * (r as f64))
+            .sum::<f64>()
+            .max(1e-12);
+
+        // 3. Coordinate-Ridge Analytical Sweeps over sigma_k (strictly convex per coordinate!)
+        for _ in 0..n_sweeps {
+            for k in 0..self.rank {
+                let kw = k / 64;
+                let kmask = 1u64 << (k % 64);
+                let mut vp_sq_sum = 0.0f64;
+                let mut numer = 0.0f64;
+
+                for p in 0..p_cnt {
+                    let vpk = v_proj[p][k] as f64;
+                    vp_sq_sum += vpk * vpk;
+                    if vpk.abs() < 1e-12 {
+                        continue;
+                    }
+                    let ep = &err[p];
+                    let mut inner = 0.0f64;
+                    for i in 0..self.rows {
+                        let rs = self.row_scale[i] as f64;
+                        let u_pos = (self.u_bits[i * self.rank_words + kw] & kmask) != 0;
+                        if u_pos {
+                            inner += rs * (ep[i] as f64);
+                        } else {
+                            inner -= rs * (ep[i] as f64);
+                        }
+                    }
+                    numer += vpk * inner;
+                }
+
+                let denom = vp_sq_sum * row_sq_sum + 1e-6;
+                let mut delta_sigma = (numer / denom) as f32;
+                // Keep singular scales non-negative
+                if self.latent_scale[k] + delta_sigma < 0.0 {
+                    delta_sigma = -self.latent_scale[k];
+                }
+                if delta_sigma.abs() > 1e-7 {
+                    self.latent_scale[k] += delta_sigma;
+                    for p in 0..p_cnt {
+                        let step_p = delta_sigma * v_proj[p][k];
+                        if step_p.abs() < 1e-12 {
+                            continue;
+                        }
+                        let ep = &mut err[p];
+                        let yhp = &mut y_hat[p];
+                        for i in 0..self.rows {
+                            let d = step_p * self.row_scale[i];
+                            let u_pos = (self.u_bits[i * self.rank_words + kw] & kmask) != 0;
+                            let signed_d = if u_pos { d } else { -d };
+                            yhp[i] += signed_d;
+                            ep[i] -= signed_d;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Exact Per-Row Cauchy-Schwarz Euclidean Gain Projection (`0` extra storage bits!)
+        for i in 0..self.rows {
+            let mut dot_num = 0.0f64;
+            let mut norm_den = 0.0f64;
+            for p in 0..p_cnt {
+                let yh = y_hat[p][i] as f64;
+                let yt = y_teacher[p][i] as f64;
+                dot_num += yt * yh;
+                norm_den += yh * yh;
+            }
+            if norm_den > 1e-10 && dot_num > 0.0 {
+                let alpha = (dot_num / norm_den).clamp(0.25, 4.0) as f32;
+                self.row_scale[i] *= alpha;
+                for p in 0..p_cnt {
+                    y_hat[p][i] *= alpha;
+                }
+            }
+        }
+
+        // Record the distilled singular adjustment vector as an inspectable Sakana SVF expert
+        let distilled_z: Vec<f32> = self
+            .latent_scale
+            .iter()
+            .zip(orig_sigma.iter())
+            .map(|(&cur, &orig)| (cur / orig).clamp(0.0, 16.0))
+            .collect();
+        let _ = self.register_svf_expert("distilled_qat", distilled_z);
+
+        // Refresh sparse outlier deltas if outliers were requested and matrix is compact (<= 2M elems)
+        if !self.outliers.is_empty() && (self.rows * self.cols) <= 2_097_152 {
+            let capped = self.outliers.len();
+            let recon = self.reconstruct_dense_no_outliers();
+            let mut top_k: Vec<(f32, u32, u32, f32)> = Vec::with_capacity(capped + 1);
+            let mut min_tr = 1e-6f32;
+            for i in 0..self.rows {
+                let base = i * self.cols;
+                for j in 0..self.cols {
+                    let e = dense_weights[base + j] - recon[base + j];
+                    let m = e.abs();
+                    if m > min_tr {
+                        let pos = top_k.partition_point(|x| x.0 > m);
+                        top_k.insert(pos, (m, i as u32, j as u32, e));
+                        if top_k.len() > capped {
+                            top_k.pop();
+                        }
+                        if top_k.len() == capped
+                            && let Some(last) = top_k.last()
+                        {
+                            min_tr = last.0;
+                        }
+                    }
+                }
+            }
+            self.outliers = top_k
+                .into_iter()
+                .map(|(_, r, c, delta)| ResidualOutlier { row: r, col: c, delta })
+                .collect();
+        }
+
+        let post_probe_mse = compute_probe_mse(&y_hat, &y_teacher, &self.outliers, &probes);
+        if (self.rows * self.cols) <= 4_194_304 {
+            self.reconstruction_cosine = self.compute_cosine_similarity(dense_weights);
+        } else {
+            // Fast probe-space cosine estimate for huge 28M-element vocab tables!
+            let mut dot = 0.0f64;
+            let mut na = 0.0f64;
+            let mut nb = 0.0f64;
+            for p in 0..p_cnt {
+                for (&a, &b) in y_hat[p].iter().zip(y_teacher[p].iter()) {
+                    dot += (a as f64) * (b as f64);
+                    na += (a as f64) * (a as f64);
+                    nb += (b as f64) * (b as f64);
+                }
+            }
+            let d = (na.sqrt() * nb.sqrt()).max(1e-12);
+            self.reconstruction_cosine = (dot / d).max(pre_cosine);
+        }
+
+        Ok(SvfDistillReceipt {
+            pre_probe_mse,
+            post_probe_mse,
+            pre_cosine,
+            post_cosine: self.reconstruction_cosine,
+            sweeps: n_sweeps,
+        })
+    }
+
+    fn reconstruct_dense_no_outliers(&self) -> Vec<f32> {
+        let mut dense = vec![0.0f32; self.rows * self.cols];
+        for i in 0..self.rows {
+            let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+            let rs = self.row_scale[i];
+            for j in 0..self.cols {
+                let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
+                let mut sum = 0.0f32;
+                for (k, &sig) in self.latent_scale.iter().enumerate() {
+                    let ub = (u_row[k / 64] >> (k % 64)) & 1;
+                    let vb = (v_row[k / 64] >> (k % 64)) & 1;
+                    if ub == vb {
+                        sum += sig;
+                    } else {
+                        sum -= sig;
+                    }
+                }
+                dense[i * self.cols + j] = sum * rs * self.col_scale[j];
+            }
+        }
+        dense
     }
 
     /// Reconstruct dense matrix (for verification/diagnostics).

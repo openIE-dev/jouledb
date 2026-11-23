@@ -25,6 +25,7 @@ use joule_db_branch::ward::{
 };
 use joule_db_energy::fabric::{FabricNodeClass, FabricWorkload, FabricWorkloadKind};
 use joule_db_query::hybrid_graphrag::RrfConfig;
+use joule_db_weights::grammar_constrain::ToolSpec;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -243,6 +244,18 @@ pub struct OpenAiChatReq {
     pub temperature: Option<f32>,
     #[serde(default)]
     pub max_tokens: Option<usize>,
+    /// Enable SSE token streaming (`text/event-stream` with per-token `x_jouledb_token_nj`).
+    #[serde(default)]
+    pub stream: bool,
+    /// Optional structured output grammar (`{"type":"json_schema","json_schema":{...}}`).
+    #[serde(default)]
+    pub response_format: Option<serde_json::Value>,
+    /// Optional OpenAI function/tool definitions (`[{"type":"function","function":{...}}]`).
+    #[serde(default)]
+    pub tools: Vec<serde_json::Value>,
+    /// Optional tool selection directive (`"auto"`, `"none"`, or `{"type":"function","function":{"name":...}}`).
+    #[serde(default)]
+    pub tool_choice: Option<serde_json::Value>,
     /// Optional `ThermoCap` capability token governing energy, rails, fabric tier & plasticity.
     #[serde(default)]
     pub x_ward_token: Option<WardCapabilityToken>,
@@ -1053,17 +1066,259 @@ async fn handle_openai_chat_completions(
         }
     }
 
+    let prompt_str = extract_prompt(&req.messages);
+    let hint = if req.model == "jouledb-cascade-v1" {
+        None
+    } else {
+        Some(req.model.as_str())
+    };
+    let created = now_ms() / 1_000;
+    let prompt_tokens = prompt_str.split_whitespace().count().max(1);
+
+    // 1. Function / Tool-Call Grammar Constraining (`tools` provided and `tool_choice != "none"`)
+    let tools_disabled = req
+        .tool_choice
+        .as_ref()
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| s == "none");
+    if !req.tools.is_empty() && !tools_disabled {
+        if let Err((st, et, msg)) = check_chat_capability(&rt, req.x_ward_token.as_ref(), req.x_hitl_approved) {
+            return (
+                st,
+                Json(serde_json::json!({ "error": { "type": et, "message": msg } })),
+            )
+                .into_response();
+        }
+        let specs = parse_openai_tool_specs(&req.tools);
+        let forced = req
+            .tool_choice
+            .as_ref()
+            .and_then(|tc| tc.get("function"))
+            .and_then(|f| f.get("name"))
+            .and_then(|n| n.as_str());
+
+        match rt.synapse_rt.constrain_tool_call(hint, &prompt_str, &specs, forced) {
+            Ok(tc) => {
+                let (mut rails, cal_src, hw_fused) = rt.estimate_rails_fused(
+                    "xgrammar_jump_forward_dfa",
+                    tc.receipt.elapsed_ns,
+                    16 * 1024,
+                    0,
+                    0,
+                );
+                rails.cpu_nj = rails.cpu_nj.saturating_add(tc.receipt.mask_eval_cost_nj);
+                let mut trace = FabricTraceReceipt::default();
+                trace.push_hop(FabricHopEnergyReceipt {
+                    node_id: rt.ward.node_id().to_string(),
+                    fabric_class: rt.ward.fabric_class(),
+                    silicon_lane: "xgrammar_jump_forward_dfa".to_string(),
+                    calibration_source: cal_src,
+                    grid_carbon_g_per_kwh: rt.ward.grid_carbon_g_per_kwh(),
+                    rails,
+                });
+                let root_tid = req.x_ward_token.as_ref().map(|t| t.root_token_id.as_str());
+                rt.ward.ledger.record_trace(root_tid, &trace);
+
+                let energy_meta = serde_json::json!({
+                    "cascade_tier": "tier4_xgrammar_constrained_tool_call",
+                    "kernel": "xgrammar_jump_forward_dfa",
+                    "hardware_sensor_fused": hw_fused,
+                    "jump_forward_bytes_saved": tc.receipt.jump_forward_bytes_saved,
+                    "mask_eval_cost_nj": tc.receipt.mask_eval_cost_nj,
+                    "aggregate_rails": trace.aggregate_rails,
+                    "trace": trace,
+                });
+
+                if req.stream {
+                    let mut hdrs = energy_headers(&trace, "tier4_xgrammar_constrained_tool_call");
+                    hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                    hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
+                    let sse = build_openai_tool_sse_stream(
+                        &format!("chatcmpl-jdb-{created}"),
+                        created,
+                        &req.model,
+                        &tc.call_id,
+                        &tc.name,
+                        &tc.arguments_json,
+                        trace.aggregate_rails.total_nj(),
+                        &energy_meta,
+                    );
+                    return (StatusCode::OK, hdrs, sse).into_response();
+                }
+
+                return (
+                    StatusCode::OK,
+                    energy_headers(&trace, "tier4_xgrammar_constrained_tool_call"),
+                    Json(serde_json::json!({
+                        "id": format!("chatcmpl-jdb-{created}"),
+                        "object": "chat.completion",
+                        "created": created,
+                        "model": req.model,
+                        "choices": [{
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": serde_json::Value::Null,
+                                "tool_calls": [{
+                                    "id": tc.call_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.name,
+                                        "arguments": tc.arguments_json,
+                                    }
+                                }]
+                            },
+                            "finish_reason": "tool_calls",
+                        }],
+                        "usage": {
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": 8,
+                            "total_tokens": prompt_tokens + 8,
+                        },
+                        "x_jouledb_energy": energy_meta,
+                    })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": { "type": "grammar_error", "message": e } })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    // 2. Schema-Constrained Structured Output (`response_format` with `json_schema` or `schema`)
+    if let Some(ref rf) = req.response_format
+        && let Some(schema_val) = rf.get("json_schema").or_else(|| rf.get("schema"))
+    {
+        if let Err((st, et, msg)) = check_chat_capability(&rt, req.x_ward_token.as_ref(), req.x_hitl_approved) {
+            return (
+                st,
+                Json(serde_json::json!({ "error": { "type": et, "message": msg } })),
+            )
+                .into_response();
+        }
+        match rt.synapse_rt.constrain_json(hint, &prompt_str, schema_val) {
+            Ok(crec) => {
+                let (mut rails, cal_src, hw_fused) = rt.estimate_rails_fused(
+                    "xgrammar_jump_forward_dfa",
+                    crec.elapsed_ns,
+                    16 * 1024,
+                    0,
+                    0,
+                );
+                rails.cpu_nj = rails.cpu_nj.saturating_add(crec.mask_eval_cost_nj);
+                let mut trace = FabricTraceReceipt::default();
+                trace.push_hop(FabricHopEnergyReceipt {
+                    node_id: rt.ward.node_id().to_string(),
+                    fabric_class: rt.ward.fabric_class(),
+                    silicon_lane: "xgrammar_jump_forward_dfa".to_string(),
+                    calibration_source: cal_src,
+                    grid_carbon_g_per_kwh: rt.ward.grid_carbon_g_per_kwh(),
+                    rails,
+                });
+                let root_tid = req.x_ward_token.as_ref().map(|t| t.root_token_id.as_str());
+                rt.ward.ledger.record_trace(root_tid, &trace);
+
+                let energy_meta = serde_json::json!({
+                    "cascade_tier": "tier4_xgrammar_constrained_json",
+                    "kernel": "xgrammar_jump_forward_dfa",
+                    "hardware_sensor_fused": hw_fused,
+                    "jump_forward_bytes_saved": crec.jump_forward_bytes_saved,
+                    "mask_eval_cost_nj": crec.mask_eval_cost_nj,
+                    "aggregate_rails": trace.aggregate_rails,
+                    "trace": trace,
+                });
+
+                if req.stream {
+                    let mut hdrs = energy_headers(&trace, "tier4_xgrammar_constrained_json");
+                    hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                    hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
+                    let sse = build_openai_text_sse_stream(
+                        &format!("chatcmpl-jdb-{created}"),
+                        created,
+                        &req.model,
+                        &crec.json_text,
+                        trace.aggregate_rails.total_nj(),
+                        &energy_meta,
+                    );
+                    return (StatusCode::OK, hdrs, sse).into_response();
+                }
+
+                return (
+                    StatusCode::OK,
+                    energy_headers(&trace, "tier4_xgrammar_constrained_json"),
+                    Json(serde_json::json!({
+                        "id": format!("chatcmpl-jdb-{created}"),
+                        "object": "chat.completion",
+                        "created": created,
+                        "model": req.model,
+                        "choices": [{
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": crec.json_text,
+                            },
+                            "finish_reason": "stop",
+                        }],
+                        "usage": {
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": 8,
+                            "total_tokens": prompt_tokens + 8,
+                        },
+                        "x_jouledb_energy": energy_meta,
+                    })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": { "type": "grammar_error", "message": e } })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
     match run_thermodynamic_cascade(
         &rt,
         &req.model,
-        &extract_prompt(&req.messages),
+        &prompt_str,
         req.x_ward_token.as_ref(),
         req.x_hitl_approved,
     ) {
         Ok(outcome) => {
-            let created = now_ms() / 1_000;
-            let prompt_tokens = extract_prompt(&req.messages).split_whitespace().count().max(1);
             let completion_tokens = outcome.reply_text.split_whitespace().count().max(1);
+            let energy_meta = serde_json::json!({
+                "cascade_tier": outcome.cascade_tier,
+                "kernel": outcome.kernel,
+                "device": outcome.device,
+                "bits_per_weight": outcome.bits_per_weight,
+                "peer_forwarded": false,
+                "aggregate_rails": outcome.trace.aggregate_rails,
+                "saved_by_memoization_nj": outcome.trace.saved_by_memoization_nj,
+                "trace": outcome.trace,
+            });
+
+            if req.stream {
+                let mut hdrs = energy_headers(&outcome.trace, &outcome.cascade_tier);
+                hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
+                let sse = build_openai_text_sse_stream(
+                    &format!("chatcmpl-jdb-{created}"),
+                    created,
+                    &outcome.resolved_model,
+                    &outcome.reply_text,
+                    outcome.trace.aggregate_rails.total_nj(),
+                    &energy_meta,
+                );
+                return (StatusCode::OK, hdrs, sse).into_response();
+            }
+
             (
                 StatusCode::OK,
                 energy_headers(&outcome.trace, &outcome.cascade_tier),
@@ -1085,16 +1340,7 @@ async fn handle_openai_chat_completions(
                         "completion_tokens": completion_tokens,
                         "total_tokens": prompt_tokens + completion_tokens,
                     },
-                    "x_jouledb_energy": {
-                        "cascade_tier": outcome.cascade_tier,
-                        "kernel": outcome.kernel,
-                        "device": outcome.device,
-                        "bits_per_weight": outcome.bits_per_weight,
-                        "peer_forwarded": false,
-                        "aggregate_rails": outcome.trace.aggregate_rails,
-                        "saved_by_memoization_nj": outcome.trace.saved_by_memoization_nj,
-                        "trace": outcome.trace,
-                    }
+                    "x_jouledb_energy": energy_meta,
                 })),
             )
                 .into_response()
@@ -1147,6 +1393,211 @@ async fn handle_ollama_generate(
             (status, Json(serde_json::json!({ "error": msg }))).into_response()
         }
     }
+}
+
+fn check_chat_capability(
+    rt: &WardOpenAiRuntime,
+    cap_opt: Option<&WardCapabilityToken>,
+    hitl_approved: bool,
+) -> Result<(), (StatusCode, &'static str, String)> {
+    if let Some(cap) = cap_opt {
+        let est = HeterogeneousRailSample::estimate_calibrated(
+            rt.ward.fabric_class(),
+            "xgrammar_jump_forward_dfa",
+            250_000,
+            16 * 1024,
+            0,
+            0,
+            rt.ward.grid_carbon_g_per_kwh(),
+        );
+        let ctx = WardActionContext {
+            now_epoch_ms: now_ms(),
+            target_fabric_class: rt.ward.fabric_class(),
+            silicon_lane: "xgrammar_jump_forward_dfa".into(),
+            requested_paths: vec![],
+            requires_fs_write: false,
+            requested_egress_host: None,
+            requested_sql_tables: vec![],
+            mutates_synapse_weights: false,
+            estimated_rails: est,
+            hitl_approved,
+        };
+        let spent = rt.ward.ledger.token_spent_nj(&cap.root_token_id);
+        match authorize_ward_action(rt.ward.root_secret(), cap, &ctx, spent) {
+            WardDecision::Permit { .. } => {}
+            WardDecision::RequiresHumanApproval { reason, .. } => {
+                return Err((StatusCode::PRECONDITION_REQUIRED, "hitl_gate_required", reason));
+            }
+            WardDecision::Deny { reason } => {
+                return Err((StatusCode::FORBIDDEN, "capability_denied", reason));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_openai_tool_specs(raw_tools: &[serde_json::Value]) -> Vec<ToolSpec> {
+    let mut specs = Vec::with_capacity(raw_tools.len());
+    for item in raw_tools {
+        let fn_obj = item.get("function").unwrap_or(item);
+        if let Some(name) = fn_obj.get("name").and_then(|v| v.as_str()) {
+            let desc = fn_obj
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let params = fn_obj
+                .get("parameters")
+                .or_else(|| fn_obj.get("input_schema"))
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({}));
+            specs.push(ToolSpec {
+                name: name.to_string(),
+                description: desc,
+                parameters_schema: params,
+            });
+        }
+    }
+    specs
+}
+
+fn split_stream_pieces(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for ch in text.chars() {
+        cur.push(ch);
+        if ch.is_whitespace() && cur.len() >= 4 {
+            out.push(std::mem::take(&mut cur));
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    if out.is_empty() {
+        out.push(String::new());
+    }
+    out
+}
+
+pub(crate) fn build_openai_text_sse_stream(
+    id: &str,
+    created: u64,
+    model: &str,
+    full_text: &str,
+    total_nj: u64,
+    energy_meta: &serde_json::Value,
+) -> String {
+    let pieces = split_stream_pieces(full_text);
+    let n = pieces.len().max(1) as u64;
+    let per_tok_nj = (total_nj / n).max(1);
+    let mut buf = String::with_capacity(full_text.len() + 512);
+
+    let role_chunk = serde_json::json!({
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{ "index": 0, "delta": { "role": "assistant" }, "finish_reason": serde_json::Value::Null }],
+    });
+    buf.push_str(&format!("data: {role_chunk}\n\n"));
+
+    let mut cum_nj = 0u64;
+    for (idx, piece) in pieces.iter().enumerate() {
+        let tok_nj = if idx + 1 == pieces.len() {
+            total_nj.saturating_sub(cum_nj).max(1)
+        } else {
+            per_tok_nj
+        };
+        cum_nj = cum_nj.saturating_add(tok_nj);
+        let chunk = serde_json::json!({
+            "id": id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{ "index": 0, "delta": { "content": piece }, "finish_reason": serde_json::Value::Null }],
+            "x_jouledb_token_nj": tok_nj,
+            "x_jouledb_cumulative_nj": cum_nj,
+        });
+        buf.push_str(&format!("data: {chunk}\n\n"));
+    }
+
+    let stop_chunk = serde_json::json!({
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{ "index": 0, "delta": {}, "finish_reason": "stop" }],
+        "x_jouledb_energy": energy_meta,
+    });
+    buf.push_str(&format!("data: {stop_chunk}\n\n"));
+    buf.push_str("data: [DONE]\n\n");
+    buf
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_openai_tool_sse_stream(
+    id: &str,
+    created: u64,
+    model: &str,
+    call_id: &str,
+    tool_name: &str,
+    args_json: &str,
+    total_nj: u64,
+    energy_meta: &serde_json::Value,
+) -> String {
+    let mut buf = String::with_capacity(args_json.len() + 512);
+    let head = serde_json::json!({
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "role": "assistant",
+                "tool_calls": [{
+                    "index": 0,
+                    "id": call_id,
+                    "type": "function",
+                    "function": { "name": tool_name, "arguments": "" }
+                }]
+            },
+            "finish_reason": serde_json::Value::Null
+        }],
+        "x_jouledb_token_nj": (total_nj / 2).max(1),
+    });
+    buf.push_str(&format!("data: {head}\n\n"));
+
+    let arg_chunk = serde_json::json!({
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "tool_calls": [{
+                    "index": 0,
+                    "function": { "arguments": args_json }
+                }]
+            },
+            "finish_reason": serde_json::Value::Null
+        }],
+        "x_jouledb_token_nj": total_nj.saturating_sub(total_nj / 2).max(1),
+    });
+    buf.push_str(&format!("data: {arg_chunk}\n\n"));
+
+    let stop = serde_json::json!({
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{ "index": 0, "delta": {}, "finish_reason": "tool_calls" }],
+        "x_jouledb_energy": energy_meta,
+    });
+    buf.push_str(&format!("data: {stop}\n\n"));
+    buf.push_str("data: [DONE]\n\n");
+    buf
 }
 
 // ============================================================================

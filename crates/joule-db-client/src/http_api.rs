@@ -215,6 +215,98 @@ impl HttpFabricClient {
         self.request_json("POST", "/api/v1/synapse/decoder/generate", Some(&body))
             .await
     }
+
+    /// Run schema-constrained JSON chat completion (`response_format: {"type": "json_schema", ...}`).
+    pub async fn chat_structured(
+        &self,
+        model: &str,
+        user_prompt: &str,
+        json_schema: JsonValue,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": user_prompt }],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": json_schema,
+            }
+        });
+        self.request_json("POST", "/v1/chat/completions", Some(&body))
+            .await
+    }
+
+    /// Run tool-constrained chat completion (`tools` -> `tool_calls`).
+    pub async fn chat_tools(
+        &self,
+        model: &str,
+        user_prompt: &str,
+        tools: JsonValue,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": user_prompt }],
+            "tools": tools,
+        });
+        self.request_json("POST", "/v1/chat/completions", Some(&body))
+            .await
+    }
+
+    /// Stream SSE `chat.completion.chunk` events (`stream: true`), returning all parsed JSON chunks before `[DONE]`.
+    pub async fn chat_stream(&self, model: &str, user_prompt: &str) -> Result<Vec<JsonValue>> {
+        let addr = format!("{}:{}", self.host, self.port);
+        let mut stream = TcpStream::connect(&addr)
+            .await
+            .map_err(ClientError::connection_failed)?;
+        let payload = json!({
+            "model": model,
+            "stream": true,
+            "messages": [{ "role": "user", "content": user_prompt }],
+        })
+        .to_string()
+        .into_bytes();
+        let auth_hdr = match &self.bearer_token {
+            Some(t) => format!("Authorization: Bearer {t}\r\n"),
+            None => String::new(),
+        };
+        let req_head = format!(
+            "POST /v1/chat/completions HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n{auth_hdr}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            payload.len()
+        );
+        stream.write_all(req_head.as_bytes()).await?;
+        stream.write_all(&payload).await?;
+        stream.flush().await?;
+
+        let mut raw = Vec::new();
+        stream.read_to_end(&mut raw).await?;
+        let split_pos = raw
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .ok_or_else(|| ClientError::invalid_response("malformed SSE HTTP headers"))?;
+        let head_str = String::from_utf8_lossy(&raw[..split_pos]);
+        let body_bytes = &raw[split_pos + 4..];
+        let is_chunked = head_str
+            .lines()
+            .any(|l| l.to_ascii_lowercase().contains("transfer-encoding: chunked"));
+        let decoded = if is_chunked {
+            decode_chunked_body(body_bytes)?
+        } else {
+            body_bytes.to_vec()
+        };
+        let text = String::from_utf8_lossy(&decoded);
+        let mut events = Vec::new();
+        for line in text.lines() {
+            if let Some(rest) = line.strip_prefix("data: ") {
+                let trimmed = rest.trim();
+                if trimmed == "[DONE]" || trimmed.is_empty() {
+                    continue;
+                }
+                if let Ok(v) = serde_json::from_str::<JsonValue>(trimmed) {
+                    events.push(v);
+                }
+            }
+        }
+        Ok(events)
+    }
 }
 
 fn decode_chunked_body(raw: &[u8]) -> Result<Vec<u8>> {

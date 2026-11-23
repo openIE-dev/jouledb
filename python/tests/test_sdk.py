@@ -89,3 +89,49 @@ def test_synapse_ward_embed_chat_and_messages_sdk(db):
     ledger = db.ward_ledger()
     assert ledger.get("ok") is True
     assert ledger["ledger"]["total_events"] >= 2
+
+    chunks = db.chat_stream("Stream metered SSE chunks")
+    assert len(chunks) >= 2
+    assert any("x_jouledb_token_nj" in c for c in chunks)
+
+    schema = {
+        "name": "plan",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "tier": {"type": "string", "enum": ["mcu", "uma", "cloud"]},
+                "budget_mj": {"type": "integer"},
+            },
+            "required": ["tier", "budget_mj"],
+        },
+    }
+    structured = db.chat_structured("Run on uma with 320 mJ", schema)
+    import json as _json
+
+    parsed = _json.loads(structured["choices"][0]["message"]["content"])
+    assert parsed["tier"] == "uma"
+    assert parsed["budget_mj"] == 320
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "query_ledger",
+                "description": "Query energy ledger by tier",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tier": {"type": "string", "enum": ["mcu", "uma", "cloud"]},
+                        "limit": {"type": "integer"},
+                    },
+                    "required": ["tier", "limit"],
+                },
+            },
+        }
+    ]
+    tool_resp = db.chat_tools("Query energy ledger on uma with limit 5", tools)
+    tcall = tool_resp["choices"][0]["message"]["tool_calls"][0]
+    assert tcall["function"]["name"] == "query_ledger"
+    targs = _json.loads(tcall["function"]["arguments"])
+    assert targs["tier"] == "uma"
+    assert targs["limit"] == 5

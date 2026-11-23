@@ -202,6 +202,63 @@ class Connection:
             },
         )
 
+    def chat_structured(
+        self,
+        prompt: str,
+        json_schema: Dict[str, Any],
+        model: str = "jouledb-cascade-v1",
+    ) -> Dict[str, Any]:
+        """Run schema-constrained JSON chat completion via response_format."""
+        return self._json_request(
+            "POST",
+            "/v1/chat/completions",
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_schema", "json_schema": json_schema},
+            },
+        )
+
+    def chat_tools(
+        self,
+        prompt: str,
+        tools: List[Dict[str, Any]],
+        model: str = "jouledb-cascade-v1",
+    ) -> Dict[str, Any]:
+        """Run tool-constrained chat completion returning schema-validated tool_calls."""
+        return self._json_request(
+            "POST",
+            "/v1/chat/completions",
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "tools": tools,
+            },
+        )
+
+    def chat_stream(self, prompt: str, model: str = "jouledb-cascade-v1") -> List[Dict[str, Any]]:
+        """Stream SSE chat.completion.chunk events with per-token x_jouledb_token_nj."""
+        body = json.dumps(
+            {
+                "model": model,
+                "stream": True,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+        ).encode()
+        req = urllib.request.Request(self.url + "/v1/chat/completions", data=body, method="POST")
+        req.add_header("content-type", "application/json")
+        if self.token:
+            req.add_header("authorization", f"Bearer {self.token}")
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            raw_text = resp.read().decode("utf-8", errors="replace")
+        events: List[Dict[str, Any]] = []
+        for line in raw_text.splitlines():
+            if line.startswith("data: "):
+                data_str = line[6:].strip()
+                if data_str and data_str != "[DONE]":
+                    events.append(json.loads(data_str))
+        return events
+
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass
 

@@ -110,6 +110,12 @@ pub struct CheckpointIngestReport {
     pub overall_bits_per_weight: f64,
     pub overall_compression_vs_fp16: f64,
     pub mean_reconstruction_cosine: f64,
+    #[serde(default)]
+    pub svf_distilled: bool,
+    #[serde(default)]
+    pub pre_distill_probe_mse: f64,
+    #[serde(default)]
+    pub post_distill_probe_mse: f64,
     pub tensors: Vec<IngestedTensorSummary>,
 }
 
@@ -231,6 +237,26 @@ pub fn ingest_safetensors_into_harness(
     max_outliers: usize,
     harness: &mut JouleHarnessEngine,
 ) -> Result<CheckpointIngestReport, String> {
+    ingest_safetensors_with_options(
+        model_id,
+        raw_bytes,
+        target_rank,
+        max_outliers,
+        false,
+        harness,
+    )
+}
+
+/// Parse and convert a `.safetensors` byte buffer directly into [`JouleHarnessEngine`] with
+/// optional single-pass Teacher->Student `SVF` + Per-Row Gain Self-Distillation (`distill_svf`).
+pub fn ingest_safetensors_with_options(
+    model_id: &str,
+    raw_bytes: &[u8],
+    target_rank: usize,
+    max_outliers: usize,
+    distill_svf: bool,
+    harness: &mut JouleHarnessEngine,
+) -> Result<CheckpointIngestReport, String> {
     if model_id.trim().is_empty() {
         return Err("model_id must not be empty".to_string());
     }
@@ -275,6 +301,8 @@ pub fn ingest_safetensors_into_harness(
     let mut total_elements_2d = 0usize;
     let mut total_bits_2d = 0.0f64;
     let mut cosine_sum = 0.0f64;
+    let mut pre_mse_sum = 0.0f64;
+    let mut post_mse_sum = 0.0f64;
 
     // Sort tensor names deterministically
     let mut tensor_keys: Vec<&String> = header_obj
@@ -360,17 +388,31 @@ pub fn ingest_safetensors_into_harness(
         {
             let rows = shape[0];
             let cols = elem_count / rows;
-            let eff_rank = target_rank.clamp(1, rows.min(cols));
+            let is_vocab_dict = tname.contains("embed_tokens")
+                || tname.contains("word_embeddings")
+                || tname.contains("lm_head");
+            let eff_rank = if distill_svf && is_vocab_dict && cols >= 64 {
+                target_rank.max(cols.min(192)).clamp(1, rows.min(cols))
+            } else {
+                target_rank.clamp(1, rows.min(cols))
+            };
+            let itq_iters = if rows >= 8 * cols { 2 } else { 6 };
             let fq_name = format!("{model_id}::{tname}");
-            let lb = LittleBitSVFTensor::factorize(
+            let mut lb = LittleBitSVFTensor::factorize(
                 fq_name.clone(),
                 &decoded,
                 rows,
                 cols,
                 eff_rank,
-                6,
+                itq_iters,
                 max_outliers,
             )?;
+            if distill_svf
+                && let Ok(d_rec) = lb.distill_svf_against_dense(&decoded, 16, 3)
+            {
+                pre_mse_sum += d_rec.pre_probe_mse;
+                post_mse_sum += d_rec.post_probe_mse;
+            }
             let bpw = lb.bits_per_weight();
             let comp = lb.compression_vs_fp16();
             let cos = lb.reconstruction_cosine;
@@ -462,6 +504,7 @@ pub fn ingest_safetensors_into_harness(
         1.0
     };
 
+    let denom_2d = factorized_2d_tensors.max(1) as f64;
     Ok(CheckpointIngestReport {
         model_id: model_id.to_string(),
         total_tensors: summaries.len(),
@@ -472,6 +515,9 @@ pub fn ingest_safetensors_into_harness(
         overall_bits_per_weight: overall_bpw,
         overall_compression_vs_fp16: overall_comp,
         mean_reconstruction_cosine: mean_cos,
+        svf_distilled: distill_svf,
+        pre_distill_probe_mse: if distill_svf { pre_mse_sum / denom_2d } else { 0.0 },
+        post_distill_probe_mse: if distill_svf { post_mse_sum / denom_2d } else { 0.0 },
         tensors: summaries,
     })
 }

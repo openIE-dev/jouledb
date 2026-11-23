@@ -21,6 +21,7 @@ pub mod causal_decoder;
 pub mod checkpoint_ingest;
 pub mod compress;
 pub mod federated_mesh;
+pub mod grammar_constrain;
 pub mod ingest;
 pub mod query;
 pub mod synapse;
