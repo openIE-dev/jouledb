@@ -527,7 +527,7 @@ impl JouleKubeControlPlane {
                 let max_mw = annotations
                     .get("jouledb.io/max-power-mw")
                     .and_then(|s| s.parse::<u64>().ok())
-                    .unwrap_or(65_000);
+                    .unwrap_or(250_000); // default 250 W TDP cap (covers Apple UMA through Linux/CXL GPU nodes)
 
                 let mut caveats = vec![
                     WardCaveat::MaxTotalNanojoules(budget_nj),
