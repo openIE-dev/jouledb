@@ -33,6 +33,7 @@
 pub mod client;
 pub mod connection;
 pub mod error;
+pub mod http_api;
 pub mod pool;
 pub mod protocol;
 
@@ -40,5 +41,6 @@ pub mod protocol;
 pub use client::{Client, QueryResult};
 pub use connection::{Connection, ConnectionConfig};
 pub use error::ClientError;
+pub use http_api::HttpFabricClient;
 pub use pool::{ConnectionPool, PoolConfig, PoolStats, PooledConnection};
 pub use protocol::{Message, MessageType};

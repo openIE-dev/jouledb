@@ -23,6 +23,7 @@ pub mod federated_mesh;
 pub mod ingest;
 pub mod query;
 pub mod synapse;
+pub mod transformer_encoder;
 
 use joule_db_core::error::Error;
 use joule_db_core::{BufferPoolConfig, DiskBackend, Engine, EngineConfig};

@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class JouleDBError(RuntimeError):
@@ -105,6 +105,83 @@ class Connection:
         return Result(arrow=table, receipt=receipt, affected_rows=affected)
 
     execute = query
+
+    def _json_request(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        body = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(self.url + path, data=body, method=method)
+        if body is not None:
+            req.add_header("content-type", "application/json")
+        if self.token:
+            req.add_header("authorization", f"Bearer {self.token}")
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            try:
+                msg = json.loads(raw).get("error") or raw.decode(errors="replace")
+            except ValueError:
+                msg = raw.decode(errors="replace")
+            raise JouleDBError(f"HTTP {e.code}: {msg}") from None
+        except urllib.error.URLError as e:
+            raise JouleDBError(f"cannot reach {self.url}: {e.reason}") from None
+
+    def synapse_status(self) -> Dict[str, Any]:
+        """Inspect JouleSynapse living tensors, GPU kernel, Titans, Engram, and loaded vocabs."""
+        return self._json_request("GET", "/api/v1/synapse/status")
+
+    def ward_ledger(self) -> Dict[str, Any]:
+        """Inspect the 6-rail nanojoule JouleWard fabric energy ledger and live hardware telemetry."""
+        return self._json_request("GET", "/api/v1/ward/ledger")
+
+    def ward_mint_token(
+        self,
+        root_token_id: str,
+        subject: str,
+        caveats: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Mint an HMAC-SHA256 ThermoCap capability macaroon."""
+        return self._json_request(
+            "POST",
+            "/api/v1/ward/tokens/mint",
+            {
+                "root_token_id": root_token_id,
+                "subject": subject,
+                "caveats": caveats or [],
+            },
+        )
+
+    def ward_exec(self, exec_request: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a confined command under JouleWard with Merkle memoization & fabric routing."""
+        return self._json_request("POST", "/api/v1/ward/exec", exec_request)
+
+    def embed(self, input_text: Any, model: str = "jouledb-cascade-v1") -> Dict[str, Any]:
+        """Generate living embeddings via OpenAI-compatible POST /v1/embeddings."""
+        return self._json_request("POST", "/v1/embeddings", {"model": model, "input": input_text})
+
+    def chat(self, prompt: str, model: str = "jouledb-cascade-v1") -> Dict[str, Any]:
+        """Run 4-tier thermodynamic chat completion via POST /v1/chat/completions."""
+        return self._json_request(
+            "POST",
+            "/v1/chat/completions",
+            {"model": model, "messages": [{"role": "user", "content": prompt}]},
+        )
+
+    def messages(self, prompt: str, model: str = "jouledb-cascade-v1", max_tokens: int = 256) -> Dict[str, Any]:
+        """Run Anthropic-compatible POST /v1/messages with inline 45 nJ JoulePulse guardrails."""
+        return self._json_request(
+            "POST",
+            "/v1/messages",
+            {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+
+    def flow_execute(self, flow_spec: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a crash-idempotent durable JouleFlow DAG via POST /api/v1/flow/execute."""
+        return self._json_request("POST", "/api/v1/flow/execute", flow_spec)
 
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass

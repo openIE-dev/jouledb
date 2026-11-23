@@ -123,6 +123,24 @@ pub enum TelemetryCalibrationSource {
     CalibratedInstructionCounter,
 }
 
+/// Live OS/hardware power telemetry reading (macOS IOKit SMC, Linux Intel/AMD RAPL, or GPU SMI)
+/// fused directly into [`HeterogeneousRailSample`] when live board power counters are active.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct HardwarePowerSample {
+    /// Live board/package power draw in milliwatts (`mW`, `0` when hardware counter is unavailable).
+    pub board_power_mw: u64,
+    /// Live CPU utilization (`0.0..=1.0`).
+    pub cpu_utilization: f64,
+    /// Live GPU utilization (`0.0..=1.0`).
+    pub gpu_utilization: f64,
+    /// Live NPU / ANE utilization (`0.0..=1.0`).
+    pub npu_utilization: f64,
+    /// Live DRAM / UMA memory pressure (`0.0..=1.0`).
+    pub memory_pressure: f64,
+    /// Optional explicit sensor provenance override.
+    pub source: Option<TelemetryCalibrationSource>,
+}
+
 /// High-resolution (`u64` nanojoule + `u64` nanosecond) 6-rail energy measurement.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HeterogeneousRailSample {
@@ -293,6 +311,119 @@ impl HeterogeneousRailSample {
             .max(1);
         sample.carbon_ng_co2 = Self::compute_carbon_ng(total, grid_carbon_g_per_kwh);
         sample
+    }
+
+    /// Fuse live OS/hardware telemetry (`HardwarePowerSample` — macOS IOKit SMC, Linux RAPL,
+    /// NVIDIA NVML / AMD `rocm-smi`) into the 6-rail nanojoule model.
+    ///
+    /// When `hw_sample` carries `board_power_mw > 0`, exact window silicon energy
+    /// `E_board_nj = board_power_mw * wall_duration_ns / 1_000` is partitioned across
+    /// `(cpu_nj, gpu_nj, npu_ane_nj, dram_uma_nj)` by blending the structural lane prior with
+    /// live rail utilizations while preserving byte-exact `storage_nvme_nj` and `network_wire_nj`.
+    /// Returns `(sample, calibration_source, hardware_sensor_fused)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn estimate_with_hardware_fusion(
+        fabric_class: FabricComputeClass,
+        silicon_lane: &str,
+        wall_duration_ns: u64,
+        mem_bytes_touched: u64,
+        storage_bytes_io: u64,
+        wire_bytes_io: u64,
+        grid_carbon_g_per_kwh: f64,
+        hw_sample: Option<HardwarePowerSample>,
+    ) -> (Self, TelemetryCalibrationSource, bool) {
+        let base = Self::estimate_calibrated(
+            fabric_class,
+            silicon_lane,
+            wall_duration_ns,
+            mem_bytes_touched,
+            storage_bytes_io,
+            wire_bytes_io,
+            grid_carbon_g_per_kwh,
+        );
+
+        let Some(hw) = hw_sample.filter(|s| s.board_power_mw > 0) else {
+            return (
+                base,
+                TelemetryCalibrationSource::CalibratedInstructionCounter,
+                false,
+            );
+        };
+
+        let dur_ns = wall_duration_ns.max(1);
+        // 1 mW * 1_000 ns = 1 nJ
+        let measured_board_nj = (((hw.board_power_mw as u128) * (dur_ns as u128)) / 1_000)
+            .max(1) as u64;
+
+        let prior_silicon_sum = (base.cpu_nj
+            + base.gpu_nj
+            + base.npu_ane_nj
+            + base.dram_uma_nj)
+            .max(1) as f64;
+        let p_cpu = base.cpu_nj as f64 / prior_silicon_sum;
+        let p_gpu = base.gpu_nj as f64 / prior_silicon_sum;
+        let p_npu = base.npu_ane_nj as f64 / prior_silicon_sum;
+        let p_dram = base.dram_uma_nj as f64 / prior_silicon_sum;
+
+        // Blend structural lane prior (65%) with live hardware utilization telemetry (35%)
+        // while keeping inactive accelerators at 0 unless structurally invoked or > 2% active.
+        let u_cpu = hw.cpu_utilization.clamp(0.02, 1.0);
+        let u_gpu = if base.gpu_nj > 0 || hw.gpu_utilization > 0.02 {
+            hw.gpu_utilization.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let u_npu = if base.npu_ane_nj > 0 || hw.npu_utilization > 0.02 {
+            hw.npu_utilization.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let u_dram = hw.memory_pressure.clamp(0.02, 1.0) * 0.35;
+        let u_sum = (u_cpu + u_gpu + u_npu + u_dram).max(1e-6);
+
+        let w_cpu = 0.65 * p_cpu + 0.35 * (u_cpu / u_sum);
+        let w_gpu = 0.65 * p_gpu + 0.35 * (u_gpu / u_sum);
+        let w_npu = 0.65 * p_npu + 0.35 * (u_npu / u_sum);
+        let w_dram = 0.65 * p_dram + 0.35 * (u_dram / u_sum);
+        let w_sum = (w_cpu + w_gpu + w_npu + w_dram).max(1e-9);
+
+        let gpu_nj = ((measured_board_nj as f64) * (w_gpu / w_sum)).round() as u64;
+        let npu_ane_nj = ((measured_board_nj as f64) * (w_npu / w_sum)).round() as u64;
+        let dram_uma_nj = ((measured_board_nj as f64) * (w_dram / w_sum)).round() as u64;
+        // Exact energy conservation: assign remainder to CPU rail so sum == measured_board_nj!
+        let allocated_other = gpu_nj
+            .saturating_add(npu_ane_nj)
+            .saturating_add(dram_uma_nj);
+        let cpu_nj = measured_board_nj.saturating_sub(allocated_other);
+
+        let mut fused = Self {
+            cpu_nj,
+            gpu_nj,
+            npu_ane_nj,
+            dram_uma_nj,
+            storage_nvme_nj: base.storage_nvme_nj,
+            network_wire_nj: base.network_wire_nj,
+            wall_duration_ns: dur_ns,
+            peak_power_mw: hw.board_power_mw.max(base.peak_power_mw),
+            carbon_ng_co2: 0,
+        };
+        fused.carbon_ng_co2 = Self::compute_carbon_ng(fused.total_nj(), grid_carbon_g_per_kwh);
+
+        let resolved_source = hw.source.unwrap_or(match fabric_class {
+            FabricComputeClass::AppleUmaWorkstation | FabricComputeClass::MobileNpu => {
+                TelemetryCalibrationSource::AppleIoReportSmc
+            }
+            FabricComputeClass::LinuxAccelerator | FabricComputeClass::CloudCxlCluster => {
+                if base.gpu_nj > base.cpu_nj {
+                    TelemetryCalibrationSource::GpuNvmlRocmSmi
+                } else {
+                    TelemetryCalibrationSource::LinuxRaplPerf
+                }
+            }
+            _ => TelemetryCalibrationSource::HardwareIna219UsbMeter,
+        });
+
+        (fused, resolved_source, true)
     }
 }
 
@@ -1937,5 +2068,51 @@ mod tests {
         // Flip 1 bit in the embedded SHA-256 header -> MUST fail verification!
         raw_jcap[10] ^= 0x01;
         assert!(JcapBundle::import_and_verify(&raw_jcap).is_err());
+    }
+
+    #[test]
+    fn test_hardware_sensor_fusion_conservation_and_fallback() {
+        // 15,000 mW (15.0 W) live Apple SMC sensor over 200,000 ns (200 µs) => exact 3,000,000 nJ (3.0 mJ)
+        let hw = HardwarePowerSample {
+            board_power_mw: 15_000,
+            cpu_utilization: 0.25,
+            gpu_utilization: 0.80,
+            npu_utilization: 0.0,
+            memory_pressure: 0.30,
+            source: None,
+        };
+        let (fused, src, is_fused) = HeterogeneousRailSample::estimate_with_hardware_fusion(
+            FabricComputeClass::AppleUmaWorkstation,
+            "wgpu_xnor_popcnt_wgsl",
+            200_000,
+            65_536,
+            0,
+            0,
+            140.0,
+            Some(hw),
+        );
+        assert!(is_fused);
+        assert_eq!(src, TelemetryCalibrationSource::AppleIoReportSmc);
+        // Exact conservation: cpu + gpu + npu + dram == 15_000 * 200_000 / 1_000 == 3_000_000 nJ!
+        assert_eq!(
+            fused.cpu_nj + fused.gpu_nj + fused.npu_ane_nj + fused.dram_uma_nj,
+            3_000_000
+        );
+        assert!(fused.gpu_nj > fused.cpu_nj);
+
+        // Zero board_power_mw falls back cleanly to CalibratedInstructionCounter
+        let (fallback, fb_src, fb_fused) = HeterogeneousRailSample::estimate_with_hardware_fusion(
+            FabricComputeClass::LinuxAccelerator,
+            "cpu_simd",
+            100_000,
+            4_096,
+            0,
+            0,
+            250.0,
+            Some(HardwarePowerSample::default()),
+        );
+        assert!(!fb_fused);
+        assert_eq!(fb_src, TelemetryCalibrationSource::CalibratedInstructionCounter);
+        assert!(fallback.total_nj() > 0);
     }
 }

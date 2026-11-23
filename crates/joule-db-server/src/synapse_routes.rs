@@ -18,6 +18,10 @@ use joule_db_gpu::{LittleBitGpuKernel, PackedGpuLittleBitWeights};
 use joule_db_weights::{
     checkpoint_ingest::ingest_safetensors_into_harness,
     synapse::{ContextCandidate, JouleHarnessEngine, LittleBitSVFTensor, WeightShardMeta},
+    transformer_encoder::{
+        TransformerEncoderReceipt, detect_transformer_encoder,
+        encode_text_with_littlebit_transformer,
+    },
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -193,6 +197,90 @@ impl SynapseServerRuntime {
             Err(p) => p.into_inner(),
         };
         guard.engram.lookup(phrase).map(|r| r.fact_payload)
+    }
+
+    /// Execute a full multi-layer Transformer encoder pass (`WordPiece` -> sub-1-bit `LittleBit-2`
+    /// embeddings -> Multi-Head Self-Attention + `GELU` FFN + `LayerNorm` -> Mean-Pooling + L2
+    /// norm) whenever a BERT/MiniLM/BGE encoder is loaded under `model_hint` (or as the default
+    /// living encoder), falling back cleanly to [`Self::run_living_forward`] otherwise.
+    pub fn encode_living_embedding(
+        &self,
+        model_hint: Option<&str>,
+        text: &str,
+        use_gpu: bool,
+        allow_titans_plasticity: bool,
+    ) -> LivingForwardReceipt {
+        let enc_outcome: Option<(TransformerEncoderReceipt, u64)> = {
+            let guard = match self.inner.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let target_model = if let Some(h) = model_hint {
+                detect_transformer_encoder(&guard, h).map(|_| h.to_string())
+            } else {
+                let mut found = None;
+                for fq in guard.littlebit_tensors.keys() {
+                    if let Some((m, _)) = fq.split_once("::")
+                        && detect_transformer_encoder(&guard, m).is_some()
+                    {
+                        found = Some(m.to_string());
+                        break;
+                    }
+                }
+                found
+            };
+
+            if let Some(ref mid) = target_model {
+                match encode_text_with_littlebit_transformer(&guard, mid, text, 128, |_, _, _| None)
+                {
+                    Ok(rec) => {
+                        let pfx = format!("{mid}::");
+                        let mut touched_bytes = 0u64;
+                        for (k, lb) in &guard.littlebit_tensors {
+                            if k.starts_with(&pfx) {
+                                touched_bytes = touched_bytes.saturating_add(
+                                    (((lb.rows * lb.cols) as f64 * lb.bits_per_weight()) / 8.0)
+                                        .ceil() as u64,
+                                );
+                            }
+                        }
+                        Some((rec, touched_bytes.max(4096)))
+                    }
+                    Err(_) => None,
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some((rec, mem_bytes)) = enc_outcome {
+            if allow_titans_plasticity {
+                self.adapt_titans_from_prompt(text);
+            }
+            let device = if use_gpu {
+                shared_gpu_kernel()
+                    .map(|k| format!("{} (UMA LittleBit-2 {}L)", k.adapter_name(), rec.num_layers))
+                    .unwrap_or_else(|| "cpu-simd-bitplane".to_string())
+            } else {
+                "cpu-simd-bitplane".to_string()
+            };
+            return LivingForwardReceipt {
+                model_id: rec.model_id.clone(),
+                tensor_name: format!("{}::transformer_encoder_{}L", rec.model_id, rec.num_layers),
+                output: rec.embedding,
+                bits_per_weight: rec.avg_bits_per_weight,
+                kernel: format!(
+                    "littlebit_svf_transformer_{}L_{}H",
+                    rec.num_layers, rec.num_heads
+                ),
+                device,
+                elapsed_ns: rec.elapsed_ns,
+                gpu_estimated_uj: 0.0,
+                mem_bytes_touched: mem_bytes,
+            };
+        }
+
+        self.run_living_forward(model_hint, text, use_gpu, allow_titans_plasticity)
     }
 
     /// Execute a real `LittleBit-2` (`wgpu` Metal/Vulkan `countOneBits` WGSL or CPU `XNOR+POPCNT`)
@@ -468,10 +556,68 @@ pub struct IngestSafetensorsReq {
     pub bytes_base64: Option<String>,
     #[serde(default)]
     pub file_path: Option<String>,
+    /// Optional inline `vocab.txt` or `tokenizer.json` content (auto-discovered from sibling file when `file_path` is used).
+    #[serde(default)]
+    pub vocab_txt: Option<String>,
     #[serde(default = "default_target_rank")]
     pub target_rank: usize,
     #[serde(default = "default_max_outliers")]
     pub max_outliers: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoadTokenizerReq {
+    pub model_id: String,
+    #[serde(default)]
+    pub vocab_txt: Option<String>,
+    #[serde(default)]
+    pub file_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EncoderEmbedReq {
+    pub model_id: String,
+    pub text: String,
+    #[serde(default = "default_max_seq_len")]
+    pub max_seq_len: usize,
+}
+
+fn default_max_seq_len() -> usize {
+    128
+}
+
+fn parse_vocab_tokens(raw: &str) -> Result<Vec<String>, String> {
+    let trimmed = raw.trim_start();
+    if trimmed.starts_with('{') {
+        let val: serde_json::Value =
+            serde_json::from_str(trimmed).map_err(|e| format!("invalid tokenizer.json: {e}"))?;
+        let vocab_obj = val
+            .get("model")
+            .and_then(|m| m.get("vocab"))
+            .and_then(|v| v.as_object())
+            .ok_or_else(|| "tokenizer.json missing model.vocab object".to_string())?;
+        let mut max_id = 0usize;
+        for id_val in vocab_obj.values() {
+            if let Some(id) = id_val.as_u64() {
+                max_id = max_id.max(id as usize);
+            }
+        }
+        if max_id > 512_000 {
+            return Err(format!("vocab max token id {max_id} exceeds safety bound"));
+        }
+        let mut out = vec!["[UNK]".to_string(); max_id + 1];
+        for (tok, id_val) in vocab_obj {
+            if let Some(id) = id_val.as_u64() {
+                out[id as usize] = tok.clone();
+            }
+        }
+        Ok(out)
+    } else {
+        Ok(raw
+            .lines()
+            .map(|l| l.trim_end_matches('\r').to_string())
+            .collect())
+    }
 }
 
 fn default_target_rank() -> usize {
@@ -622,6 +768,11 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             post(handle_ingest_safetensors),
         )
         .route(
+            "/api/v1/synapse/tokenizer/load",
+            post(handle_tokenizer_load),
+        )
+        .route("/api/v1/synapse/encoder/embed", post(handle_encoder_embed))
+        .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
         )
@@ -703,6 +854,12 @@ async fn handle_status(State(rt): State<Arc<SynapseServerRuntime>>) -> impl Into
             "saved_joules_uj": guard.kv_pool.total_saved_joules_uj,
         },
         "harness_observations": guard.observation_count(),
+        "vectors_1d_count": guard.vectors_1d.len(),
+        "loaded_vocabs": guard
+            .model_vocabs
+            .iter()
+            .map(|(k, v)| (k.clone(), v.len()))
+            .collect::<std::collections::BTreeMap<_, _>>(),
     }))
 }
 
@@ -710,6 +867,7 @@ async fn handle_ingest_safetensors(
     State(rt): State<Arc<SynapseServerRuntime>>,
     Json(req): Json<IngestSafetensorsReq>,
 ) -> impl IntoResponse {
+    let mut sibling_vocab_raw: Option<String> = req.vocab_txt.clone();
     let raw_bytes = if let Some(ref b64) = req.bytes_base64 {
         match base64::engine::general_purpose::STANDARD.decode(b64) {
             Ok(b) => b,
@@ -720,6 +878,17 @@ async fn handle_ingest_safetensors(
         if p.extension().and_then(|e| e.to_str()) != Some("safetensors") {
             return bad_request("file_path must end with .safetensors");
         }
+        if sibling_vocab_raw.is_none()
+            && let Some(parent) = p.parent()
+        {
+            let v_txt = parent.join("vocab.txt");
+            let t_json = parent.join("tokenizer.json");
+            if v_txt.exists() {
+                sibling_vocab_raw = std::fs::read_to_string(v_txt).ok();
+            } else if t_json.exists() {
+                sibling_vocab_raw = std::fs::read_to_string(t_json).ok();
+            }
+        }
         match std::fs::read(p) {
             Ok(b) => b,
             Err(e) => return bad_request(format!("failed to read '{}': {e}", p.display())),
@@ -728,7 +897,12 @@ async fn handle_ingest_safetensors(
         return bad_request("must provide either bytes_base64 or file_path");
     };
 
-    let (report, newly_factorized) = {
+    let parsed_vocab = match sibling_vocab_raw {
+        Some(ref raw) => parse_vocab_tokens(raw).ok(),
+        None => None,
+    };
+
+    let (report, newly_factorized, vocab_tokens_loaded, encoder_layers) = {
         let mut guard = match rt.inner.lock() {
             Ok(g) => g,
             Err(p) => p.into_inner(),
@@ -743,6 +917,20 @@ async fn handle_ingest_safetensors(
             Ok(r) => r,
             Err(e) => return bad_request(e),
         };
+        let mut v_cnt = guard
+            .model_vocabs
+            .get(&req.model_id)
+            .map(Vec::len)
+            .unwrap_or(0);
+        if let Some(v_vec) = parsed_vocab
+            && !v_vec.is_empty()
+        {
+            v_cnt = v_vec.len();
+            guard.model_vocabs.insert(req.model_id.clone(), v_vec);
+        }
+        let enc_l = detect_transformer_encoder(&guard, &req.model_id)
+            .map(|(_, l)| l)
+            .unwrap_or(0);
         let mut cloned_tensors = Vec::new();
         for row in &rep.tensors {
             let fq = format!("{}::{}", row.model_id, row.tensor_name);
@@ -751,7 +939,7 @@ async fn handle_ingest_safetensors(
             }
         }
         rt.persist_if_configured(&guard);
-        (rep, cloned_tensors)
+        (rep, cloned_tensors, v_cnt, enc_l)
     };
 
     for (fq_name, lb) in &newly_factorized {
@@ -796,8 +984,69 @@ async fn handle_ingest_safetensors(
             "report": report,
             "sql_table": "synapse_tensors",
             "sql_rows_materialized": sql_rows_materialized,
+            "vocab_tokens_loaded": vocab_tokens_loaded,
+            "transformer_encoder_layers": encoder_layers,
         })),
     )
+}
+
+async fn handle_tokenizer_load(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<LoadTokenizerReq>,
+) -> impl IntoResponse {
+    let raw = if let Some(v) = req.vocab_txt {
+        v
+    } else if let Some(ref p_str) = req.file_path {
+        match std::fs::read_to_string(p_str) {
+            Ok(s) => s,
+            Err(e) => return bad_request(format!("failed to read tokenizer file '{p_str}': {e}")),
+        }
+    } else {
+        return bad_request("must provide vocab_txt or file_path");
+    };
+
+    let vocab_vec = match parse_vocab_tokens(&raw) {
+        Ok(v) if !v.is_empty() => v,
+        Ok(_) => return bad_request("vocabulary is empty"),
+        Err(e) => return bad_request(e),
+    };
+    let count = vocab_vec.len();
+    {
+        let mut guard = match rt.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        guard.model_vocabs.insert(req.model_id.clone(), vocab_vec);
+        rt.persist_if_configured(&guard);
+    }
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "model_id": req.model_id,
+            "vocab_size": count,
+        })),
+    )
+}
+
+async fn handle_encoder_embed(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<EncoderEmbedReq>,
+) -> impl IntoResponse {
+    let guard = match rt.inner.lock() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    };
+    match encode_text_with_littlebit_transformer(
+        &guard,
+        &req.model_id,
+        &req.text,
+        req.max_seq_len,
+        |_, _, _| None,
+    ) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
 }
 
 async fn handle_littlebit_factorize(

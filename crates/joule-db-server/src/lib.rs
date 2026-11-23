@@ -872,11 +872,12 @@ impl Server {
             query_executor.clone(),
             &db_path,
         ));
-        let ward_openai_runtime = ward_openai_routes::WardOpenAiRuntime::new(
+        let ward_openai_runtime = ward_openai_routes::WardOpenAiRuntime::new_with_energy_snapshot(
             fabric_runtime.clone(),
             swot_capsule_runtime.clone(),
             synapse_runtime.clone(),
             &db_path,
+            Some(energy_snapshot.clone()),
         );
         let pulse_mesh_runtime =
             pulse_mesh_routes::PulseMeshRuntime::new(ward_openai_runtime.clone());

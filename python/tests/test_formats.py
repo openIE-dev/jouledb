@@ -40,11 +40,11 @@ def test_duckdb_parquet_in_and_out(pg):
     pg.execute(f"CREATE TABLE {t} (id INT, name TEXT, v FLOAT)")
     assert pg.execute(f"COPY {t} FROM '{src}'").statusmessage == "COPY 20000"
     got = pg.execute(f"SELECT COUNT(*), SUM(v), COUNT(DISTINCT name) FROM {t}").fetchone()
-    want = duckdb.sql(f"SELECT COUNT(*), SUM(v)::DOUBLE, COUNT(DISTINCT name) FROM '{src}'").fetchone()
+    want = duckdb.sql(f"SELECT COUNT(*), SUM(v)::DOUBLE, COUNT(DISTINCT name) FROM '{src}'").fetchall()[0]
     assert tuple(got) == tuple(want)
     out = f"{D}/{t}_out.parquet"
     pg.execute(f"COPY (SELECT id, name, v FROM {t} WHERE id < 1000) TO '{out}'")
-    assert duckdb.sql(f"SELECT COUNT(*), SUM(id) FROM '{out}'").fetchone() == (1000, 499500)
+    assert duckdb.sql(f"SELECT COUNT(*), SUM(id) FROM '{out}'").fetchall()[0] == (1000, 499500)
     assert pq.read_schema(out).types == [pa.int64(), pa.string(), pa.float64()]
 
 

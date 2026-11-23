@@ -407,7 +407,18 @@ pub fn ingest_safetensors_into_harness(
                 hot_score,
             });
         } else {
-            // 1D norm / bias vector: record statistical digest in Engram + keep FP16 size
+            // 1D norm / bias vector: store exact FP32 vector (for full multi-layer Transformer
+            // LayerNorm + bias execution) when bounded (`<= 65,536` elems), plus Engram digest.
+            if dtype.is_floating_point() && elem_count <= 65_536 {
+                if harness.vectors_1d.len() >= 2048
+                    && let Some(oldest_k) = harness.vectors_1d.keys().next().cloned()
+                {
+                    harness.vectors_1d.remove(&oldest_k);
+                }
+                harness
+                    .vectors_1d
+                    .insert(format!("{model_id}::{tname}"), decoded.clone());
+            }
             let mean = decoded.iter().map(|&x| x as f64).sum::<f64>() / (elem_count as f64);
             harness.engram.upsert(
                 &format!("{model_id} norm {tname}"),

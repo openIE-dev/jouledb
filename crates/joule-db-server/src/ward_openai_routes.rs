@@ -19,9 +19,9 @@ use axum::{
 use base64::Engine;
 use joule_db_branch::ward::{
     FabricComputeClass, FabricHopEnergyReceipt, FabricRail, FabricTraceReceipt,
-    HeterogeneousRailSample, JcapBundle, WardActionContext, WardCapabilityToken, WardCaveat,
-    WardDecision, WardEngine, WardExecReceipt, WardExecRequest, authorize_ward_action,
-    compile_confinement,
+    HardwarePowerSample, HeterogeneousRailSample, JcapBundle, TelemetryCalibrationSource,
+    WardActionContext, WardCapabilityToken, WardCaveat, WardDecision, WardEngine, WardExecReceipt,
+    WardExecRequest, authorize_ward_action, compile_confinement,
 };
 use joule_db_energy::fabric::{FabricNodeClass, FabricWorkload, FabricWorkloadKind};
 use joule_db_query::hybrid_graphrag::RrfConfig;
@@ -38,6 +38,8 @@ pub struct WardOpenAiRuntime {
     pub fabric_rt: Arc<FabricRuntime>,
     pub swot_rt: Arc<SwotCapsuleRuntime>,
     pub synapse_rt: Arc<SynapseServerRuntime>,
+    pub energy_snapshot: Option<Arc<std::sync::RwLock<joule_db_energy::EnergySnapshot>>>,
+    pub hw_telemetry_override: std::sync::Mutex<Option<HardwarePowerSample>>,
 }
 
 impl WardOpenAiRuntime {
@@ -47,6 +49,17 @@ impl WardOpenAiRuntime {
         swot_rt: Arc<SwotCapsuleRuntime>,
         synapse_rt: Arc<SynapseServerRuntime>,
         db_path: &str,
+    ) -> Arc<Self> {
+        Self::new_with_energy_snapshot(fabric_rt, swot_rt, synapse_rt, db_path, None)
+    }
+
+    /// Initialize `WardOpenAiRuntime` fused with the live `joule-db-energy` hardware `EnergySnapshot` poll handle.
+    pub fn new_with_energy_snapshot(
+        fabric_rt: Arc<FabricRuntime>,
+        swot_rt: Arc<SwotCapsuleRuntime>,
+        synapse_rt: Arc<SynapseServerRuntime>,
+        db_path: &str,
+        energy_snapshot: Option<Arc<std::sync::RwLock<joule_db_energy::EnergySnapshot>>>,
     ) -> Arc<Self> {
         let seed = std::env::var("JOULEDB_WARD_SECRET_SEED")
             .ok()
@@ -72,7 +85,54 @@ impl WardOpenAiRuntime {
             fabric_rt,
             swot_rt,
             synapse_rt,
+            energy_snapshot,
+            hw_telemetry_override: std::sync::Mutex::new(None),
         })
+    }
+
+    /// Read the latest live hardware power telemetry (explicit INA219/USB-PD override or OS `EnergySnapshot`).
+    pub fn sample_hardware_power(&self) -> Option<HardwarePowerSample> {
+        if let Some(ov) = match self.hw_telemetry_override.lock() {
+            Ok(g) => *g,
+            Err(p) => *p.into_inner(),
+        } {
+            return Some(ov);
+        }
+        let snap_lock = self.energy_snapshot.as_ref()?;
+        let snap = snap_lock.read().ok()?;
+        let board_power_mw = (snap.power_watts.max(0.0) * 1_000.0).round() as u64;
+        if board_power_mw == 0 {
+            return None;
+        }
+        Some(HardwarePowerSample {
+            board_power_mw,
+            cpu_utilization: snap.cpu_utilization,
+            gpu_utilization: snap.gpu_utilization,
+            npu_utilization: snap.npu_utilization,
+            memory_pressure: snap.memory_pressure,
+            source: None,
+        })
+    }
+
+    /// Estimate 6-rail nanojoules fused with live hardware power telemetry when available.
+    pub fn estimate_rails_fused(
+        &self,
+        silicon_lane: &str,
+        wall_duration_ns: u64,
+        mem_bytes_touched: u64,
+        storage_bytes_io: u64,
+        wire_bytes_io: u64,
+    ) -> (HeterogeneousRailSample, TelemetryCalibrationSource, bool) {
+        HeterogeneousRailSample::estimate_with_hardware_fusion(
+            self.ward.fabric_class(),
+            silicon_lane,
+            wall_duration_ns,
+            mem_bytes_touched,
+            storage_bytes_io,
+            wire_bytes_io,
+            self.ward.grid_carbon_g_per_kwh(),
+            self.sample_hardware_power(),
+        )
     }
 }
 
@@ -251,6 +311,10 @@ pub fn ward_openai_router(rt: Arc<WardOpenAiRuntime>) -> Router {
         .route("/api/v1/ward/jcap/export", post(handle_jcap_export))
         .route("/api/v1/ward/jcap/verify", post(handle_jcap_verify))
         .route("/api/v1/ward/ledger", get(handle_ward_ledger))
+        .route(
+            "/api/v1/ward/hardware-telemetry",
+            post(handle_set_hardware_telemetry),
+        )
         // Drop-in OpenAI Wire Compatibility (`/v1/*`)
         .route("/v1/models", get(handle_openai_models))
         .route("/v1/embeddings", post(handle_openai_embeddings))
@@ -616,15 +680,38 @@ async fn handle_jcap_verify(
     }
 }
 
+async fn handle_set_hardware_telemetry(
+    State(rt): State<Arc<WardOpenAiRuntime>>,
+    Json(sample): Json<Option<HardwarePowerSample>>,
+) -> impl IntoResponse {
+    {
+        let mut guard = match rt.hw_telemetry_override.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        *guard = sample;
+    }
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "active_hardware_sample": rt.sample_hardware_power(),
+        })),
+    )
+}
+
 async fn handle_ward_ledger(State(rt): State<Arc<WardOpenAiRuntime>>) -> impl IntoResponse {
     let snap = rt.ward.ledger.snapshot();
     let topology = rt.fabric_rt.fabric.topology();
+    let live_hw = rt.sample_hardware_power();
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "ok": true,
             "local_node_id": rt.ward.node_id(),
             "local_fabric_class": rt.ward.fabric_class(),
+            "hardware_sensor_fused": live_hw.is_some(),
+            "live_hardware_telemetry": live_hw,
             "resolution": {
                 "energy_unit": "nanojoules (10^-9 J)",
                 "time_unit": "nanoseconds (10^-9 s)",
@@ -780,25 +867,20 @@ async fn handle_openai_embeddings(
     let mut active_kernel = String::new();
     let mut active_device = String::new();
     let mut bpw = 0.0;
+    let mut any_hw_fused = false;
 
     for (idx, text) in inputs.iter().enumerate() {
         prompt_tokens += text.split_whitespace().count().max(1);
         let fwd = rt
             .synapse_rt
-            .run_living_forward(hint, text, true, allow_plasticity);
+            .encode_living_embedding(hint, text, true, allow_plasticity);
         active_kernel = fwd.kernel.clone();
         active_device = fwd.device.clone();
         bpw = fwd.bits_per_weight;
 
-        let mut rails = HeterogeneousRailSample::estimate_calibrated(
-            rt.ward.fabric_class(),
-            &fwd.kernel,
-            fwd.elapsed_ns,
-            fwd.mem_bytes_touched,
-            0,
-            0,
-            rt.ward.grid_carbon_g_per_kwh(),
-        );
+        let (mut rails, cal_src, hw_fused) =
+            rt.estimate_rails_fused(&fwd.kernel, fwd.elapsed_ns, fwd.mem_bytes_touched, 0, 0);
+        any_hw_fused |= hw_fused;
         if fwd.gpu_estimated_uj > 0.0 {
             let gpu_hw_nj = (fwd.gpu_estimated_uj * 1_000.0) as u64;
             rails.gpu_nj = rails.gpu_nj.max(gpu_hw_nj);
@@ -807,7 +889,7 @@ async fn handle_openai_embeddings(
             node_id: rt.ward.node_id().to_string(),
             fabric_class: rt.ward.fabric_class(),
             silicon_lane: fwd.kernel,
-            calibration_source: rt.ward.default_calibration_source(),
+            calibration_source: cal_src,
             grid_carbon_g_per_kwh: rt.ward.grid_carbon_g_per_kwh(),
             rails,
         });
@@ -843,6 +925,7 @@ async fn handle_openai_embeddings(
                 "kernel": active_kernel,
                 "device": active_device,
                 "bits_per_weight": bpw,
+                "hardware_sensor_fused": any_hw_fused,
                 "aggregate_rails": trace.aggregate_rails,
                 "trace": trace,
             }
@@ -1258,15 +1341,8 @@ pub(crate) fn run_thermodynamic_cascade(
         .synapse_rt
         .run_living_forward(hint, trimmed, true, allow_plasticity);
 
-    let mut rails = HeterogeneousRailSample::estimate_calibrated(
-        rt.ward.fabric_class(),
-        &fwd.kernel,
-        fwd.elapsed_ns,
-        fwd.mem_bytes_touched,
-        0,
-        0,
-        rt.ward.grid_carbon_g_per_kwh(),
-    );
+    let (mut rails, cal_src, _hw_fused) =
+        rt.estimate_rails_fused(&fwd.kernel, fwd.elapsed_ns, fwd.mem_bytes_touched, 0, 0);
     if fwd.gpu_estimated_uj > 0.0 {
         rails.gpu_nj = rails.gpu_nj.max((fwd.gpu_estimated_uj * 1_000.0) as u64);
     }
@@ -1309,7 +1385,7 @@ pub(crate) fn run_thermodynamic_cascade(
         node_id: rt.ward.node_id().to_string(),
         fabric_class: rt.ward.fabric_class(),
         silicon_lane: fwd.kernel.clone(),
-        calibration_source: rt.ward.default_calibration_source(),
+        calibration_source: cal_src,
         grid_carbon_g_per_kwh: rt.ward.grid_carbon_g_per_kwh(),
         rails,
     });

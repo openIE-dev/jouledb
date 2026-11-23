@@ -61,3 +61,27 @@ def test_error(db):
 def test_empty_result(db, table):
     r = db.query(f"SELECT id FROM {table} WHERE id > 100")
     assert r.num_rows == 0
+
+
+def test_synapse_ward_embed_chat_and_messages_sdk(db):
+    status = db.synapse_status()
+    assert status.get("status") == "ok"
+
+    emb = db.embed("thermodynamic database energy")
+    assert emb.get("object") == "list"
+    assert len(emb["data"][0]["embedding"]) >= 8
+    assert emb["x_jouledb_energy"]["aggregate_rails"]["wall_duration_ns"] > 0
+
+    chat = db.chat("Hello JouleSynapse")
+    assert chat.get("object") == "chat.completion"
+    assert len(chat["choices"][0]["message"]["content"]) > 0
+
+    msg = db.messages("Verify 45 nJ JoulePulse guardrail")
+    assert msg.get("type") == "message"
+
+    minted = db.ward_mint_token("py-sdk-tok-1", "pytest-agent", [{"MaxNanojoules": 50_000_000}])
+    assert minted.get("ok") is True
+
+    ledger = db.ward_ledger()
+    assert ledger.get("ok") is True
+    assert ledger["ledger"]["total_traces"] >= 2

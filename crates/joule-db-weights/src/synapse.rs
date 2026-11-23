@@ -136,18 +136,25 @@ impl LittleBitSVFTensor {
         }
 
         let mut residual = vec![0.0f32; total];
-        let mut col_scale = vec![0.0f32; cols];
-        for j in 0..cols {
-            let mut sq = 0.0f64;
-            for i in 0..rows {
-                let norm_r = weights[i * cols + j] / row_scale[i];
-                sq += (norm_r as f64) * (norm_r as f64);
-            }
-            col_scale[j] = (sq / (rows as f64)).sqrt().max(1e-6) as f32;
-        }
+        let mut col_sq = vec![0.0f64; cols];
         for i in 0..rows {
-            for j in 0..cols {
-                residual[i * cols + j] = weights[i * cols + j] / (row_scale[i] * col_scale[j]);
+            let inv_r = 1.0 / row_scale[i];
+            let w_row = &weights[i * cols..(i + 1) * cols];
+            for (csq, &w_val) in col_sq.iter_mut().zip(w_row.iter()) {
+                let norm_r = (w_val * inv_r) as f64;
+                *csq += norm_r * norm_r;
+            }
+        }
+        let col_scale: Vec<f32> = col_sq
+            .into_iter()
+            .map(|sq| (sq / (rows as f64)).sqrt().max(1e-6) as f32)
+            .collect();
+        for i in 0..rows {
+            let r_s = row_scale[i];
+            let w_row = &weights[i * cols..(i + 1) * cols];
+            let res_row = &mut residual[i * cols..(i + 1) * cols];
+            for ((dst, &w_val), &c_s) in res_row.iter_mut().zip(w_row.iter()).zip(col_scale.iter()) {
+                *dst = w_val / (r_s * c_s);
             }
         }
 
@@ -158,6 +165,7 @@ impl LittleBitSVFTensor {
 
         let mut u_sign = vec![1.0f32; rows];
         let mut v_sign = vec![1.0f32; cols];
+        let mut v_dots = vec![0.0f32; cols];
 
         for k in 0..eff_rank {
             // Deterministic non-degenerate initialization seeded by residual rows
@@ -170,13 +178,16 @@ impl LittleBitSVFTensor {
                 *u_val = if s >= 0.0 { 1.0 } else { -1.0 };
             }
 
-            // Alternating binary hypercube alignment (Joint-ITQ style)
+            // Alternating binary hypercube alignment (Joint-ITQ style, row-major SIMD streaming)
             for _ in 0..iters {
-                for (j, v_val) in v_sign.iter_mut().enumerate() {
-                    let mut dot = 0.0f32;
-                    for i in 0..rows {
-                        dot += residual[i * cols + j] * u_sign[i];
+                v_dots.fill(0.0);
+                for (i, &ui) in u_sign.iter().enumerate() {
+                    let row = &residual[i * cols..(i + 1) * cols];
+                    for (vd, &r_val) in v_dots.iter_mut().zip(row.iter()) {
+                        *vd += r_val * ui;
                     }
+                }
+                for (v_val, &dot) in v_sign.iter_mut().zip(v_dots.iter()) {
                     *v_val = if dot >= 0.0 { 1.0 } else { -1.0 };
                 }
                 for (i, u_val) in u_sign.iter_mut().enumerate() {
@@ -1348,6 +1359,13 @@ pub struct JouleHarnessEngine {
     pub kv_pool: RadixKvCachePool,
     pub airstream: AirStreamScheduler,
     pub littlebit_tensors: BTreeMap<String, LittleBitSVFTensor>,
+    /// Compact 1D bias & LayerNorm vectors (`model_id::tensor_name -> Vec<f32>`) enabling full
+    /// multi-layer Transformer encoder execution directly over sub-1-bit `LittleBitSVFTensor`s.
+    #[serde(default)]
+    pub vectors_1d: BTreeMap<String, Vec<f32>>,
+    /// Persisted WordPiece / subword vocabularies (`model_id -> ordered vocab tokens`).
+    #[serde(default)]
+    pub model_vocabs: BTreeMap<String, Vec<String>>,
     observations: VecDeque<HarnessObservation>,
     raw_cas: HashMap<String, String>,
     checkpoints: VecDeque<HarnessCheckpoint>,
@@ -1364,6 +1382,8 @@ impl JouleHarnessEngine {
             kv_pool: RadixKvCachePool::new(8),
             airstream: AirStreamScheduler::new(vram_budget_bytes, 0.35),
             littlebit_tensors: BTreeMap::new(),
+            vectors_1d: BTreeMap::new(),
+            model_vocabs: BTreeMap::new(),
             observations: VecDeque::new(),
             raw_cas: HashMap::new(),
             checkpoints: VecDeque::new(),
