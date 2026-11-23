@@ -88,4 +88,4 @@ def test_synapse_ward_embed_chat_and_messages_sdk(db):
 
     ledger = db.ward_ledger()
     assert ledger.get("ok") is True
-    assert ledger["ledger"]["total_traces"] >= 2
+    assert ledger["ledger"]["total_events"] >= 2
