@@ -1,6 +1,6 @@
 [package]
 name = "joule-db-odbc"
-version = "0.2.2"
+version = "0.2.3"
 edition.workspace = true
 description = "ODBC 3.x driver for JouleDB — connects Excel, Tableau, Power BI, and any ODBC-compatible tool"
 license.workspace = true

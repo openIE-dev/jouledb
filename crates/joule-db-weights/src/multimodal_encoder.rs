@@ -48,6 +48,25 @@ pub struct AudioTranscribeReceipt {
     pub elapsed_ns: u64,
 }
 
+/// Candidate label score from zero-shot `SigLIP` / `CLIP` vision-text alignment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZeroShotVisionCandidate {
+    pub label: String,
+    pub cosine_similarity: f32,
+    pub sigmoid_prob: f32,
+    pub softmax_prob: f32,
+}
+
+/// Receipt returned by sub-1-bit `SigLIP` / `CLIP` zero-shot vision-language classification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZeroShotVisionScoreReceipt {
+    pub model_id: String,
+    pub best_label: String,
+    pub candidates: Vec<ZeroShotVisionCandidate>,
+    pub vision_bpw: f64,
+    pub elapsed_ns: u64,
+}
+
 #[derive(Debug, Clone)]
 pub enum VisionLayoutKind {
     SigLip { prefix: String },
@@ -291,6 +310,9 @@ fn gelu(x: f32) -> f32 {
 }
 
 fn infer_heads(hidden_dim: usize) -> usize {
+    if hidden_dim >= 64 && hidden_dim.is_multiple_of(64) {
+        return hidden_dim / 64;
+    }
     for h in [16usize, 12, 8, 6, 4, 2] {
         if hidden_dim >= h * 4 && hidden_dim.is_multiple_of(h) {
             return h;
@@ -589,6 +611,319 @@ pub fn encode_image_with_littlebit_vision(
         num_patches,
         avg_bits_per_weight: bpw_sum / (bpw_cnt.max(1) as f64),
         embedding: pooled,
+        elapsed_ns: (t0.elapsed().as_nanos() as u64).max(1),
+    })
+}
+
+/// Encode a text prompt using a `SigLIP` / `CLIP` `text_model` tower inside `harness` (or project via
+/// learned token embeddings when only the vision-language head is loaded), returning a unit-L2 vector.
+fn encode_siglip_text_tower(
+    harness: &JouleHarnessEngine,
+    model_id: &str,
+    label: &str,
+    target_dim: usize,
+) -> Result<Vec<f32>, String> {
+    let tok_key = format!("{model_id}::text_model.embeddings.token_embedding.weight");
+    if let Some(tok_emb) = harness.littlebit_tensors.get(&tok_key) {
+        let hidden = tok_emb.cols;
+        let vocab_sz = tok_emb.rows.max(1);
+        let pos_opt = harness.littlebit_tensors.get(&format!(
+            "{model_id}::text_model.embeddings.position_embedding.weight"
+        ));
+        let max_pos = pos_opt.map(|p| p.rows).unwrap_or(64).clamp(4, 64);
+
+        let token_ids: Vec<usize> = if let Some(v_vec) = harness.model_vocabs.get(model_id) {
+            let merges = harness
+                .model_bpe_merges
+                .get(model_id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            BpeTokenizer::from_vocab_and_merges(v_vec, merges).encode(label, max_pos)
+        } else {
+            BpeTokenizer::fallback_for_vocab_size(vocab_sz).encode(label, max_pos)
+        };
+        let seq_len = token_ids.len().clamp(1, max_pos);
+        let mut hidden_seq = Vec::with_capacity(seq_len * hidden);
+        for (pos, &tid) in token_ids.iter().take(seq_len).enumerate() {
+            let mut row = reconstruct_row(tok_emb, tid.min(vocab_sz - 1));
+            if let Some(pt) = pos_opt {
+                let pe = reconstruct_row(pt, pos.min(pt.rows - 1));
+                for (dst, &pv) in row.iter_mut().zip(pe.iter()) {
+                    *dst += pv;
+                }
+            }
+            hidden_seq.extend_from_slice(&row);
+        }
+
+        let mut layers = 0usize;
+        while harness.littlebit_tensors.contains_key(&format!(
+            "{model_id}::text_model.encoder.layers.{layers}.self_attn.q_proj.weight"
+        )) {
+            layers += 1;
+        }
+        let n_heads = infer_heads(hidden);
+        let hd = (hidden / n_heads).max(1);
+        let inv_s = 1.0 / (hd as f32).sqrt();
+
+        let proj_t = |w_k: &str, b_k: &str, x_in: &[f32], bsz: usize| -> Result<Vec<f32>, String> {
+            let t = harness
+                .littlebit_tensors
+                .get(w_k)
+                .ok_or_else(|| format!("missing text tensor '{w_k}'"))?;
+            let mut y = t.forward_batch(x_in, bsz, &[])?;
+            if let Some(b) = harness.vectors_1d.get(b_k) {
+                for bi in 0..bsz {
+                    let sl = &mut y[bi * t.rows..(bi + 1) * t.rows];
+                    for (dst, &bv) in sl.iter_mut().zip(b.iter()) {
+                        *dst += bv;
+                    }
+                }
+            }
+            Ok(y)
+        };
+
+        for l in 0..layers {
+            let lp = format!("{model_id}::text_model.encoder.layers.{l}");
+            let mut n1 = Vec::with_capacity(seq_len * hidden);
+            for s in 0..seq_len {
+                n1.extend_from_slice(&layer_norm_vec(
+                    &hidden_seq[s * hidden..(s + 1) * hidden],
+                    harness
+                        .vectors_1d
+                        .get(&format!("{lp}.layer_norm1.weight"))
+                        .map(Vec::as_slice),
+                    harness
+                        .vectors_1d
+                        .get(&format!("{lp}.layer_norm1.bias"))
+                        .map(Vec::as_slice),
+                    1e-6,
+                ));
+            }
+            let q = proj_t(
+                &format!("{lp}.self_attn.q_proj.weight"),
+                &format!("{lp}.self_attn.q_proj.bias"),
+                &n1,
+                seq_len,
+            )?;
+            let k = proj_t(
+                &format!("{lp}.self_attn.k_proj.weight"),
+                &format!("{lp}.self_attn.k_proj.bias"),
+                &n1,
+                seq_len,
+            )?;
+            let v = proj_t(
+                &format!("{lp}.self_attn.v_proj.weight"),
+                &format!("{lp}.self_attn.v_proj.bias"),
+                &n1,
+                seq_len,
+            )?;
+            let mut attn = vec![0.0f32; seq_len * hidden];
+            for s in 0..seq_len {
+                for h_i in 0..n_heads {
+                    let off = h_i * hd;
+                    let q_sl = &q[s * hidden + off..s * hidden + off + hd];
+                    let mut scs = Vec::with_capacity(seq_len);
+                    let mut mx = f32::NEG_INFINITY;
+                    for ti in 0..seq_len {
+                        let k_sl = &k[ti * hidden + off..ti * hidden + off + hd];
+                        let dot: f32 = q_sl.iter().zip(k_sl.iter()).map(|(a, b)| a * b).sum();
+                        let sc = dot * inv_s;
+                        if sc > mx {
+                            mx = sc;
+                        }
+                        scs.push(sc);
+                    }
+                    let mut den = 0.0f32;
+                    for sc in &mut scs {
+                        *sc = (*sc - mx).exp();
+                        den += *sc;
+                    }
+                    let inv_d = 1.0 / den.max(1e-12);
+                    let dst = &mut attn[s * hidden + off..s * hidden + off + hd];
+                    for (ti, &w) in scs.iter().enumerate() {
+                        let p = w * inv_d;
+                        let v_sl = &v[ti * hidden + off..ti * hidden + off + hd];
+                        for (d, &vv) in dst.iter_mut().zip(v_sl.iter()) {
+                            *d += p * vv;
+                        }
+                    }
+                }
+            }
+            let o = proj_t(
+                &format!("{lp}.self_attn.out_proj.weight"),
+                &format!("{lp}.self_attn.out_proj.bias"),
+                &attn,
+                seq_len,
+            )?;
+            for (hv, &ov) in hidden_seq.iter_mut().zip(o.iter()) {
+                *hv += ov;
+            }
+            let mut n2 = Vec::with_capacity(seq_len * hidden);
+            for s in 0..seq_len {
+                n2.extend_from_slice(&layer_norm_vec(
+                    &hidden_seq[s * hidden..(s + 1) * hidden],
+                    harness
+                        .vectors_1d
+                        .get(&format!("{lp}.layer_norm2.weight"))
+                        .map(Vec::as_slice),
+                    harness
+                        .vectors_1d
+                        .get(&format!("{lp}.layer_norm2.bias"))
+                        .map(Vec::as_slice),
+                    1e-6,
+                ));
+            }
+            let mut fc1 = proj_t(
+                &format!("{lp}.mlp.fc1.weight"),
+                &format!("{lp}.mlp.fc1.bias"),
+                &n2,
+                seq_len,
+            )?;
+            for x in &mut fc1 {
+                *x = gelu(*x);
+            }
+            let fc2 = proj_t(
+                &format!("{lp}.mlp.fc2.weight"),
+                &format!("{lp}.mlp.fc2.bias"),
+                &fc1,
+                seq_len,
+            )?;
+            for (hv, &fv) in hidden_seq.iter_mut().zip(fc2.iter()) {
+                *hv += fv;
+            }
+        }
+
+        let last_sl = &hidden_seq[(seq_len - 1) * hidden..seq_len * hidden];
+        let mut pooled = layer_norm_vec(
+            last_sl,
+            harness
+                .vectors_1d
+                .get(&format!("{model_id}::text_model.final_layer_norm.weight"))
+                .map(Vec::as_slice),
+            harness
+                .vectors_1d
+                .get(&format!("{model_id}::text_model.final_layer_norm.bias"))
+                .map(Vec::as_slice),
+            1e-6,
+        );
+        if let Some(head_t) = harness
+            .littlebit_tensors
+            .get(&format!("{model_id}::text_model.head.weight"))
+        {
+            pooled = head_t.forward_vec(&pooled, &[])?;
+            if let Some(hb) = harness
+                .vectors_1d
+                .get(&format!("{model_id}::text_model.head.bias"))
+            {
+                for (dst, &bv) in pooled.iter_mut().zip(hb.iter()) {
+                    *dst += bv;
+                }
+            }
+        }
+        pooled.resize(target_dim, 0.0);
+        let l2 = pooled.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+        for v in &mut pooled {
+            *v /= l2;
+        }
+        return Ok(pooled);
+    }
+
+    // Deterministic sub-1-bit HDC-style trigram projection when only vision tower is loaded
+    let mut vec = vec![0.0f32; target_dim.max(1)];
+    for (idx, word) in label.to_ascii_lowercase().split_whitespace().enumerate() {
+        let mut h = 0xcbf2_9ce4_8422_2325u64 ^ (idx as u64);
+        for &b in word.as_bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+            let slot = (h as usize) % vec.len();
+            let sgn = if ((h >> 17) & 1) == 0 { 1.0 } else { -1.0 };
+            vec[slot] += sgn;
+        }
+    }
+    let l2 = vec.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+    for v in &mut vec {
+        *v /= l2;
+    }
+    Ok(vec)
+}
+
+/// Zero-shot contrastive `SigLIP` / `CLIP` vision-language scoring over sub-1-bit living bitplanes.
+pub fn score_zero_shot_vision_text_with_littlebit(
+    harness: &JouleHarnessEngine,
+    model_id: &str,
+    rgb_hwc: &[f32],
+    height: usize,
+    width: usize,
+    candidate_labels: &[String],
+) -> Result<ZeroShotVisionScoreReceipt, String> {
+    if candidate_labels.is_empty() {
+        return Err("candidate_labels must contain at least 1 label".to_string());
+    }
+    let t0 = Instant::now();
+    let vis = encode_image_with_littlebit_vision(harness, model_id, rgb_hwc, height, width)?;
+    let logit_scale = harness
+        .vectors_1d
+        .get(&format!("{model_id}::logit_scale"))
+        .and_then(|v| v.first().copied())
+        .map(|s| s.clamp(-5.0, 5.0).exp())
+        .unwrap_or(10.0);
+    let logit_bias = harness
+        .vectors_1d
+        .get(&format!("{model_id}::logit_bias"))
+        .and_then(|v| v.first().copied())
+        .unwrap_or(0.0);
+
+    let mut raw_logits = Vec::with_capacity(candidate_labels.len());
+    let mut cosines = Vec::with_capacity(candidate_labels.len());
+    let mut max_logit = f32::NEG_INFINITY;
+    for lbl in candidate_labels {
+        let t_emb = encode_siglip_text_tower(harness, model_id, lbl, vis.embedding.len())?;
+        let cos: f32 = vis
+            .embedding
+            .iter()
+            .zip(t_emb.iter())
+            .map(|(a, b)| a * b)
+            .sum();
+        let lg = cos * logit_scale + logit_bias;
+        if lg > max_logit {
+            max_logit = lg;
+        }
+        cosines.push(cos);
+        raw_logits.push(lg);
+    }
+
+    let denom: f32 = raw_logits
+        .iter()
+        .map(|&l| (l - max_logit).exp())
+        .sum::<f32>()
+        .max(1e-12);
+    let mut candidates = Vec::with_capacity(candidate_labels.len());
+    for (i, lbl) in candidate_labels.iter().enumerate() {
+        let lg = raw_logits[i];
+        let sig = 1.0 / (1.0 + (-lg).exp());
+        let sm = (lg - max_logit).exp() / denom;
+        candidates.push(ZeroShotVisionCandidate {
+            label: lbl.clone(),
+            cosine_similarity: cosines[i],
+            sigmoid_prob: sig,
+            softmax_prob: sm,
+        });
+    }
+    candidates.sort_by(|a, b| {
+        b.softmax_prob
+            .partial_cmp(&a.softmax_prob)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let best_label = candidates
+        .first()
+        .map(|c| c.label.clone())
+        .unwrap_or_default();
+
+    Ok(ZeroShotVisionScoreReceipt {
+        model_id: model_id.to_string(),
+        best_label,
+        candidates,
+        vision_bpw: vis.avg_bits_per_weight,
         elapsed_ns: (t0.elapsed().as_nanos() as u64).max(1),
     })
 }
@@ -914,6 +1249,10 @@ pub fn transcribe_wav_with_littlebit_whisper(
             .littlebit_tensors
             .get(&format!("{pfx}conv1.weight"))
             .ok_or_else(|| "missing conv1.weight".to_string())?;
+        let conv2_opt = harness.littlebit_tensors.get(&format!("{pfx}conv2.weight"));
+        let embed_pos_opt = harness
+            .littlebit_tensors
+            .get(&format!("{pfx}embed_positions.weight"));
         let d_model = conv1.rows;
         let n_mels = if conv1.cols.is_multiple_of(3) && (conv1.cols / 3) >= 16 {
             conv1.cols / 3
@@ -921,52 +1260,255 @@ pub fn transcribe_wav_with_littlebit_whisper(
             80.min(conv1.cols)
         };
         let kernel_w = (conv1.cols / n_mels.max(1)).max(1);
-        let (mel_frames, log_mel) = compute_whisper_log_mel(&samples_16k, n_mels);
 
-        // Stride-2 Conv1D stem over Log-Mel frames -> `[seq_len, conv1.cols]` batched `LittleBit-2` projection!
-        let step_stride = 2usize;
-        let seq_len = mel_frames.div_ceil(step_stride).clamp(1, 256);
-        let mut conv_in_batch = Vec::with_capacity(seq_len * conv1.cols);
-        for s_idx in 0..seq_len {
-            let center_fr = s_idx * step_stride;
-            let mut win_vec = Vec::with_capacity(conv1.cols);
+        // When a full two-conv Whisper checkpoint (`conv2` + `embed_positions`) is loaded, compute
+        // OpenAI Whisper's exact 400-point periodic-Hann STFT + Slaney piecewise-linear/log Mel
+        // filterbank padded to `2 * embed_positions.rows` (`3000` frames -> `1500` encoder tokens),
+        // skipping DFTs on zero-padded silence frames in O(1)!
+        let (mel_frames, log_mel) = if conv2_opt.is_some()
+            && let Some(ep) = embed_pos_opt
+            && ep.rows >= 64
+        {
+            let target_mel_frames = (ep.rows * 2).clamp(128, 3_000);
+            const N_FFT_W: usize = 400;
+            const HOP_W: usize = 160;
+            const BINS_W: usize = N_FFT_W / 2 + 1; // 201
+            let f_sp = 200.0f32 / 3.0;
+            let min_log_hz = 1_000.0f32;
+            let min_log_mel = min_log_hz / f_sp; // 15.0
+            let logstep = 6.4f32.ln() / 27.0;
+            let hz_to_slaney = |hz: f32| -> f32 {
+                if hz < min_log_hz {
+                    hz / f_sp
+                } else {
+                    min_log_mel + (hz / min_log_hz).ln() / logstep
+                }
+            };
+            let slaney_to_hz = |mel: f32| -> f32 {
+                if mel < min_log_mel {
+                    mel * f_sp
+                } else {
+                    min_log_hz * (logstep * (mel - min_log_mel)).exp()
+                }
+            };
+            let m_min = hz_to_slaney(0.0);
+            let m_max = hz_to_slaney(8_000.0);
+            let m_pts: Vec<f32> = (0..n_mels + 2)
+                .map(|m| slaney_to_hz(m_min + (m_max - m_min) * (m as f32) / ((n_mels + 1) as f32)))
+                .collect();
+            let bin_hz = 16_000.0 / (N_FFT_W as f32);
+            let mut flt = vec![0.0f32; n_mels * BINS_W];
             for m in 0..n_mels {
-                for kw in 0..kernel_w {
-                    let fr = (center_fr + kw)
-                        .saturating_sub(kernel_w / 2)
-                        .min(mel_frames - 1);
-                    win_vec.push(log_mel[fr * n_mels + m]);
+                let fl = m_pts[m];
+                let fc = m_pts[m + 1];
+                let fr = m_pts[m + 2];
+                let enorm = 2.0 / (fr - fl).max(1e-6);
+                for b in 0..BINS_W {
+                    let f = (b as f32) * bin_hz;
+                    let w = if f >= fl && f <= fc {
+                        (f - fl) / (fc - fl).max(1e-6)
+                    } else if f > fc && f <= fr {
+                        (fr - f) / (fr - fc).max(1e-6)
+                    } else {
+                        0.0
+                    };
+                    flt[m * BINS_W + b] = w * enorm;
                 }
             }
-            while win_vec.len() < conv1.cols {
-                win_vec.push(0.0);
+            let hann: Vec<f32> = (0..N_FFT_W)
+                .map(|n| 0.5 * (1.0 - (2.0 * PI * (n as f32) / (N_FFT_W as f32)).cos()))
+                .collect();
+            let mut cos_tbl = vec![0.0f32; BINS_W * N_FFT_W];
+            let mut sin_tbl = vec![0.0f32; BINS_W * N_FFT_W];
+            for k in 0..BINS_W {
+                for n in 0..N_FFT_W {
+                    let ang = -2.0 * PI * (k as f32) * (n as f32) / (N_FFT_W as f32);
+                    let (s, c) = ang.sin_cos();
+                    cos_tbl[k * N_FFT_W + n] = c * hann[n];
+                    sin_tbl[k * N_FFT_W + n] = s * hann[n];
+                }
             }
-            win_vec.truncate(conv1.cols);
-            conv_in_batch.extend_from_slice(&win_vec);
-        }
+            let max_samples = target_mel_frames * HOP_W;
+            let clipped_len = samples_16k.len().min(max_samples);
+            let active_frames = ((clipped_len + N_FFT_W) / HOP_W + 2).min(target_mel_frames);
+            let mut lmel = vec![-10.0f32; target_mel_frames * n_mels];
+            let mut gmax = -10.0f32;
+            let mut win = [0.0f32; N_FFT_W];
+            let mut pwr = [0.0f32; BINS_W];
 
-        let mut hidden_seq = conv1.forward_batch(&conv_in_batch, seq_len, &[])?;
-        if let Some(cb1) = harness.vectors_1d.get(&format!("{pfx}conv1.bias")) {
+            for fr in 0..active_frames {
+                // Center reflection padding (`pad = 200` on left, zero-padded past `clipped_len`)
+                let center_start = (fr * HOP_W) as isize - (N_FFT_W as isize / 2);
+                let mut any_nonzero = false;
+                for i in 0..N_FFT_W {
+                    let idx = center_start + (i as isize);
+                    let r_idx = if idx < 0 {
+                        (-idx) as usize
+                    } else {
+                        idx as usize
+                    };
+                    let v = if r_idx < clipped_len {
+                        samples_16k[r_idx]
+                    } else {
+                        0.0
+                    };
+                    if v != 0.0 {
+                        any_nonzero = true;
+                    }
+                    win[i] = v;
+                }
+                if !any_nonzero {
+                    continue;
+                }
+                for k in 0..BINS_W {
+                    let ct = &cos_tbl[k * N_FFT_W..(k + 1) * N_FFT_W];
+                    let st = &sin_tbl[k * N_FFT_W..(k + 1) * N_FFT_W];
+                    let mut re_s = 0.0f32;
+                    let mut im_s = 0.0f32;
+                    for n in 0..N_FFT_W {
+                        let wv = win[n];
+                        re_s += wv * ct[n];
+                        im_s += wv * st[n];
+                    }
+                    pwr[k] = re_s * re_s + im_s * im_s;
+                }
+                for m in 0..n_mels {
+                    let f_row = &flt[m * BINS_W..(m + 1) * BINS_W];
+                    let mut e = 0.0f32;
+                    for (&fw, &pw) in f_row.iter().zip(pwr.iter()) {
+                        e += fw * pw;
+                    }
+                    let lv = e.max(1e-10).log10();
+                    if lv > gmax {
+                        gmax = lv;
+                    }
+                    lmel[fr * n_mels + m] = lv;
+                }
+            }
+            let floor_v = gmax - 8.0;
+            for v in &mut lmel {
+                *v = ((*v).max(floor_v) + 4.0) / 4.0;
+            }
+            (target_mel_frames, lmel)
+        } else {
+            compute_whisper_log_mel(&samples_16k, n_mels)
+        };
+
+        let (seq_len, mut hidden_seq) = if let Some(conv2) = conv2_opt {
+            // Two-layer Whisper Conv1d stem: `conv1(stride=1, pad=1)` -> `GELU` -> `conv2(stride=2, pad=1)` -> `GELU`
+            let mut c1_in = Vec::with_capacity(mel_frames * conv1.cols);
+            for fr in 0..mel_frames {
+                for m in 0..n_mels {
+                    for kw in 0..kernel_w {
+                        let src_fr = (fr as isize) + (kw as isize) - ((kernel_w / 2) as isize);
+                        if src_fr >= 0 && (src_fr as usize) < mel_frames {
+                            c1_in.push(log_mel[(src_fr as usize) * n_mels + m]);
+                        } else {
+                            c1_in.push(0.0);
+                        }
+                    }
+                }
+            }
+            let mut h1 = conv1.forward_batch(&c1_in, mel_frames, &[])?;
+            if let Some(cb1) = harness.vectors_1d.get(&format!("{pfx}conv1.bias")) {
+                for s in 0..mel_frames {
+                    let row = &mut h1[s * d_model..(s + 1) * d_model];
+                    for (dst, &b) in row.iter_mut().zip(cb1.iter()) {
+                        *dst = gelu(*dst + b);
+                    }
+                }
+            } else {
+                for v in &mut h1 {
+                    *v = gelu(*v);
+                }
+            }
+
+            let kw2 = (conv2.cols / d_model.max(1)).max(1);
+            let s_len = mel_frames / 2;
+            let mut c2_in = Vec::with_capacity(s_len * conv2.cols);
+            for s_idx in 0..s_len {
+                let center = (s_idx * 2) as isize;
+                for ch in 0..d_model {
+                    for kw in 0..kw2 {
+                        let src_fr = center + (kw as isize) - ((kw2 / 2) as isize);
+                        if src_fr >= 0 && (src_fr as usize) < mel_frames {
+                            c2_in.push(h1[(src_fr as usize) * d_model + ch]);
+                        } else {
+                            c2_in.push(0.0);
+                        }
+                    }
+                }
+            }
+            let mut h2 = conv2.forward_batch(&c2_in, s_len, &[])?;
+            if let Some(cb2) = harness.vectors_1d.get(&format!("{pfx}conv2.bias")) {
+                for s in 0..s_len {
+                    let row = &mut h2[s * d_model..(s + 1) * d_model];
+                    for (dst, &b) in row.iter_mut().zip(cb2.iter()) {
+                        *dst = gelu(*dst + b);
+                    }
+                }
+            } else {
+                for v in &mut h2 {
+                    *v = gelu(*v);
+                }
+            }
+            (s_len, h2)
+        } else {
+            // Single-conv stride-2 synthetic stem
+            let step_stride = 2usize;
+            let s_len = mel_frames.div_ceil(step_stride).clamp(1, 256);
+            let mut conv_in_batch = Vec::with_capacity(s_len * conv1.cols);
+            for s_idx in 0..s_len {
+                let center_fr = s_idx * step_stride;
+                let mut win_vec = Vec::with_capacity(conv1.cols);
+                for m in 0..n_mels {
+                    for kw in 0..kernel_w {
+                        let fr = (center_fr + kw)
+                            .saturating_sub(kernel_w / 2)
+                            .min(mel_frames - 1);
+                        win_vec.push(log_mel[fr * n_mels + m]);
+                    }
+                }
+                while win_vec.len() < conv1.cols {
+                    win_vec.push(0.0);
+                }
+                win_vec.truncate(conv1.cols);
+                conv_in_batch.extend_from_slice(&win_vec);
+            }
+            let mut h_seq = conv1.forward_batch(&conv_in_batch, s_len, &[])?;
+            if let Some(cb1) = harness.vectors_1d.get(&format!("{pfx}conv1.bias")) {
+                for s in 0..s_len {
+                    let row = &mut h_seq[s * d_model..(s + 1) * d_model];
+                    for (dst, &b) in row.iter_mut().zip(cb1.iter()) {
+                        *dst = gelu(*dst + b);
+                    }
+                }
+            } else {
+                for v in &mut h_seq {
+                    *v = gelu(*v);
+                }
+            }
+            (s_len, h_seq)
+        };
+
+        // Learned `embed_positions.weight` when present, otherwise sinusoidal positional encoding
+        if let Some(ep) = embed_pos_opt {
             for s in 0..seq_len {
+                let pe = reconstruct_row(ep, s.min(ep.rows - 1));
                 let row = &mut hidden_seq[s * d_model..(s + 1) * d_model];
-                for (dst, &b) in row.iter_mut().zip(cb1.iter()) {
-                    *dst = gelu(*dst + b);
+                for (dst, &pv) in row.iter_mut().zip(pe.iter()) {
+                    *dst += pv;
                 }
             }
         } else {
-            for v in &mut hidden_seq {
-                *v = gelu(*v);
-            }
-        }
-
-        // Sinusoidal positional encoding
-        for s in 0..seq_len {
-            let row = &mut hidden_seq[s * d_model..(s + 1) * d_model];
-            for i in 0..(d_model / 2) {
-                let freq = 10_000.0f32.powf(-(2.0 * (i as f32)) / (d_model as f32));
-                let ang = (s as f32) * freq;
-                row[2 * i] += ang.sin() * 0.1;
-                row[2 * i + 1] += ang.cos() * 0.1;
+            for s in 0..seq_len {
+                let row = &mut hidden_seq[s * d_model..(s + 1) * d_model];
+                for i in 0..(d_model / 2) {
+                    let freq = 10_000.0f32.powf(-(2.0 * (i as f32)) / (d_model as f32));
+                    let ang = (s as f32) * freq;
+                    row[2 * i] += ang.sin() * 0.1;
+                    row[2 * i + 1] += ang.cos() * 0.1;
+                }
             }
         }
 
@@ -1106,6 +1648,30 @@ pub fn transcribe_wav_with_littlebit_whisper(
             }
         }
 
+        // Apply post-encoder `model.encoder.layer_norm` if present!
+        if harness
+            .vectors_1d
+            .contains_key(&format!("{pfx}layer_norm.weight"))
+        {
+            let ln_w = harness
+                .vectors_1d
+                .get(&format!("{pfx}layer_norm.weight"))
+                .map(Vec::as_slice);
+            let ln_b = harness
+                .vectors_1d
+                .get(&format!("{pfx}layer_norm.bias"))
+                .map(Vec::as_slice);
+            for s in 0..seq_len {
+                let normed = layer_norm_vec(
+                    &hidden_seq[s * d_model..(s + 1) * d_model],
+                    ln_w,
+                    ln_b,
+                    1e-5,
+                );
+                hidden_seq[s * d_model..(s + 1) * d_model].copy_from_slice(&normed);
+            }
+        }
+
         let mut pooled = vec![0.0f32; d_model];
         for s in 0..seq_len {
             let sl = &hidden_seq[s * d_model..(s + 1) * d_model];
@@ -1118,17 +1684,362 @@ pub fn transcribe_wav_with_littlebit_whisper(
             *v /= l2;
         }
 
-        // Greedy CTC / projection head if `proj_out.weight` or `decoder.embed_tokens.weight` is present
-        let head_opt = harness
+        // Check for full `Whisper` Cross-Attention Autoregressive Decoder (`model.decoder.layers.*`)!
+        let dec_pfx_opt = [format!("{mid}::model.decoder."), format!("{mid}::decoder.")]
+            .into_iter()
+            .find(|dp| {
+                harness
+                    .littlebit_tensors
+                    .contains_key(&format!("{dp}layers.0.encoder_attn.q_proj.weight"))
+                    && harness
+                        .littlebit_tensors
+                        .contains_key(&format!("{dp}embed_tokens.weight"))
+            });
+
+        let mut token_ids = Vec::new();
+        let text = if let Some(dpfx) = dec_pfx_opt {
+            let mut dec_layers = 0usize;
+            while harness.littlebit_tensors.contains_key(&format!(
+                "{dpfx}layers.{dec_layers}.encoder_attn.q_proj.weight"
+            )) {
+                dec_layers += 1;
+            }
+            let dec_emb = harness
+                .littlebit_tensors
+                .get(&format!("{dpfx}embed_tokens.weight"))
+                .ok_or_else(|| "missing decoder embed_tokens".to_string())?;
+            let dec_pos_opt = harness
+                .littlebit_tensors
+                .get(&format!("{dpfx}embed_positions.weight"));
+            let vocab_sz = dec_emb.rows;
+            let lm_out = harness
+                .littlebit_tensors
+                .get(&format!("{mid}::proj_out.weight"))
+                .unwrap_or(dec_emb);
+
+            // Precompute Cross-Attention `K_enc` & `V_enc` (`[seq_len, d_model]`) once per decoder layer!
+            let mut enc_k_layers = Vec::with_capacity(dec_layers);
+            let mut enc_v_layers = Vec::with_capacity(dec_layers);
+            for dl in 0..dec_layers {
+                let dlp = format!("{dpfx}layers.{dl}");
+                enc_k_layers.push(proj_b(
+                    &format!("{dlp}.encoder_attn.k_proj.weight"),
+                    &format!("{dlp}.encoder_attn.k_proj.bias"),
+                    &hidden_seq,
+                    seq_len,
+                )?);
+                enc_v_layers.push(proj_b(
+                    &format!("{dlp}.encoder_attn.v_proj.weight"),
+                    &format!("{dlp}.encoder_attn.v_proj.bias"),
+                    &hidden_seq,
+                    seq_len,
+                )?);
+            }
+
+            // Standard Whisper SOT + NoTimestamps prompt:
+            // English-only (`vocab_sz == 51864`): `[50257 (<|startoftranscript|>), 50362 (<|notimestamps|>)]`, EOS `50256`
+            // Multilingual (`vocab_sz >= 51865`): `[50258, 50259, 50359, 50363]`, EOS `50257`
+            // Compact synthetic vocab (`< 50257`): `[1]` with EOS `0`
+            let (sot_prompt, eos_id, special_floor) = if vocab_sz == 51_864 {
+                (vec![50_257usize, 50_362], 50_256usize, 50_257usize)
+            } else if vocab_sz >= 51_865 {
+                (
+                    vec![50_258usize, 50_259, 50_359, 50_363],
+                    50_257usize,
+                    50_258usize,
+                )
+            } else {
+                (
+                    vec![1usize.min(vocab_sz.saturating_sub(1))],
+                    0usize,
+                    vocab_sz,
+                )
+            };
+
+            let mut self_k_cache: Vec<Vec<Vec<f32>>> = vec![Vec::new(); dec_layers];
+            let mut self_v_cache: Vec<Vec<Vec<f32>>> = vec![Vec::new(); dec_layers];
+            let mut dec_seq = sot_prompt.clone();
+            let max_dec_new = 48usize;
+
+            let step_decoder_one = |tok_id: usize,
+                                    pos_idx: usize,
+                                    sk_cache: &mut [Vec<Vec<f32>>],
+                                    sv_cache: &mut [Vec<Vec<f32>>]|
+             -> Result<Vec<f32>, String> {
+                let mut h = reconstruct_row(dec_emb, tok_id.min(vocab_sz - 1));
+                if let Some(dpos) = dec_pos_opt {
+                    let pe = reconstruct_row(dpos, pos_idx.min(dpos.rows - 1));
+                    for (dst, &pv) in h.iter_mut().zip(pe.iter()) {
+                        *dst += pv;
+                    }
+                }
+                for dl in 0..dec_layers {
+                    let dlp = format!("{dpfx}layers.{dl}");
+                    // 1. Causal Self-Attention
+                    let sn = layer_norm_vec(
+                        &h,
+                        harness
+                            .vectors_1d
+                            .get(&format!("{dlp}.self_attn_layer_norm.weight"))
+                            .map(Vec::as_slice),
+                        harness
+                            .vectors_1d
+                            .get(&format!("{dlp}.self_attn_layer_norm.bias"))
+                            .map(Vec::as_slice),
+                        1e-5,
+                    );
+                    let q_s = proj_b(
+                        &format!("{dlp}.self_attn.q_proj.weight"),
+                        &format!("{dlp}.self_attn.q_proj.bias"),
+                        &sn,
+                        1,
+                    )?;
+                    let k_s = proj_b(
+                        &format!("{dlp}.self_attn.k_proj.weight"),
+                        &format!("{dlp}.self_attn.k_proj.bias"),
+                        &sn,
+                        1,
+                    )?;
+                    let v_s = proj_b(
+                        &format!("{dlp}.self_attn.v_proj.weight"),
+                        &format!("{dlp}.self_attn.v_proj.bias"),
+                        &sn,
+                        1,
+                    )?;
+                    sk_cache[dl].push(k_s);
+                    sv_cache[dl].push(v_s);
+                    let cur_len = sk_cache[dl].len();
+                    let mut sa_out = vec![0.0f32; d_model];
+                    for hi in 0..num_heads {
+                        let off = hi * head_dim;
+                        let q_sl = &q_s[off..off + head_dim];
+                        let mut scs = Vec::with_capacity(cur_len);
+                        let mut mx = f32::NEG_INFINITY;
+                        for ks in &sk_cache[dl] {
+                            let dot: f32 = q_sl
+                                .iter()
+                                .zip(ks[off..off + head_dim].iter())
+                                .map(|(a, b)| a * b)
+                                .sum();
+                            let sc = dot * inv_sqrt_hd;
+                            if sc > mx {
+                                mx = sc;
+                            }
+                            scs.push(sc);
+                        }
+                        let mut den = 0.0f32;
+                        for sc in &mut scs {
+                            *sc = (*sc - mx).exp();
+                            den += *sc;
+                        }
+                        let inv_d = 1.0 / den.max(1e-12);
+                        let dst = &mut sa_out[off..off + head_dim];
+                        for (ti, &w) in scs.iter().enumerate() {
+                            let p = w * inv_d;
+                            for (d, &vv) in dst
+                                .iter_mut()
+                                .zip(sv_cache[dl][ti][off..off + head_dim].iter())
+                            {
+                                *d += p * vv;
+                            }
+                        }
+                    }
+                    let so = proj_b(
+                        &format!("{dlp}.self_attn.out_proj.weight"),
+                        &format!("{dlp}.self_attn.out_proj.bias"),
+                        &sa_out,
+                        1,
+                    )?;
+                    for (hv, &ov) in h.iter_mut().zip(so.iter()) {
+                        *hv += ov;
+                    }
+
+                    // 2. Encoder-Decoder Cross-Attention over `enc_k_layers[dl]` & `enc_v_layers[dl]`
+                    let cn = layer_norm_vec(
+                        &h,
+                        harness
+                            .vectors_1d
+                            .get(&format!("{dlp}.encoder_attn_layer_norm.weight"))
+                            .map(Vec::as_slice),
+                        harness
+                            .vectors_1d
+                            .get(&format!("{dlp}.encoder_attn_layer_norm.bias"))
+                            .map(Vec::as_slice),
+                        1e-5,
+                    );
+                    let q_c = proj_b(
+                        &format!("{dlp}.encoder_attn.q_proj.weight"),
+                        &format!("{dlp}.encoder_attn.q_proj.bias"),
+                        &cn,
+                        1,
+                    )?;
+                    let ek = &enc_k_layers[dl];
+                    let ev = &enc_v_layers[dl];
+                    let mut ca_out = vec![0.0f32; d_model];
+                    for hi in 0..num_heads {
+                        let off = hi * head_dim;
+                        let q_sl = &q_c[off..off + head_dim];
+                        let mut scs = Vec::with_capacity(seq_len);
+                        let mut mx = f32::NEG_INFINITY;
+                        for ti in 0..seq_len {
+                            let k_sl = &ek[ti * d_model + off..ti * d_model + off + head_dim];
+                            let dot: f32 = q_sl.iter().zip(k_sl.iter()).map(|(a, b)| a * b).sum();
+                            let sc = dot * inv_sqrt_hd;
+                            if sc > mx {
+                                mx = sc;
+                            }
+                            scs.push(sc);
+                        }
+                        let mut den = 0.0f32;
+                        for sc in &mut scs {
+                            *sc = (*sc - mx).exp();
+                            den += *sc;
+                        }
+                        let inv_d = 1.0 / den.max(1e-12);
+                        let dst = &mut ca_out[off..off + head_dim];
+                        for (ti, &w) in scs.iter().enumerate() {
+                            let p = w * inv_d;
+                            let v_sl = &ev[ti * d_model + off..ti * d_model + off + head_dim];
+                            for (d, &vv) in dst.iter_mut().zip(v_sl.iter()) {
+                                *d += p * vv;
+                            }
+                        }
+                    }
+                    let co = proj_b(
+                        &format!("{dlp}.encoder_attn.out_proj.weight"),
+                        &format!("{dlp}.encoder_attn.out_proj.bias"),
+                        &ca_out,
+                        1,
+                    )?;
+                    for (hv, &ov) in h.iter_mut().zip(co.iter()) {
+                        *hv += ov;
+                    }
+
+                    // 3. FFN (`final_layer_norm` -> `fc1` -> `GELU` -> `fc2`)
+                    let fn_in = layer_norm_vec(
+                        &h,
+                        harness
+                            .vectors_1d
+                            .get(&format!("{dlp}.final_layer_norm.weight"))
+                            .map(Vec::as_slice),
+                        harness
+                            .vectors_1d
+                            .get(&format!("{dlp}.final_layer_norm.bias"))
+                            .map(Vec::as_slice),
+                        1e-5,
+                    );
+                    let mut fc1 = proj_b(
+                        &format!("{dlp}.fc1.weight"),
+                        &format!("{dlp}.fc1.bias"),
+                        &fn_in,
+                        1,
+                    )?;
+                    for x in &mut fc1 {
+                        *x = gelu(*x);
+                    }
+                    let fc2 = proj_b(
+                        &format!("{dlp}.fc2.weight"),
+                        &format!("{dlp}.fc2.bias"),
+                        &fc1,
+                        1,
+                    )?;
+                    for (hv, &fv) in h.iter_mut().zip(fc2.iter()) {
+                        *hv += fv;
+                    }
+                }
+                Ok(layer_norm_vec(
+                    &h,
+                    harness
+                        .vectors_1d
+                        .get(&format!("{dpfx}layer_norm.weight"))
+                        .map(Vec::as_slice),
+                    harness
+                        .vectors_1d
+                        .get(&format!("{dpfx}layer_norm.bias"))
+                        .map(Vec::as_slice),
+                    1e-5,
+                ))
+            };
+
+            let mut last_dec_h = vec![0.0f32; d_model];
+            for (p_idx, &ptok) in sot_prompt.iter().enumerate() {
+                last_dec_h = step_decoder_one(ptok, p_idx, &mut self_k_cache, &mut self_v_cache)?;
+            }
+
+            for step in 0..max_dec_new {
+                let mut logits = lm_out.forward_vec(&last_dec_h, &[])?;
+                // Suppress special/timestamp tokens (`>= special_floor`); on step 0 also suppress blank/EOS
+                for (tid, lv) in logits.iter_mut().enumerate() {
+                    if tid >= special_floor {
+                        *lv = f32::NEG_INFINITY;
+                    }
+                    if step == 0 && (tid == eos_id || (vocab_sz >= 51_864 && tid == 220)) {
+                        *lv = f32::NEG_INFINITY;
+                    }
+                }
+                // Mild repetition penalty against immediate stutter loops
+                for &prev in &token_ids {
+                    if let Some(slot) = logits.get_mut(prev)
+                        && *slot > f32::NEG_INFINITY
+                    {
+                        if *slot > 0.0 {
+                            *slot /= 1.15;
+                        } else {
+                            *slot *= 1.15;
+                        }
+                    }
+                }
+                let mut best_id = 0usize;
+                let mut best_v = f32::NEG_INFINITY;
+                for (tid, &lv) in logits.iter().enumerate() {
+                    if lv > best_v {
+                        best_v = lv;
+                        best_id = tid;
+                    }
+                }
+                if best_id == eos_id {
+                    break;
+                }
+                token_ids.push(best_id);
+                let pos_now = dec_seq.len();
+                dec_seq.push(best_id);
+                if step + 1 < max_dec_new {
+                    last_dec_h =
+                        step_decoder_one(best_id, pos_now, &mut self_k_cache, &mut self_v_cache)?;
+                }
+            }
+
+            if let Some(v_vec) = harness.model_vocabs.get(&mid) {
+                let merges = harness
+                    .model_bpe_merges
+                    .get(&mid)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
+                let bpe = BpeTokenizer::from_vocab_and_merges(v_vec, merges);
+                let decoded = bpe.decode(&token_ids, true).trim().to_string();
+                if decoded.is_empty() {
+                    format!(
+                        "[whisper-littlebit {mid}: {} decoded tokens, {duration_sec:.2}s]",
+                        token_ids.len()
+                    )
+                } else {
+                    decoded
+                }
+            } else {
+                format!(
+                    "[whisper-littlebit {mid}: {} decoded tokens, {duration_sec:.2}s]",
+                    token_ids.len()
+                )
+            }
+        } else if let Some(head_t) = harness
             .littlebit_tensors
             .get(&format!("{mid}::proj_out.weight"))
             .or_else(|| {
                 harness
                     .littlebit_tensors
                     .get(&format!("{mid}::model.decoder.embed_tokens.weight"))
-            });
-        let mut token_ids = Vec::new();
-        let text = if let Some(head_t) = head_opt {
+            })
+        {
             let max_frames_dec = seq_len.min(32);
             let logits_all = head_t.forward_batch(
                 &hidden_seq[..max_frames_dec * d_model],

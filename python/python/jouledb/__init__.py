@@ -336,6 +336,133 @@ class Connection:
             {"model": model, "audio_base64": audio_base64, "prompt": prompt},
         )
 
+    def vision_zero_shot(
+        self,
+        model_id: str,
+        image_base64: str,
+        candidate_labels: List[str],
+    ) -> Dict[str, Any]:
+        """Score zero-shot SigLIP/CLIP vision-text candidate labels over sub-1-bit bitplanes."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/vision/zero_shot",
+            {
+                "model_id": model_id,
+                "image_base64": image_base64,
+                "candidate_labels": candidate_labels,
+            },
+        )
+
+    def decoder_generate_batch(
+        self,
+        model_id: str,
+        prompts: List[str],
+        max_new_tokens: int = 24,
+        temperature: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Coalesce multiple prompts into Continuous In-Flight Multi-Request Batched Generation."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/decoder/generate_batch",
+            {
+                "model_id": model_id,
+                "prompts": prompts,
+                "max_new_tokens": max_new_tokens,
+                "temperature": temperature,
+            },
+        )
+
+    def hf_export(
+        self,
+        model_id: str,
+        output_dir: str,
+        base_model_repo: Optional[str] = None,
+        hf_repo_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Export a loaded model as a CRC32-verified .jsyn Hugging Face Hub bundle directory."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/hf/export",
+            {
+                "model_id": model_id,
+                "output_dir": output_dir,
+                "base_model_repo": base_model_repo,
+                "hf_repo_id": hf_repo_id,
+            },
+        )
+
+    def hf_pull(
+        self,
+        model_id: str,
+        repo_id: Optional[str] = None,
+        local_dir: Optional[str] = None,
+        revision: str = "main",
+        target_rank: int = 16,
+        distill_svf: bool = True,
+    ) -> Dict[str, Any]:
+        """Pull a pre-factorized .jsyn or .safetensors checkpoint from Hugging Face Hub or local_dir."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/hf/pull",
+            {
+                "model_id": model_id,
+                "repo_id": repo_id,
+                "local_dir": local_dir,
+                "revision": revision,
+                "target_rank": target_rank,
+                "distill_svf": distill_svf,
+            },
+        )
+
+    def kube_apply(
+        self,
+        manifest: str,
+        default_namespace: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Apply single or multi-document (---) Kubernetes YAML/JSON manifests into JouleKube."""
+        return self._json_request(
+            "POST",
+            "/api/v1/kube/apply",
+            {"manifest": manifest, "default_namespace": default_namespace},
+        )
+
+    def kube_status(self) -> Dict[str, Any]:
+        """Inspect JouleKube cluster status, resource counts, standby watts, and ThermoCap bindings."""
+        return self._json_request("GET", "/api/v1/kube/status")
+
+    def kube_route_inference(
+        self,
+        namespace: str,
+        pool_name: str,
+        prompt: str,
+        max_new_tokens: int = 32,
+        speculative_draft_k: int = 0,
+    ) -> Dict[str, Any]:
+        """Route a prompt through a Gateway API Inference Extension InferencePool in JouleKube."""
+        return self._json_request(
+            "POST",
+            f"/api/v1/kube/inference-pools/{namespace}/{pool_name}/route",
+            {
+                "prompt": prompt,
+                "max_new_tokens": max_new_tokens,
+                "speculative_draft_k": speculative_draft_k,
+            },
+        )
+
+    def kube_invoke_agent(
+        self,
+        namespace: str,
+        agent_name: str,
+        goal: str,
+        max_turns: int = 3,
+    ) -> Dict[str, Any]:
+        """Invoke a declarative kagent.dev/v1alpha1 Agent under its SandboxClaim ThermoCap macaroon."""
+        return self._json_request(
+            "POST",
+            f"/api/v1/kube/agents/{namespace}/{agent_name}/invoke",
+            {"goal": goal, "max_turns": max_turns},
+        )
+
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass
 

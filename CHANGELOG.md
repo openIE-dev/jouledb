@@ -4,6 +4,18 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-23
+
+### Added
+- **`JouleKube` — Native Kubernetes Control Plane, `kubectl` Wire API & CNCF AI-Conformance Reconciler (`kube_control_plane`)**:
+  - Disintermediates `etcd`, `kube-apiserver`, `containerd`, and idle `gVisor`/`Kata` warm pools by ingesting standard Kubernetes (`v1`, `apps/v1`) and CNCF AI-Conformance manifests (`resource.k8s.io/v1` `DRA`, `kueue.x-k8s.io/v1beta1` `Kueue`, `leaderworkerset.x-k8s.io/v1` `LeaderWorkerSet`, `inference.networking.k8s.io/v1` `InferencePool` / `InferenceModel`, `agents.x-k8s.io/v1beta1` & `extensions.agents.x-k8s.io/v1beta1` `agent-sandbox`, and `kagent.dev/v1alpha1` `Agent` / `ToolServer`) directly into MVCC SQL table `_jouledb_kube_objects`.
+  - Exposes `kubectl` discovery & CRUD/Watch endpoints (`GET /version`, `GET /api`, `GET /api/v1`, `GET /apis`, `/api/v1/namespaces/...`, `/apis/{group}/{version}/...`, `?watch=true` NDJSON) plus `POST /api/v1/kube/apply`, `GET /api/v1/kube/status`, `POST /api/v1/kube/inference-pools/{ns}/{name}/route` (`llm-d` KV-prefix EndpointPicker), and `POST /api/v1/kube/agents/{ns}/{name}/invoke` (cryptographically confined by `SandboxClaim` `ThermoCap` macaroons with `0.0W` warm-pool standby burn).
+- **Full `Whisper` Two-Conv + Cross-Attention Seq2Seq Decoder & `SigLIP` Zero-Shot Vision-Text Alignment (`multimodal_encoder`)**:
+  - Exact 400-point periodic-Hann STFT + Slaney Mel filterbank, `conv1`/`conv2` `GELU` stem, `embed_positions`, and multi-layer `Whisper` Cross-Attention Autoregressive Decoder (`model.decoder.layers.*`) for real open-weight `openai/whisper-tiny.en` speech-to-text, plus `POST /api/v1/synapse/vision/zero_shot` contrastive scoring.
+- **Continuous In-Flight Multi-Request Batching & Native Hugging Face Hub `.jsyn` Integration**:
+  - `POST /api/v1/synapse/decoder/generate_batch` coalesces concurrent requests into lockstep row-outer `T-MAC` LUT `forward_batch` passes (loading packed `u_bits` bitplanes once across the batch).
+  - `POST /api/v1/synapse/hf/export` and `POST /api/v1/synapse/hf/pull` export and pull CRC32-verified `.jsyn` living-weight bundles + Hugging Face Model Cards across Python (`jouledb 0.2.3`) and Rust (`HttpFabricClient`) SDKs.
+
 ## [0.2.2] - 2026-11-23
 
 ### Added

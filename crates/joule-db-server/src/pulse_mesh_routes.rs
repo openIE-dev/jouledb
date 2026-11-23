@@ -18,25 +18,28 @@ use axum::{
     extract::{Path, State},
     http::{HeaderValue, StatusCode},
     response::IntoResponse,
-    routing::{get, post},
+    routing::{delete, get, post, put},
 };
 use joule_db_branch::{
     pulse_flow::{
         CausalPulseSpan, DurableFlowEngine, DurableFlowSpec, EvalSuiteSummary, PulseEngine,
         evaluate_pareto_gate, inspect_guardrail,
     },
-    ward::{FabricHopEnergyReceipt, FabricTraceReceipt, HeterogeneousRailSample, WardCapabilityToken},
+    ward::{
+        FabricHopEnergyReceipt, FabricTraceReceipt, HeterogeneousRailSample, WardCapabilityToken,
+    },
 };
 use joule_db_weights::{federated_mesh::SynapseSkillDelta, grammar_constrain::ToolSpec};
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Shared server state for `JoulePulse`, `JouleFlow`, `JouleSynapseMesh`, `/v1/messages`, and `MCP` Host.
+/// Shared server state for `JoulePulse`, `JouleFlow`, `JouleSynapseMesh`, `/v1/messages`, `MCP` Host, and `JouleKube`.
 pub struct PulseMeshRuntime {
     pub pulse: PulseEngine,
     pub flow: DurableFlowEngine,
     pub mcp_host: crate::mcp_agent_loop::McpHostRegistry,
+    pub kube: crate::kube_control_plane::JouleKubeControlPlane,
     pub ward_rt: Arc<WardOpenAiRuntime>,
 }
 
@@ -46,6 +49,7 @@ impl PulseMeshRuntime {
             pulse: PulseEngine::new(),
             flow: DurableFlowEngine::new(),
             mcp_host: crate::mcp_agent_loop::McpHostRegistry::new(),
+            kube: crate::kube_control_plane::JouleKubeControlPlane::new(),
             ward_rt,
         })
     }
@@ -215,6 +219,72 @@ pub fn pulse_mesh_router(rt: Arc<PulseMeshRuntime>) -> Router {
             "/api/v1/agent/run",
             post(crate::mcp_agent_loop::handle_autonomous_agent_run),
         )
+        // Wave 19: `JouleKube` — Native `kubectl` Wire API + CNCF AI-Conformance Reconciler
+        .route(
+            "/version",
+            get(crate::kube_control_plane::handle_kube_version),
+        )
+        .route("/api", get(crate::kube_control_plane::handle_kube_core_api))
+        .route(
+            "/api/v1",
+            get(crate::kube_control_plane::handle_kube_core_v1_resources),
+        )
+        .route(
+            "/apis",
+            get(crate::kube_control_plane::handle_kube_apis_discovery),
+        )
+        .route(
+            "/api/v1/kube/apply",
+            post(crate::kube_control_plane::handle_kube_apply),
+        )
+        .route(
+            "/api/v1/kube/status",
+            get(crate::kube_control_plane::handle_kube_status),
+        )
+        .route(
+            "/api/v1/kube/resources",
+            get(crate::kube_control_plane::handle_kube_list_all),
+        )
+        .route(
+            "/api/v1/kube/inference-pools/{ns}/{name}/route",
+            post(crate::kube_control_plane::handle_kube_inference_pool_route),
+        )
+        .route(
+            "/api/v1/kube/agents/{ns}/{name}/invoke",
+            post(crate::kube_control_plane::handle_kube_agent_invoke),
+        )
+        .route(
+            "/api/v1/namespaces",
+            get(crate::kube_control_plane::handle_k8s_list_namespaces)
+                .post(crate::kube_control_plane::handle_k8s_create_namespace),
+        )
+        .route(
+            "/api/v1/namespaces/{ns}/{plural}",
+            get(crate::kube_control_plane::handle_k8s_core_list)
+                .post(crate::kube_control_plane::handle_k8s_core_create),
+        )
+        .route(
+            "/api/v1/namespaces/{ns}/{plural}/{name}",
+            get(crate::kube_control_plane::handle_k8s_core_get)
+                .put(crate::kube_control_plane::handle_k8s_core_put)
+                .delete(crate::kube_control_plane::handle_k8s_core_delete),
+        )
+        .route(
+            "/apis/{group}/{version}/{plural}",
+            get(crate::kube_control_plane::handle_k8s_apis_cluster_list)
+                .post(crate::kube_control_plane::handle_k8s_apis_cluster_create),
+        )
+        .route(
+            "/apis/{group}/{version}/namespaces/{ns}/{plural}",
+            get(crate::kube_control_plane::handle_k8s_apis_ns_list)
+                .post(crate::kube_control_plane::handle_k8s_apis_ns_create),
+        )
+        .route(
+            "/apis/{group}/{version}/namespaces/{ns}/{plural}/{name}",
+            get(crate::kube_control_plane::handle_k8s_apis_ns_get)
+                .put(crate::kube_control_plane::handle_k8s_apis_ns_put)
+                .delete(crate::kube_control_plane::handle_k8s_apis_ns_delete),
+        )
         .with_state(rt)
 }
 
@@ -283,11 +353,12 @@ async fn handle_anthropic_messages(
             .and_then(|n| n.as_str());
 
         if !specs.is_empty() {
-            match rt
-                .ward_rt
-                .synapse_rt
-                .constrain_tool_call(hint, &guardrail.sanitized_text, &specs, forced)
-            {
+            match rt.ward_rt.synapse_rt.constrain_tool_call(
+                hint,
+                &guardrail.sanitized_text,
+                &specs,
+                forced,
+            ) {
                 Ok(tc) => {
                     let (mut rails, cal_src, hw_fused) = rt.ward_rt.estimate_rails_fused(
                         "xgrammar_jump_forward_dfa",
@@ -334,8 +405,12 @@ async fn handle_anthropic_messages(
                     });
 
                     if req.stream {
-                        let mut hdrs = energy_headers(&trace, "tier4_xgrammar_constrained_tool_call");
-                        hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                        let mut hdrs =
+                            energy_headers(&trace, "tier4_xgrammar_constrained_tool_call");
+                        hdrs.insert(
+                            "content-type",
+                            HeaderValue::from_static("text/event-stream"),
+                        );
                         hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
                         let sse = build_anthropic_tool_sse(
                             &msg_id,
@@ -433,7 +508,10 @@ async fn handle_anthropic_messages(
 
             if req.stream {
                 let mut hdrs = energy_headers(&outcome.trace, &outcome.cascade_tier);
-                hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                hdrs.insert(
+                    "content-type",
+                    HeaderValue::from_static("text/event-stream"),
+                );
                 hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
                 let sse = build_anthropic_text_sse(
                     &msg_id,
@@ -548,7 +626,9 @@ fn build_anthropic_text_sse(
         buf.push_str(&format!("event: content_block_delta\ndata: {delta}\n\n"));
     }
 
-    buf.push_str("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+    buf.push_str(
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+    );
     let m_delta = serde_json::json!({
         "type": "message_delta",
         "delta": { "stop_reason": "end_turn" },
@@ -600,7 +680,9 @@ fn build_anthropic_tool_sse(
         "x_jouledb_token_nj": total_nj.max(1),
     });
     buf.push_str(&format!("event: content_block_delta\ndata: {cb_delta}\n\n"));
-    buf.push_str("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+    buf.push_str(
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+    );
 
     let m_delta = serde_json::json!({
         "type": "message_delta",

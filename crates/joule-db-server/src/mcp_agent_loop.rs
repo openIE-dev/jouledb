@@ -12,12 +12,7 @@ use crate::{
     pulse_mesh_routes::PulseMeshRuntime,
     ward_openai_routes::{WardOpenAiRuntime, energy_headers, run_thermodynamic_cascade},
 };
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use joule_db_branch::{
     pulse_flow::inspect_guardrail,
     ward::{
@@ -65,6 +60,15 @@ impl McpHostRegistry {
         Self {
             remote_servers: Mutex::new(BTreeMap::new()),
         }
+    }
+
+    pub fn remote_servers_lock(
+        &self,
+    ) -> Result<
+        std::sync::MutexGuard<'_, BTreeMap<String, RegisteredMcpServer>>,
+        std::sync::PoisonError<std::sync::MutexGuard<'_, BTreeMap<String, RegisteredMcpServer>>>,
+    > {
+        self.remote_servers.lock()
     }
 
     /// Built-in zero-copy database/synapse tools always mounted on `server_id = "native"`.
@@ -161,7 +165,10 @@ impl McpHostRegistry {
         guard.values().cloned().collect()
     }
 
-    pub fn resolve_tool(&self, requested_name: &str) -> Option<(McpHostedToolEntry, Option<RegisteredMcpServer>)> {
+    pub fn resolve_tool(
+        &self,
+        requested_name: &str,
+    ) -> Option<(McpHostedToolEntry, Option<RegisteredMcpServer>)> {
         for bt in Self::builtin_tools() {
             if bt.qualified_name == requested_name || bt.raw_name == requested_name {
                 return Some((bt, None));
@@ -317,7 +324,13 @@ fn extract_sql_tables(sql: &str) -> Vec<String> {
 
 fn extract_inline_sql_from_goal(goal: &str) -> Option<String> {
     let upper = goal.to_ascii_uppercase();
-    for kw in ["SELECT ", "INSERT INTO ", "CREATE TABLE ", "UPDATE ", "DELETE FROM "] {
+    for kw in [
+        "SELECT ",
+        "INSERT INTO ",
+        "CREATE TABLE ",
+        "UPDATE ",
+        "DELETE FROM ",
+    ] {
         if let Some(start_idx) = upper.find(kw) {
             let tail = &goal[start_idx..];
             let stmt = match tail.find(';') {
@@ -348,7 +361,10 @@ async fn execute_hosted_tool_checked(
     if !g_res.allowed {
         return Err((
             StatusCode::BAD_REQUEST,
-            format!("JoulePulse guardrail blocked MCP tool '{}': {:?}", entry.qualified_name, g_res.triggered_rules),
+            format!(
+                "JoulePulse guardrail blocked MCP tool '{}': {:?}",
+                entry.qualified_name, g_res.triggered_rules
+            ),
         ));
     }
 
@@ -425,41 +441,54 @@ async fn execute_hosted_tool_checked(
         if let Some(ref tok) = srv.bearer_token {
             builder = builder.bearer_auth(tok);
         }
-        let resp = builder
-            .send()
-            .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("remote MCP call failed: {e}")))?;
+        let resp = builder.send().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("remote MCP call failed: {e}"),
+            )
+        })?;
         let status = resp.status();
-        let raw = resp
-            .bytes()
-            .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("remote MCP read failed: {e}")))?;
+        let raw = resp.bytes().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("remote MCP read failed: {e}"),
+            )
+        })?;
         wire_bytes += raw.len() as u64;
         if !status.is_success() {
             return Err((
                 StatusCode::BAD_GATEWAY,
-                format!("remote MCP HTTP {status}: {}", String::from_utf8_lossy(&raw)),
+                format!(
+                    "remote MCP HTTP {status}: {}",
+                    String::from_utf8_lossy(&raw)
+                ),
             ));
         }
-        let parsed: serde_json::Value = serde_json::from_slice(&raw)
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("invalid remote MCP JSON-RPC: {e}")))?;
+        let parsed: serde_json::Value = serde_json::from_slice(&raw).map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("invalid remote MCP JSON-RPC: {e}"),
+            )
+        })?;
         if let Some(err_obj) = parsed.get("error") {
             return Err((
                 StatusCode::BAD_REQUEST,
                 format!("remote MCP JSON-RPC error: {err_obj}"),
             ));
         }
-        parsed
-            .get("result")
-            .cloned()
-            .unwrap_or(parsed)
+        parsed.get("result").cloned().unwrap_or(parsed)
     } else {
         match entry.qualified_name.as_str() {
             "jouledb.sql_query" => {
                 let sql = arguments
                     .get("sql")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| (StatusCode::BAD_REQUEST, "missing 'sql' string argument".to_string()))?;
+                    .ok_or_else(|| {
+                        (
+                            StatusCode::BAD_REQUEST,
+                            "missing 'sql' string argument".to_string(),
+                        )
+                    })?;
                 let limit = arguments
                     .get("limit")
                     .and_then(|v| v.as_u64())
@@ -553,7 +582,9 @@ pub async fn handle_mcp_register_server(
     if req.server_id.trim().is_empty() || req.endpoint_url.trim().is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "ok": false, "error": "server_id and endpoint_url are required" })),
+            Json(
+                serde_json::json!({ "ok": false, "error": "server_id and endpoint_url are required" }),
+            ),
         );
     }
 
@@ -610,7 +641,9 @@ pub async fn handle_mcp_register_server(
                                 .get("inputSchema")
                                 .or_else(|| item.get("input_schema"))
                                 .cloned()
-                                .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}}));
+                                .unwrap_or_else(
+                                    || serde_json::json!({"type": "object", "properties": {}}),
+                                );
                             discovered_tools.push(McpHostedToolEntry {
                                 qualified_name: format!("{}.{}", req.server_id, name),
                                 server_id: req.server_id.clone(),
@@ -665,9 +698,7 @@ pub async fn handle_mcp_register_server(
     )
 }
 
-pub async fn handle_mcp_list_tools(
-    State(rt): State<Arc<PulseMeshRuntime>>,
-) -> impl IntoResponse {
+pub async fn handle_mcp_list_tools(State(rt): State<Arc<PulseMeshRuntime>>) -> impl IntoResponse {
     let tools = rt.mcp_host.list_all_tools();
     let servers = rt.mcp_host.list_remote_servers();
     (
@@ -791,7 +822,9 @@ pub async fn handle_autonomous_agent_run(
         // execute that exact SQL statement first; otherwise use the zero-hallucination grammar selector!
         let (chosen_name, mut chosen_args) = if turn_idx == 0
             && let Some(ref sql_stmt) = inline_sql
-            && candidate_tools.iter().any(|t| t.qualified_name == "jouledb.sql_query")
+            && candidate_tools
+                .iter()
+                .any(|t| t.qualified_name == "jouledb.sql_query")
         {
             (
                 "jouledb.sql_query".to_string(),
@@ -799,8 +832,12 @@ pub async fn handle_autonomous_agent_run(
             )
         } else if turn_idx > 0
             && req.commit_to_titans
-            && candidate_tools.iter().any(|t| t.qualified_name == "jouledb.engram_upsert")
-            && !steps.iter().any(|s| s.selected_tool == "jouledb.engram_upsert")
+            && candidate_tools
+                .iter()
+                .any(|t| t.qualified_name == "jouledb.engram_upsert")
+            && !steps
+                .iter()
+                .any(|s| s.selected_tool == "jouledb.engram_upsert")
         {
             let prev_summary = steps
                 .last()
@@ -838,7 +875,10 @@ pub async fn handle_autonomous_agent_run(
             && let Some(ref sql_stmt) = inline_sql
             && let Some(obj) = chosen_args.as_object_mut()
         {
-            obj.insert("sql".to_string(), serde_json::Value::String(sql_stmt.clone()));
+            obj.insert(
+                "sql".to_string(),
+                serde_json::Value::String(sql_stmt.clone()),
+            );
         }
 
         let Some((entry, remote_opt)) = rt.mcp_host.resolve_tool(&chosen_name) else {
@@ -861,7 +901,11 @@ pub async fn handle_autonomous_agent_run(
                 let mem_receipt = rt.ward_rt.synapse_rt.commit_agent_observation_and_titans(
                     &format!("agent_turn_{turn_idx}:{}", entry.qualified_name),
                     &raw_out,
-                    if turn_idx + 1 == max_turns { &req.goal } else { "" },
+                    if turn_idx + 1 == max_turns {
+                        &req.goal
+                    } else {
+                        ""
+                    },
                     &raw_out,
                     req.commit_to_titans && (turn_idx + 1 == max_turns),
                 );

@@ -399,6 +399,113 @@ impl HttpFabricClient {
         self.request_json("POST", "/api/v1/synapse/decoder/generate", Some(&body))
             .await
     }
+
+    /// Execute Continuous In-Flight Multi-Request Batched Generation (`POST /api/v1/synapse/decoder/generate_batch`).
+    pub async fn decoder_generate_batch(
+        &self,
+        model_id: &str,
+        prompts: &[String],
+        max_new_tokens: usize,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "prompts": prompts,
+            "max_new_tokens": max_new_tokens,
+            "temperature": 0.0,
+        });
+        self.request_json(
+            "POST",
+            "/api/v1/synapse/decoder/generate_batch",
+            Some(&body),
+        )
+        .await
+    }
+
+    /// Zero-shot `SigLIP` / `CLIP` vision-text classification (`POST /api/v1/synapse/vision/zero_shot`).
+    pub async fn vision_zero_shot(
+        &self,
+        model_id: &str,
+        image_base64: &str,
+        candidate_labels: &[String],
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "image_base64": image_base64,
+            "candidate_labels": candidate_labels,
+        });
+        self.request_json("POST", "/api/v1/synapse/vision/zero_shot", Some(&body))
+            .await
+    }
+
+    /// Export a loaded `LittleBit-2` model to a Hugging Face Hub `.jsyn` bundle directory (`POST /api/v1/synapse/hf/export`).
+    pub async fn hf_export(
+        &self,
+        model_id: &str,
+        output_dir: &str,
+        base_model_repo: Option<&str>,
+        hf_repo_id: Option<&str>,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "output_dir": output_dir,
+            "base_model_repo": base_model_repo,
+            "hf_repo_id": hf_repo_id,
+        });
+        self.request_json("POST", "/api/v1/synapse/hf/export", Some(&body))
+            .await
+    }
+
+    /// Pull a `.jsyn` or `.safetensors` checkpoint from Hugging Face Hub or local directory (`POST /api/v1/synapse/hf/pull`).
+    pub async fn hf_pull(
+        &self,
+        model_id: &str,
+        repo_id: Option<&str>,
+        local_dir: Option<&str>,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "repo_id": repo_id,
+            "local_dir": local_dir,
+            "distill_svf": true,
+        });
+        self.request_json("POST", "/api/v1/synapse/hf/pull", Some(&body))
+            .await
+    }
+
+    /// Apply single or multi-doc (`---`) Kubernetes YAML/JSON manifests into `JouleKube` (`POST /api/v1/kube/apply`).
+    pub async fn kube_apply(
+        &self,
+        manifest: &str,
+        default_namespace: Option<&str>,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "manifest": manifest,
+            "default_namespace": default_namespace,
+        });
+        self.request_json("POST", "/api/v1/kube/apply", Some(&body))
+            .await
+    }
+
+    /// Query `JouleKube` cluster status (`GET /api/v1/kube/status`).
+    pub async fn kube_status(&self) -> Result<JsonValue> {
+        self.request_json("GET", "/api/v1/kube/status", None).await
+    }
+
+    /// Route an inference prompt through a `JouleKube` `InferencePool` (`POST /api/v1/kube/inference-pools/{ns}/{name}/route`).
+    pub async fn kube_route_inference(
+        &self,
+        namespace: &str,
+        pool_name: &str,
+        prompt: &str,
+        max_new_tokens: usize,
+    ) -> Result<JsonValue> {
+        let path = format!("/api/v1/kube/inference-pools/{namespace}/{pool_name}/route");
+        let body = json!({
+            "prompt": prompt,
+            "max_new_tokens": max_new_tokens,
+        });
+        self.request_json("POST", &path, Some(&body)).await
+    }
 }
 
 fn decode_chunked_body(raw: &[u8]) -> Result<Vec<u8>> {

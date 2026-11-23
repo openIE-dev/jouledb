@@ -139,7 +139,10 @@ pub fn build_safetensors_bytes(
         for (k, v) in metadata {
             meta_obj.insert(k.clone(), serde_json::Value::String(v.clone()));
         }
-        header_map.insert("__metadata__".to_string(), serde_json::Value::Object(meta_obj));
+        header_map.insert(
+            "__metadata__".to_string(),
+            serde_json::Value::Object(meta_obj),
+        );
     }
 
     let mut data_buf: Vec<u8> = Vec::new();
@@ -358,7 +361,9 @@ pub fn ingest_safetensors_with_options(
             .filter(|&e| e <= raw_bytes.len())
             .ok_or_else(|| format!("tensor '{tname}' data_offsets past EOF"))?;
 
-        let elem_count = shape.iter().try_fold(1usize, |acc, &d| acc.checked_mul(d))
+        let elem_count = shape
+            .iter()
+            .try_fold(1usize, |acc, &d| acc.checked_mul(d))
             .ok_or_else(|| format!("tensor '{tname}' element count overflow"))?;
         if elem_count == 0 || elem_count > MAX_TENSOR_ELEMENTS {
             return Err(format!(
@@ -390,6 +395,9 @@ pub fn ingest_safetensors_with_options(
             let cols = elem_count / rows;
             let is_vocab_dict = tname.contains("embed_tokens")
                 || tname.contains("word_embeddings")
+                || tname.contains("token_embedding")
+                || tname.contains("embed_positions")
+                || tname.contains("position_embedding")
                 || tname.contains("lm_head");
             let eff_rank = if distill_svf && is_vocab_dict && cols >= 64 {
                 target_rank.max(cols.min(192)).clamp(1, rows.min(cols))
@@ -407,9 +415,7 @@ pub fn ingest_safetensors_with_options(
                 itq_iters,
                 max_outliers,
             )?;
-            if distill_svf
-                && let Ok(d_rec) = lb.distill_svf_against_dense(&decoded, 16, 3)
-            {
+            if distill_svf && let Ok(d_rec) = lb.distill_svf_against_dense(&decoded, 16, 3) {
                 pre_mse_sum += d_rec.pre_probe_mse;
                 post_mse_sum += d_rec.post_probe_mse;
             }
@@ -452,7 +458,7 @@ pub fn ingest_safetensors_with_options(
             // 1D norm / bias vector: store exact FP32 vector (for full multi-layer Transformer
             // LayerNorm + bias execution) when bounded (`<= 65,536` elems), plus Engram digest.
             if dtype.is_floating_point() && elem_count <= 65_536 {
-                if harness.vectors_1d.len() >= 2048
+                if harness.vectors_1d.len() >= 8192
                     && let Some(oldest_k) = harness.vectors_1d.keys().next().cloned()
                 {
                     harness.vectors_1d.remove(&oldest_k);
@@ -516,8 +522,16 @@ pub fn ingest_safetensors_with_options(
         overall_compression_vs_fp16: overall_comp,
         mean_reconstruction_cosine: mean_cos,
         svf_distilled: distill_svf,
-        pre_distill_probe_mse: if distill_svf { pre_mse_sum / denom_2d } else { 0.0 },
-        post_distill_probe_mse: if distill_svf { post_mse_sum / denom_2d } else { 0.0 },
+        pre_distill_probe_mse: if distill_svf {
+            pre_mse_sum / denom_2d
+        } else {
+            0.0
+        },
+        post_distill_probe_mse: if distill_svf {
+            post_mse_sum / denom_2d
+        } else {
+            0.0
+        },
         tensors: summaries,
     })
 }
@@ -592,7 +606,11 @@ fn infer_powerinfer_hot_score(name: &str) -> f64 {
     let lower = name.to_ascii_lowercase();
     if lower.contains("embed") || lower.contains("router") || lower.contains("gate_inp") {
         0.95
-    } else if lower.contains("attn") || lower.contains("q_proj") || lower.contains("k_proj") || lower.contains("v_proj") {
+    } else if lower.contains("attn")
+        || lower.contains("q_proj")
+        || lower.contains("k_proj")
+        || lower.contains("v_proj")
+    {
         0.82
     } else {
         0.15
@@ -660,7 +678,8 @@ mod tests {
             for j in 0..cols {
                 let s = if (i + j) % 2 == 0 { 1.25f32 } else { -1.25f32 };
                 q_weights.push(s);
-                mlp_weights.push(if i < 64 { 0.85 } else { -0.85 } * if j % 2 == 0 { 1.1 } else { -1.1 });
+                mlp_weights
+                    .push(if i < 64 { 0.85 } else { -0.85 } * if j % 2 == 0 { 1.1 } else { -1.1 });
             }
         }
 
@@ -688,9 +707,8 @@ mod tests {
         let st_bytes = build_safetensors_bytes(&meta, &entries).expect("build safetensors");
         let mut harness = JouleHarnessEngine::new(16, 16, 32 * 1024 * 1024).expect("harness");
 
-        let report =
-            ingest_safetensors_into_harness("tiny-qwen3", &st_bytes, 8, 8, &mut harness)
-                .expect("ingest");
+        let report = ingest_safetensors_into_harness("tiny-qwen3", &st_bytes, 8, 8, &mut harness)
+            .expect("ingest");
 
         assert_eq!(report.total_tensors, 3);
         assert_eq!(report.factorized_2d_tensors, 2);

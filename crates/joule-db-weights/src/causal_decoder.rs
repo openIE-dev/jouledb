@@ -1653,6 +1653,602 @@ where
     })
 }
 
+/// Per-request completion receipt inside a coalesced multi-request continuous batch.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchedCausalItemReceipt {
+    pub request_index: usize,
+    pub prompt: String,
+    pub generated_token_ids: Vec<usize>,
+    pub generated_text: String,
+    pub prompt_tokens: usize,
+    pub completion_tokens: usize,
+}
+
+/// Aggregate receipt from Continuous In-Flight Multi-Request Batched Decoding (`Orca`/`vLLM`-class
+/// lockstep weight-sharing over contiguous row-outer `T-MAC` LUT bitplanes).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchedCausalDecoderReceipt {
+    pub model_id: String,
+    pub batch_size: usize,
+    pub num_layers: usize,
+    pub total_prompt_tokens: usize,
+    pub total_generated_tokens: usize,
+    pub avg_bits_per_weight: f64,
+    pub elapsed_ns: u64,
+    pub aggregate_tokens_per_sec: f64,
+    pub shared_batch_projections: usize,
+    pub items: Vec<BatchedCausalItemReceipt>,
+}
+
+/// Execute Continuous In-Flight Multi-Request Batched Generation over `prompts`:
+/// coalesces all active requests at every decode step into a single row-outer `T-MAC` LUT
+/// `forward_batch` pass per weight matrix so `u_bits` bitplanes are loaded from memory ONCE
+/// across all concurrent tenants!
+pub fn generate_batch_with_littlebit_causal_decoder(
+    harness: &mut JouleHarnessEngine,
+    live_kv: &mut LivePrefixKvStore,
+    model_id: &str,
+    prompts: &[String],
+    params: &CausalGenerationParams,
+) -> Result<BatchedCausalDecoderReceipt, String> {
+    if prompts.is_empty() {
+        return Err("prompts batch must contain at least 1 prompt".to_string());
+    }
+    let t0 = Instant::now();
+    let (pfx, num_layers) = detect_causal_decoder(harness, model_id)
+        .ok_or_else(|| format!("model '{model_id}' is not a causal decoder"))?;
+
+    let q0 = harness
+        .littlebit_tensors
+        .get(&format!("{pfx}layers.0.self_attn.q_proj.weight"))
+        .ok_or_else(|| "missing layer 0 q_proj.weight".to_string())?;
+    let k0 = harness
+        .littlebit_tensors
+        .get(&format!("{pfx}layers.0.self_attn.k_proj.weight"))
+        .ok_or_else(|| "missing layer 0 k_proj.weight".to_string())?;
+    let embed_key = format!("{pfx}embed_tokens.weight");
+    let lm_head_key = [
+        format!("{model_id}::lm_head.weight"),
+        format!("{pfx}lm_head.weight"),
+        embed_key.clone(),
+    ]
+    .into_iter()
+    .find(|k| harness.littlebit_tensors.contains_key(k))
+    .ok_or_else(|| "missing lm_head / embed_tokens".to_string())?;
+
+    let hidden_dim = q0.cols;
+    let q_out = q0.rows;
+    let kv_out = k0.rows;
+    let vocab_size = harness
+        .littlebit_tensors
+        .get(&lm_head_key)
+        .map(|t| t.rows)
+        .unwrap_or(256);
+
+    let cfg = harness.model_configs.get(model_id).cloned();
+    let (num_q_heads, num_kv_heads, head_dim) = infer_gqa_geometry(q_out, kv_out, cfg.as_ref());
+    let kv_group_size = (num_q_heads / num_kv_heads.max(1)).max(1);
+    let inv_sqrt_hd = 1.0 / (head_dim as f32).sqrt();
+    let rope_theta = cfg.as_ref().map(|c| c.rope_theta).unwrap_or(10_000.0);
+    let rms_eps = cfg.as_ref().map(|c| c.rms_norm_eps).unwrap_or(1e-5);
+    let mut stop_ids: Vec<usize> = params.stop_token_ids.clone();
+    if let Some(ref c) = cfg {
+        for &eid in &c.eos_token_ids {
+            if !stop_ids.contains(&eid) {
+                stop_ids.push(eid);
+            }
+        }
+    }
+
+    let tokenizer = if let Some(vocab) = harness.model_vocabs.get(model_id) {
+        let merges = harness
+            .model_bpe_merges
+            .get(model_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        BpeTokenizer::from_vocab_and_merges(vocab, merges)
+    } else {
+        BpeTokenizer::fallback_for_vocab_size(vocab_size)
+    };
+
+    let model_pfx = format!("{model_id}::");
+    let mut bpw_sum = 0.0;
+    let mut bpw_cnt = 0usize;
+    for (k, lb) in &harness.littlebit_tensors {
+        if k.starts_with(&model_pfx) {
+            bpw_sum += lb.bits_per_weight();
+            bpw_cnt += 1;
+        }
+    }
+    let avg_bpw = bpw_sum / (bpw_cnt.max(1) as f64);
+
+    let active_mix: Vec<(String, f32)> = Vec::new();
+
+    let max_new = params.max_new_tokens.clamp(1, 256);
+    let bsz_total = prompts.len();
+
+    // 1. Prefill each request for 1 initial token (reusing `LivePrefixKvStore` when prefixes overlap!)
+    let mut req_k_caches: Vec<Vec<Vec<Vec<f32>>>> = vec![vec![Vec::new(); num_layers]; bsz_total];
+    let mut req_v_caches: Vec<Vec<Vec<Vec<f32>>>> = vec![vec![Vec::new(); num_layers]; bsz_total];
+    let mut req_histories: Vec<Vec<usize>> = Vec::with_capacity(bsz_total);
+    let mut req_gen_ids: Vec<Vec<usize>> = vec![Vec::with_capacity(max_new); bsz_total];
+    let mut req_prompt_lens: Vec<usize> = Vec::with_capacity(bsz_total);
+    let mut req_cur_tok: Vec<usize> = vec![0usize; bsz_total];
+    let mut req_done: Vec<bool> = vec![false; bsz_total];
+    let mut req_rng: Vec<u64> = (0..bsz_total)
+        .map(|i| {
+            params
+                .seed
+                .wrapping_add((i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15))
+                .max(1)
+        })
+        .collect();
+    let mut shared_ops = 0usize;
+
+    let run_lb_batch = |tensors: &std::collections::BTreeMap<String, LittleBitSVFTensor>,
+                        vecs_1d: &std::collections::BTreeMap<String, Vec<f32>>,
+                        w_key: &str,
+                        b_key: Option<&str>,
+                        x_in: &[f32],
+                        bsz: usize,
+                        ops: &mut usize|
+     -> Result<Vec<f32>, String> {
+        let t = tensors
+            .get(w_key)
+            .ok_or_else(|| format!("missing tensor '{w_key}'"))?;
+        *ops += 1;
+        let mut y = t.forward_batch(x_in, bsz, &active_mix)?;
+        if let Some(bk) = b_key
+            && let Some(bv) = vecs_1d.get(bk)
+        {
+            for bi in 0..bsz {
+                let sl = &mut y[bi * t.rows..(bi + 1) * t.rows];
+                for (dst, &b) in sl.iter_mut().zip(bv.iter()) {
+                    *dst += b;
+                }
+            }
+        }
+        Ok(y)
+    };
+
+    let q_dim = num_q_heads * head_dim;
+    let kv_dim = num_kv_heads * head_dim;
+
+    for r_idx in 0..bsz_total {
+        let p_ids: Vec<usize> = tokenizer
+            .encode(&prompts[r_idx], 512)
+            .into_iter()
+            .map(|id| id.min(vocab_size.saturating_sub(1)))
+            .collect();
+        req_prompt_lens.push(p_ids.len());
+        let _ = live_kv;
+
+        let embed_t = harness
+            .littlebit_tensors
+            .get(&embed_key)
+            .ok_or_else(|| "missing embed_tokens".to_string())?;
+        let plen = p_ids.len();
+        let mut h_batch = Vec::with_capacity(plen * hidden_dim);
+        for &tid in &p_ids {
+            h_batch.extend_from_slice(&reconstruct_embedding_row(embed_t, tid));
+        }
+        for l in 0..num_layers {
+            let lp = format!("{pfx}layers.{l}");
+            let in_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.input_layernorm.weight"))
+                .map(Vec::as_slice);
+            let mut hn = Vec::with_capacity(plen * hidden_dim);
+            for bi in 0..plen {
+                hn.extend_from_slice(&rms_norm(
+                    &h_batch[bi * hidden_dim..(bi + 1) * hidden_dim],
+                    in_ln,
+                    rms_eps,
+                ));
+            }
+            let mut qb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.q_proj.weight"),
+                Some(&format!("{lp}.self_attn.q_proj.bias")),
+                &hn,
+                plen,
+                &mut shared_ops,
+            )?;
+            let mut kb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.k_proj.weight"),
+                Some(&format!("{lp}.self_attn.k_proj.bias")),
+                &hn,
+                plen,
+                &mut shared_ops,
+            )?;
+            let vb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.v_proj.weight"),
+                Some(&format!("{lp}.self_attn.v_proj.bias")),
+                &hn,
+                plen,
+                &mut shared_ops,
+            )?;
+            for bi in 0..plen {
+                let qs = &mut qb[bi * q_dim..(bi + 1) * q_dim];
+                let ks = &mut kb[bi * kv_dim..(bi + 1) * kv_dim];
+                apply_rope_half_split_in_place(qs, num_q_heads, head_dim, bi, rope_theta);
+                apply_rope_half_split_in_place(ks, num_kv_heads, head_dim, bi, rope_theta);
+                req_k_caches[r_idx][l].push(ks.to_vec());
+                req_v_caches[r_idx][l].push(vb[bi * kv_dim..(bi + 1) * kv_dim].to_vec());
+            }
+            let mut attn_all = vec![0.0f32; plen * q_dim];
+            for bi in 0..plen {
+                let clim = bi + 1;
+                let qt = &qb[bi * q_dim..(bi + 1) * q_dim];
+                let ot = &mut attn_all[bi * q_dim..(bi + 1) * q_dim];
+                for qh in 0..num_q_heads {
+                    let kvh = (qh / kv_group_size).min(num_kv_heads - 1);
+                    let qo = qh * head_dim;
+                    let kvo = kvh * head_dim;
+                    let qsl = &qt[qo..qo + head_dim];
+                    let mut scs = Vec::with_capacity(clim);
+                    let mut mx = f32::NEG_INFINITY;
+                    for ks in req_k_caches[r_idx][l].iter().take(clim) {
+                        let dot: f32 = qsl
+                            .iter()
+                            .zip(ks[kvo..kvo + head_dim].iter())
+                            .map(|(a, b)| a * b)
+                            .sum();
+                        let sc = dot * inv_sqrt_hd;
+                        if sc > mx {
+                            mx = sc;
+                        }
+                        scs.push(sc);
+                    }
+                    let mut den = 0.0f32;
+                    for sc in &mut scs {
+                        *sc = (*sc - mx).exp();
+                        den += *sc;
+                    }
+                    let inv_d = 1.0 / den.max(1e-12);
+                    let dst = &mut ot[qo..qo + head_dim];
+                    for (s_i, &w) in scs.iter().enumerate() {
+                        let p = w * inv_d;
+                        for (d, &vv) in dst
+                            .iter_mut()
+                            .zip(req_v_caches[r_idx][l][s_i][kvo..kvo + head_dim].iter())
+                        {
+                            *d += p * vv;
+                        }
+                    }
+                }
+            }
+            let ob = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.o_proj.weight"),
+                Some(&format!("{lp}.self_attn.o_proj.bias")),
+                &attn_all,
+                plen,
+                &mut shared_ops,
+            )?;
+            for (hi, &oi) in h_batch.iter_mut().zip(ob.iter()) {
+                *hi += oi;
+            }
+            let post_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.post_attention_layernorm.weight"))
+                .map(Vec::as_slice);
+            let mut hffn = Vec::with_capacity(plen * hidden_dim);
+            for bi in 0..plen {
+                hffn.extend_from_slice(&rms_norm(
+                    &h_batch[bi * hidden_dim..(bi + 1) * hidden_dim],
+                    post_ln,
+                    rms_eps,
+                ));
+            }
+            let gb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.mlp.gate_proj.weight"),
+                None,
+                &hffn,
+                plen,
+                &mut shared_ops,
+            )?;
+            let ub = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.mlp.up_proj.weight"),
+                None,
+                &hffn,
+                plen,
+                &mut shared_ops,
+            )?;
+            let swiglu: Vec<f32> = gb
+                .iter()
+                .zip(ub.iter())
+                .map(|(&g, &u)| silu(g) * u)
+                .collect();
+            let db = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.mlp.down_proj.weight"),
+                None,
+                &swiglu,
+                plen,
+                &mut shared_ops,
+            )?;
+            for (hi, &di) in h_batch.iter_mut().zip(db.iter()) {
+                *hi += di;
+            }
+        }
+        let final_ln = harness
+            .vectors_1d
+            .get(&format!("{pfx}norm.weight"))
+            .map(Vec::as_slice);
+        let last_norm = rms_norm(
+            &h_batch[(plen - 1) * hidden_dim..plen * hidden_dim],
+            final_ln,
+            rms_eps,
+        );
+        let mut l0 = run_lb_batch(
+            &harness.littlebit_tensors,
+            &harness.vectors_1d,
+            &lm_head_key,
+            None,
+            &last_norm,
+            1,
+            &mut shared_ops,
+        )?;
+        let mut hist = p_ids;
+        let first_tok = sample_next_token(&mut l0, &hist, params, &mut req_rng[r_idx]);
+        hist.push(first_tok);
+        req_gen_ids[r_idx].push(first_tok);
+        req_cur_tok[r_idx] = first_tok;
+        if max_new <= 1 {
+            req_done[r_idx] = true;
+        }
+        req_histories.push(hist);
+    }
+
+    // 2. Lockstep Coalesced Multi-Request Decode Loop (`u_bits` read ONCE across all active requests!)
+    for _step in 1..max_new {
+        let active_reqs: Vec<usize> = (0..bsz_total).filter(|&i| !req_done[i]).collect();
+        if active_reqs.is_empty() {
+            break;
+        }
+        let b_act = active_reqs.len();
+        let embed_t = harness
+            .littlebit_tensors
+            .get(&embed_key)
+            .ok_or_else(|| "missing embed_tokens".to_string())?;
+        let mut h_act = Vec::with_capacity(b_act * hidden_dim);
+        for &ri in &active_reqs {
+            h_act.extend_from_slice(&reconstruct_embedding_row(embed_t, req_cur_tok[ri]));
+        }
+
+        for l in 0..num_layers {
+            let lp = format!("{pfx}layers.{l}");
+            let in_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.input_layernorm.weight"))
+                .map(Vec::as_slice);
+            let mut hn = Vec::with_capacity(b_act * hidden_dim);
+            for ai in 0..b_act {
+                hn.extend_from_slice(&rms_norm(
+                    &h_act[ai * hidden_dim..(ai + 1) * hidden_dim],
+                    in_ln,
+                    rms_eps,
+                ));
+            }
+            let mut qb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.q_proj.weight"),
+                Some(&format!("{lp}.self_attn.q_proj.bias")),
+                &hn,
+                b_act,
+                &mut shared_ops,
+            )?;
+            let mut kb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.k_proj.weight"),
+                Some(&format!("{lp}.self_attn.k_proj.bias")),
+                &hn,
+                b_act,
+                &mut shared_ops,
+            )?;
+            let vb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.v_proj.weight"),
+                Some(&format!("{lp}.self_attn.v_proj.bias")),
+                &hn,
+                b_act,
+                &mut shared_ops,
+            )?;
+
+            let mut attn_act = vec![0.0f32; b_act * q_dim];
+            for (ai, &ri) in active_reqs.iter().enumerate() {
+                let pos = req_k_caches[ri][l].len();
+                let qs = &mut qb[ai * q_dim..(ai + 1) * q_dim];
+                let ks = &mut kb[ai * kv_dim..(ai + 1) * kv_dim];
+                apply_rope_half_split_in_place(qs, num_q_heads, head_dim, pos, rope_theta);
+                apply_rope_half_split_in_place(ks, num_kv_heads, head_dim, pos, rope_theta);
+                req_k_caches[ri][l].push(ks.to_vec());
+                req_v_caches[ri][l].push(vb[ai * kv_dim..(ai + 1) * kv_dim].to_vec());
+
+                let seq_l = req_k_caches[ri][l].len();
+                let out_t = &mut attn_act[ai * q_dim..(ai + 1) * q_dim];
+                for qh in 0..num_q_heads {
+                    let kvh = (qh / kv_group_size).min(num_kv_heads - 1);
+                    let qo = qh * head_dim;
+                    let kvo = kvh * head_dim;
+                    let qsl = &qs[qo..qo + head_dim];
+                    let mut scs = Vec::with_capacity(seq_l);
+                    let mut mx = f32::NEG_INFINITY;
+                    for k_step in &req_k_caches[ri][l] {
+                        let dot: f32 = qsl
+                            .iter()
+                            .zip(k_step[kvo..kvo + head_dim].iter())
+                            .map(|(a, b)| a * b)
+                            .sum();
+                        let sc = dot * inv_sqrt_hd;
+                        if sc > mx {
+                            mx = sc;
+                        }
+                        scs.push(sc);
+                    }
+                    let mut den = 0.0f32;
+                    for sc in &mut scs {
+                        *sc = (*sc - mx).exp();
+                        den += *sc;
+                    }
+                    let inv_d = 1.0 / den.max(1e-12);
+                    let dst = &mut out_t[qo..qo + head_dim];
+                    for (s_i, &w) in scs.iter().enumerate() {
+                        let p = w * inv_d;
+                        for (d, &vv) in dst
+                            .iter_mut()
+                            .zip(req_v_caches[ri][l][s_i][kvo..kvo + head_dim].iter())
+                        {
+                            *d += p * vv;
+                        }
+                    }
+                }
+            }
+
+            let ob = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.self_attn.o_proj.weight"),
+                Some(&format!("{lp}.self_attn.o_proj.bias")),
+                &attn_act,
+                b_act,
+                &mut shared_ops,
+            )?;
+            for (hi, &oi) in h_act.iter_mut().zip(ob.iter()) {
+                *hi += oi;
+            }
+
+            let post_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.post_attention_layernorm.weight"))
+                .map(Vec::as_slice);
+            let mut hffn = Vec::with_capacity(b_act * hidden_dim);
+            for ai in 0..b_act {
+                hffn.extend_from_slice(&rms_norm(
+                    &h_act[ai * hidden_dim..(ai + 1) * hidden_dim],
+                    post_ln,
+                    rms_eps,
+                ));
+            }
+            let gb = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.mlp.gate_proj.weight"),
+                None,
+                &hffn,
+                b_act,
+                &mut shared_ops,
+            )?;
+            let ub = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.mlp.up_proj.weight"),
+                None,
+                &hffn,
+                b_act,
+                &mut shared_ops,
+            )?;
+            let swiglu: Vec<f32> = gb
+                .iter()
+                .zip(ub.iter())
+                .map(|(&g, &u)| silu(g) * u)
+                .collect();
+            let db = run_lb_batch(
+                &harness.littlebit_tensors,
+                &harness.vectors_1d,
+                &format!("{lp}.mlp.down_proj.weight"),
+                None,
+                &swiglu,
+                b_act,
+                &mut shared_ops,
+            )?;
+            for (hi, &di) in h_act.iter_mut().zip(db.iter()) {
+                *hi += di;
+            }
+        }
+
+        let final_ln = harness
+            .vectors_1d
+            .get(&format!("{pfx}norm.weight"))
+            .map(Vec::as_slice);
+        let mut h_final = Vec::with_capacity(b_act * hidden_dim);
+        for ai in 0..b_act {
+            h_final.extend_from_slice(&rms_norm(
+                &h_act[ai * hidden_dim..(ai + 1) * hidden_dim],
+                final_ln,
+                rms_eps,
+            ));
+        }
+        let mut logits_act = run_lb_batch(
+            &harness.littlebit_tensors,
+            &harness.vectors_1d,
+            &lm_head_key,
+            None,
+            &h_final,
+            b_act,
+            &mut shared_ops,
+        )?;
+
+        for (ai, &ri) in active_reqs.iter().enumerate() {
+            let l_sl = &mut logits_act[ai * vocab_size..(ai + 1) * vocab_size];
+            let next_id = sample_next_token(l_sl, &req_histories[ri], params, &mut req_rng[ri]);
+            if stop_ids.contains(&next_id) {
+                req_done[ri] = true;
+            } else {
+                req_gen_ids[ri].push(next_id);
+                req_histories[ri].push(next_id);
+                req_cur_tok[ri] = next_id;
+            }
+        }
+    }
+
+    let elapsed_ns = (t0.elapsed().as_nanos() as u64).max(1);
+    let mut total_gen = 0usize;
+    let total_prompt: usize = req_prompt_lens.iter().sum();
+    let mut items = Vec::with_capacity(bsz_total);
+    for r_idx in 0..bsz_total {
+        total_gen += req_gen_ids[r_idx].len();
+        let text = tokenizer.decode(&req_gen_ids[r_idx], true);
+        items.push(BatchedCausalItemReceipt {
+            request_index: r_idx,
+            prompt: prompts[r_idx].clone(),
+            completion_tokens: req_gen_ids[r_idx].len(),
+            prompt_tokens: req_prompt_lens[r_idx],
+            generated_token_ids: std::mem::take(&mut req_gen_ids[r_idx]),
+            generated_text: text,
+        });
+    }
+    let agg_tps = (total_gen as f64) / ((elapsed_ns as f64) * 1e-9);
+
+    Ok(BatchedCausalDecoderReceipt {
+        model_id: model_id.to_string(),
+        batch_size: bsz_total,
+        num_layers,
+        total_prompt_tokens: total_prompt,
+        total_generated_tokens: total_gen,
+        avg_bits_per_weight: avg_bpw,
+        elapsed_ns,
+        aggregate_tokens_per_sec: agg_tps,
+        shared_batch_projections: shared_ops,
+        items,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

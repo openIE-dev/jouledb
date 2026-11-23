@@ -177,3 +177,34 @@ def test_synapse_ward_embed_chat_and_messages_sdk(db):
     tr = db.audio_transcribe(base64.b64encode(wav_hdr + pcm).decode())
     assert tr["mel_bins"] == 80
     assert len(tr["text"]) > 0
+
+
+def test_joulekube_reconcile_and_status(db):
+    yaml_manifest = """
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: py-sdk-pool
+  namespace: ai-agents
+spec:
+  replicas: 4
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxClaim
+metadata:
+  name: py-sdk-claim
+  namespace: ai-agents
+  annotations:
+    jouledb.io/energy-budget-nj: "250mJ"
+spec:
+  warmPoolRef:
+    name: py-sdk-pool
+"""
+    applied = db.kube_apply(yaml_manifest)
+    assert applied["ok"] is True
+    assert applied["applied_count"] == 2
+    st = db.kube_status()
+    assert st["ok"] is True
+    assert st["etcd_disintermediated"] is True
+    assert st["minted_sandbox_thermocaps"] >= 1
+

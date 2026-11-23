@@ -494,6 +494,278 @@ impl SynapseServerRuntime {
         )
     }
 
+    /// Count resident `LittleBitSVFTensor` bitplane tensors belonging to `model_id`.
+    pub fn count_model_tensors(&self, model_id: &str) -> usize {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let pfx = format!("{model_id}::");
+        guard
+            .littlebit_tensors
+            .keys()
+            .filter(|k| k.starts_with(&pfx))
+            .count()
+    }
+
+    /// Return whether `model_id` is a loaded causal decoder (`Llama`/`SmolLM2`/`Qwen2.5`/`Mistral`).
+    pub fn has_causal_decoder(&self, model_id: &str) -> bool {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        detect_causal_decoder(&guard, model_id).is_some()
+    }
+
+    /// Execute Continuous In-Flight Multi-Request Batched Generation (`u_bits` read ONCE across batch!).
+    pub fn run_causal_decoder_batch(
+        &self,
+        model_id: &str,
+        prompts: &[String],
+        params: &CausalGenerationParams,
+    ) -> Result<joule_db_weights::causal_decoder::BatchedCausalDecoderReceipt, String> {
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut kv_guard = match self.live_kv_store.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        joule_db_weights::causal_decoder::generate_batch_with_littlebit_causal_decoder(
+            &mut guard,
+            &mut kv_guard,
+            model_id,
+            prompts,
+            params,
+        )
+    }
+
+    /// Zero-shot `SigLIP` / `CLIP` contrastive vision-text scoring over sub-1-bit living bitplanes.
+    pub fn score_vision_zero_shot(
+        &self,
+        model_id: &str,
+        raw_image: &[u8],
+        candidate_labels: &[String],
+    ) -> Result<joule_db_weights::multimodal_encoder::ZeroShotVisionScoreReceipt, String> {
+        let (h, w, rgb) =
+            joule_db_weights::multimodal_encoder::decode_image_bytes_to_rgb_f32(raw_image)?;
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        joule_db_weights::multimodal_encoder::score_zero_shot_vision_text_with_littlebit(
+            &guard,
+            model_id,
+            &rgb,
+            h,
+            w,
+            candidate_labels,
+        )
+    }
+
+    /// Export a single model's living bitplanes, vocabulary, and decoder metadata as a standalone
+    /// Hugging Face Hub repository directory (`model.jsyn` CRC32-verified + `jouledb_manifest.json`
+    /// + `README.md` Model Card).
+    pub fn export_hf_model_bundle(
+        &self,
+        model_id: &str,
+        output_dir: &std::path::Path,
+        base_model_repo: Option<&str>,
+        hf_repo_id: Option<&str>,
+    ) -> Result<serde_json::Value, String> {
+        std::fs::create_dir_all(output_dir)
+            .map_err(|e| format!("create export dir '{}': {e}", output_dir.display()))?;
+
+        let mut standalone =
+            JouleHarnessEngine::new(16, 16, 64 * 1024 * 1024).map_err(|e| e.to_string())?;
+        let pfx = format!("{model_id}::");
+        let mut total_params = 0u64;
+        let mut fp16_bytes = 0u64;
+        let mut bpw_weighted = 0.0f64;
+
+        {
+            let guard = match self.inner.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            for (k, lb) in &guard.littlebit_tensors {
+                if k.starts_with(&pfx) {
+                    let elems = (lb.rows * lb.cols) as u64;
+                    total_params += elems;
+                    fp16_bytes += elems * 2;
+                    bpw_weighted += lb.bits_per_weight() * (elems as f64);
+                    standalone.littlebit_tensors.insert(k.clone(), lb.clone());
+                }
+            }
+            if standalone.littlebit_tensors.is_empty() {
+                return Err(format!("model '{model_id}' has 0 loaded LittleBit tensors"));
+            }
+            for (k, v) in &guard.vectors_1d {
+                if k.starts_with(&pfx) {
+                    fp16_bytes += (v.len() as u64) * 2;
+                    total_params += v.len() as u64;
+                    standalone.vectors_1d.insert(k.clone(), v.clone());
+                }
+            }
+            if let Some(voc) = guard.model_vocabs.get(model_id) {
+                standalone
+                    .model_vocabs
+                    .insert(model_id.to_string(), voc.clone());
+            }
+            if let Some(mrg) = guard.model_bpe_merges.get(model_id) {
+                standalone
+                    .model_bpe_merges
+                    .insert(model_id.to_string(), mrg.clone());
+            }
+            if let Some(cfg) = guard.model_configs.get(model_id) {
+                standalone
+                    .model_configs
+                    .insert(model_id.to_string(), cfg.clone());
+            }
+        }
+
+        let jsyn_path = output_dir.join("model.jsyn");
+        let jsyn_bytes = standalone.save_snapshot_atomic(&jsyn_path)?;
+        let avg_bpw = bpw_weighted / (total_params.max(1) as f64);
+        let comp_vs_fp16 = (fp16_bytes as f64) / (jsyn_bytes.max(1) as f64);
+        let base_repo = base_model_repo.unwrap_or(model_id);
+        let pub_repo = hf_repo_id.unwrap_or(model_id);
+
+        let manifest = serde_json::json!({
+            "format": "JSYN-v1",
+            "engine": "JouleDB LittleBit-2 + Sakana SVF",
+            "model_id": model_id,
+            "base_model": base_repo,
+            "hf_repo_id": pub_repo,
+            "tensor_count_2d": standalone.littlebit_tensors.len(),
+            "norm_bias_vectors_1d": standalone.vectors_1d.len(),
+            "vocab_tokens": standalone.model_vocabs.get(model_id).map(Vec::len).unwrap_or(0),
+            "total_parameters": total_params,
+            "fp16_equivalent_bytes": fp16_bytes,
+            "jsyn_bytes": jsyn_bytes,
+            "avg_bits_per_weight": avg_bpw,
+            "compression_vs_fp16": comp_vs_fp16,
+        });
+        std::fs::write(
+            output_dir.join("jouledb_manifest.json"),
+            serde_json::to_string_pretty(&manifest).unwrap_or_default(),
+        )
+        .map_err(|e| format!("write jouledb_manifest.json: {e}"))?;
+
+        let readme = format!(
+            "---\n\
+library_name: jouledb\n\
+license: apache-2.0\n\
+base_model: {base_repo}\n\
+tags:\n\
+- jouledb\n\
+- littlebit\n\
+- sub-1-bit\n\
+- svf\n\
+- thermodynamic-ai\n\
+- kubernetes-native\n\
+---\n\n\
+# `{pub_repo}` — Sub-1-Bit Living Weights (`JouleDB` `.jsyn`)\n\n\
+Pre-factorized **`LittleBit-2 ⊕ Sakana SVF`** living-weights checkpoint for [**JouleDB**](https://github.com/openIE-dev/jouledb) \
+(thermodynamic database, `JouleKube` Kubernetes-native AI/agent substrate, and zero-PyTorch inference runtime).\n\n\
+## Compression & Thermodynamic Profile\n\n\
+| Metric | Value |\n\
+| :--- | :--- |\n\
+| **Base Model** | `{base_repo}` |\n\
+| **Internal `model_id`** | `{model_id}` |\n\
+| **2D Bitplane Tensors** | `{}` |\n\
+| **1D LayerNorm / Bias Vectors** | `{}` |\n\
+| **Total Parameters** | `{total_params}` |\n\
+| **FP16 Equivalent Size** | `{:.2} MB` |\n\
+| **Compressed `.jsyn` Size (zstd + CRC32)** | **`{:.2} MB` (`{comp_vs_fp16:.2}x` smaller)** |\n\
+| **Average Bits-Per-Weight (BPW)** | **`{avg_bpw:.4}` BPW** |\n\n\
+## Quickstart (`JouleDB v0.2.3+`)\n\n\
+```bash\n\
+cargo binstall jouledb\n\
+jouledb serve --http-addr 127.0.0.1:8080\n\
+```\n\n\
+```python\n\
+import jouledb\n\
+\n\
+db = jouledb.connect(\"http://127.0.0.1:8080\")\n\
+db.hf_pull(\"{pub_repo}\", model_id=\"{model_id}\")\n\
+```\n",
+            standalone.littlebit_tensors.len(),
+            standalone.vectors_1d.len(),
+            (fp16_bytes as f64) / 1_048_576.0,
+            (jsyn_bytes as f64) / 1_048_576.0,
+        );
+        std::fs::write(output_dir.join("README.md"), readme)
+            .map_err(|e| format!("write README.md: {e}"))?;
+
+        Ok(manifest)
+    }
+
+    /// Merge a verified `JouleHarnessEngine` `.jsyn` snapshot (`model.jsyn`) into the live runtime,
+    /// optionally remapping its source `model_id` prefix to `override_model_id`!
+    pub fn import_jsyn_snapshot_path(
+        &self,
+        jsyn_path: &std::path::Path,
+        override_model_id: Option<&str>,
+    ) -> Result<serde_json::Value, String> {
+        let loaded = JouleHarnessEngine::load_snapshot_verified(jsyn_path)?;
+        let src_mid = loaded
+            .littlebit_tensors
+            .keys()
+            .next()
+            .and_then(|k| k.split_once("::").map(|(m, _)| m.to_string()))
+            .unwrap_or_else(|| "imported-model".to_string());
+        let dst_mid = override_model_id.unwrap_or(&src_mid).to_string();
+        let src_pfx = format!("{src_mid}::");
+
+        let mut imported_2d = 0usize;
+        let mut imported_1d = 0usize;
+        {
+            let mut guard = match self.inner.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            for (k, mut lb) in loaded.littlebit_tensors {
+                let new_k = if let Some(rest) = k.strip_prefix(&src_pfx) {
+                    format!("{dst_mid}::{rest}")
+                } else {
+                    k
+                };
+                lb.name = new_k.clone();
+                guard.littlebit_tensors.insert(new_k, lb);
+                imported_2d += 1;
+            }
+            for (k, v) in loaded.vectors_1d {
+                let new_k = if let Some(rest) = k.strip_prefix(&src_pfx) {
+                    format!("{dst_mid}::{rest}")
+                } else {
+                    k
+                };
+                guard.vectors_1d.insert(new_k, v);
+                imported_1d += 1;
+            }
+            if let Some(voc) = loaded.model_vocabs.get(&src_mid) {
+                guard.model_vocabs.insert(dst_mid.clone(), voc.clone());
+            }
+            if let Some(mrg) = loaded.model_bpe_merges.get(&src_mid) {
+                guard.model_bpe_merges.insert(dst_mid.clone(), mrg.clone());
+            }
+            if let Some(cfg) = loaded.model_configs.get(&src_mid) {
+                guard.model_configs.insert(dst_mid.clone(), cfg.clone());
+            }
+            self.persist_if_configured(&guard);
+        }
+
+        Ok(serde_json::json!({
+            "ok": true,
+            "format": "JSYN-v1",
+            "model_id": dst_mid,
+            "imported_2d_tensors": imported_2d,
+            "imported_1d_vectors": imported_1d,
+        }))
+    }
+
     /// Execute full multi-layer causal autoregressive token generation (`BpeTokenizer` -> `RoPE` +
     /// `GQA` + `RMSNorm` + `SwiGLU` + materialized `Mooncake` KV prefix reuse -> `LMHead` sampling)
     /// when a `Llama`/`SmolLM2`/`Qwen2.5`/`Mistral` causal decoder is loaded under `model_hint`
@@ -1250,14 +1522,24 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             post(handle_decoder_generate),
         )
         .route(
+            "/api/v1/synapse/decoder/generate_batch",
+            post(handle_decoder_generate_batch),
+        )
+        .route(
             "/api/v1/synapse/grammar/constrain",
             post(handle_grammar_constrain),
         )
         .route("/api/v1/synapse/vision/encode", post(handle_vision_encode))
         .route(
+            "/api/v1/synapse/vision/zero_shot",
+            post(handle_vision_zero_shot),
+        )
+        .route(
             "/api/v1/synapse/audio/transcribe",
             post(handle_audio_transcribe),
         )
+        .route("/api/v1/synapse/hf/export", post(handle_hf_export))
+        .route("/api/v1/synapse/hf/pull", post(handle_hf_pull))
         .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
@@ -1723,6 +2005,239 @@ async fn handle_grammar_constrain(
         Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
         Err(e) => bad_request(e),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DecoderGenerateBatchReq {
+    pub model_id: String,
+    pub prompts: Vec<String>,
+    #[serde(default = "default_gen_tokens")]
+    pub max_new_tokens: usize,
+    #[serde(default)]
+    pub temperature: f32,
+    #[serde(default = "default_top_p")]
+    pub top_p: f32,
+    #[serde(default = "default_rep_pen")]
+    pub repetition_penalty: f32,
+    #[serde(default = "default_rng_seed")]
+    pub seed: u64,
+}
+
+async fn handle_decoder_generate_batch(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<DecoderGenerateBatchReq>,
+) -> impl IntoResponse {
+    let params = CausalGenerationParams {
+        max_new_tokens: req.max_new_tokens.clamp(1, 256),
+        temperature: req.temperature,
+        top_p: req.top_p,
+        repetition_penalty: req.repetition_penalty,
+        seed: req.seed,
+        stop_token_ids: Vec::new(),
+        speculative_draft_k: 0,
+    };
+    match rt.run_causal_decoder_batch(&req.model_id, &req.prompts, &params) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VisionZeroShotReq {
+    pub model_id: String,
+    pub image_base64: String,
+    pub candidate_labels: Vec<String>,
+}
+
+async fn handle_vision_zero_shot(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<VisionZeroShotReq>,
+) -> impl IntoResponse {
+    let clean_b64 = req
+        .image_base64
+        .split_once(";base64,")
+        .map(|(_, tail)| tail)
+        .unwrap_or(req.image_base64.as_str());
+    let raw = match base64::engine::general_purpose::STANDARD.decode(clean_b64.trim()) {
+        Ok(b) => b,
+        Err(e) => return bad_request(format!("invalid image_base64: {e}")),
+    };
+    match rt.score_vision_zero_shot(&req.model_id, &raw, &req.candidate_labels) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HfExportReq {
+    pub model_id: String,
+    pub output_dir: String,
+    #[serde(default)]
+    pub base_model_repo: Option<String>,
+    #[serde(default)]
+    pub hf_repo_id: Option<String>,
+}
+
+async fn handle_hf_export(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<HfExportReq>,
+) -> impl IntoResponse {
+    let out_p = std::path::PathBuf::from(&req.output_dir);
+    match rt.export_hf_model_bundle(
+        &req.model_id,
+        &out_p,
+        req.base_model_repo.as_deref(),
+        req.hf_repo_id.as_deref(),
+    ) {
+        Ok(manifest) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "output_dir": req.output_dir,
+                "manifest": manifest,
+            })),
+        ),
+        Err(e) => bad_request(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HfPullReq {
+    #[serde(default)]
+    pub repo_id: Option<String>,
+    #[serde(default)]
+    pub local_dir: Option<String>,
+    pub model_id: String,
+    #[serde(default = "default_hf_rev")]
+    pub revision: String,
+    #[serde(default)]
+    pub bearer_token: Option<String>,
+    #[serde(default = "default_hf_rank")]
+    pub target_rank: usize,
+    #[serde(default = "default_hf_outliers")]
+    pub max_outliers: usize,
+    #[serde(default = "default_true_flag")]
+    pub distill_svf: bool,
+}
+
+fn default_hf_rev() -> String {
+    "main".to_string()
+}
+fn default_hf_rank() -> usize {
+    16
+}
+fn default_hf_outliers() -> usize {
+    64
+}
+
+async fn handle_hf_pull(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<HfPullReq>,
+) -> axum::response::Response {
+    let resolved_dir = if let Some(ref ldir) = req.local_dir {
+        std::path::PathBuf::from(ldir)
+    } else if let Some(ref repo) = req.repo_id {
+        let slug = repo.replace('/', "__");
+        let cache_dir = std::env::temp_dir().join("jouledb-hf-cache").join(&slug);
+        if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+            return bad_request(format!("create hf cache dir: {e}")).into_response();
+        }
+        let token = req
+            .bearer_token
+            .clone()
+            .or_else(|| std::env::var("HF_TOKEN").ok());
+        let client = match reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(180))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => return bad_request(format!("http client build: {e}")).into_response(),
+        };
+
+        let fetch_file = |fname: String| {
+            let client = client.clone();
+            let token = token.clone();
+            let url = format!(
+                "https://huggingface.co/{}/resolve/{}/{}",
+                repo.trim_matches('/'),
+                req.revision,
+                fname
+            );
+            async move {
+                let mut rb = client.get(&url);
+                if let Some(t) = token.as_deref().filter(|s| !s.trim().is_empty()) {
+                    rb = rb.bearer_auth(t.trim());
+                }
+                let resp = rb.send().await.ok()?;
+                if !resp.status().is_success() {
+                    return None;
+                }
+                resp.bytes().await.ok()
+            }
+        };
+
+        // 1. Fast path: pre-factorized `.jsyn` living-weights bundle on Hugging Face Hub!
+        if let Some(jsyn_bytes) = fetch_file("model.jsyn".to_string()).await {
+            let p = cache_dir.join("model.jsyn");
+            if let Err(e) = std::fs::write(&p, &jsyn_bytes) {
+                return bad_request(format!("write cached model.jsyn: {e}")).into_response();
+            }
+            return match rt.import_jsyn_snapshot_path(&p, Some(&req.model_id)) {
+                Ok(v) => (StatusCode::OK, Json(v)).into_response(),
+                Err(e) => bad_request(e).into_response(),
+            };
+        }
+
+        // 2. Standard Hugging Face `.safetensors` repo: pull config/tokenizer + `model.safetensors`
+        for aux in ["config.json", "tokenizer.json", "vocab.txt"] {
+            if let Some(b) = fetch_file(aux.to_string()).await {
+                let _ = std::fs::write(cache_dir.join(aux), &b);
+            }
+        }
+        let Some(st_bytes) = fetch_file("model.safetensors".to_string()).await else {
+            return bad_request(format!(
+                "neither model.jsyn nor model.safetensors found in Hugging Face repo '{repo}'"
+            ))
+            .into_response();
+        };
+        if let Err(e) = std::fs::write(cache_dir.join("model.safetensors"), &st_bytes) {
+            return bad_request(format!("write cached model.safetensors: {e}")).into_response();
+        }
+        cache_dir
+    } else {
+        return bad_request("must specify either repo_id or local_dir").into_response();
+    };
+
+    let jsyn_candidate = resolved_dir.join("model.jsyn");
+    if jsyn_candidate.exists() {
+        return match rt.import_jsyn_snapshot_path(&jsyn_candidate, Some(&req.model_id)) {
+            Ok(v) => (StatusCode::OK, Json(v)).into_response(),
+            Err(e) => bad_request(e).into_response(),
+        };
+    }
+
+    let st_candidate = resolved_dir.join("model.safetensors");
+    if !st_candidate.exists() {
+        return bad_request(format!(
+            "directory '{}' contains neither model.jsyn nor model.safetensors",
+            resolved_dir.display()
+        ))
+        .into_response();
+    }
+
+    let ingest_req = IngestSafetensorsReq {
+        model_id: req.model_id,
+        file_path: Some(st_candidate.to_string_lossy().to_string()),
+        bytes_base64: None,
+        config_json: None,
+        vocab_txt: None,
+        target_rank: req.target_rank,
+        max_outliers: req.max_outliers,
+        distill_svf: req.distill_svf,
+    };
+    handle_ingest_safetensors(State(rt), Json(ingest_req))
+        .await
+        .into_response()
 }
 
 async fn handle_littlebit_factorize(
