@@ -106,6 +106,7 @@ pub mod swot_capsule_routes;
 pub mod synapse_routes;
 pub mod ward_openai_routes;
 pub mod pulse_mesh_routes;
+pub mod mcp_agent_loop;
 pub mod wasm_reducers;
 
 // Re-exports

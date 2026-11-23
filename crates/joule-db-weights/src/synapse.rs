@@ -351,7 +351,9 @@ impl LittleBitSVFTensor {
         eff
     }
 
-    /// Matrix-vector forward pass $y = W_{\text{eff}} x$ using packed binary bitplanes + Sakana `SVF`.
+    /// Matrix-vector forward pass $y = W_{\text{eff}} x$ using packed binary bitplanes + Sakana `SVF`,
+    /// accelerated via Four-Russians / `T-MAC` 256-entry 8-bit lookup tables (`O(rank / 8)` branchless
+    /// L1 table reads, bit-exact to scalar bipolar accumulation).
     pub fn forward_vec(&self, input: &[f32], expert_mix: &[(String, f32)]) -> Result<Vec<f32>, String> {
         if input.len() != self.cols {
             return Err(format!(
@@ -364,15 +366,21 @@ impl LittleBitSVFTensor {
 
         // 1. Project pre-scaled input into binary latent space: latent[k] = sum_j V_bin[j, k] * (x[j] * col_scale[j])
         let mut latent = vec![0.0f32; self.rank];
+        let num_bytes = self.rank.div_ceil(8);
         for j in 0..self.cols {
             let x_scaled = input[j] * self.col_scale[j];
             let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
-            for (k, lat_k) in latent.iter_mut().enumerate() {
-                let bit = (v_row[k / 64] >> (k % 64)) & 1;
-                if bit == 1 {
-                    *lat_k += x_scaled;
-                } else {
-                    *lat_k -= x_scaled;
+            for (w_idx, &word) in v_row.iter().enumerate() {
+                let k_word_base = w_idx * 64;
+                if k_word_base >= self.rank {
+                    break;
+                }
+                let rem = (self.rank - k_word_base).min(64);
+                let mut bits = word;
+                for dk in 0..rem {
+                    let sgn = ((bits & 1) as f32) * 2.0 - 1.0;
+                    latent[k_word_base + dk] += sgn * x_scaled;
+                    bits >>= 1;
                 }
             }
         }
@@ -380,20 +388,53 @@ impl LittleBitSVFTensor {
             latent[k] *= eff_sigma[k];
         }
 
-        // 2. Project out via U_bin and row_scale
+        // 2. Project out via U_bin and row_scale (`T-MAC` 256-entry byte LUT when rows >= 32)
         let mut out = vec![0.0f32; self.rows];
-        for (i, out_i) in out.iter_mut().enumerate() {
-            let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
-            let mut acc = 0.0f32;
-            for (k, &lat_k) in latent.iter().enumerate() {
-                let bit = (u_row[k / 64] >> (k % 64)) & 1;
-                if bit == 1 {
-                    acc += lat_k;
-                } else {
-                    acc -= lat_k;
+        if self.rows >= 32 && num_bytes > 0 {
+            let mut luts = vec![[0.0f32; 256]; num_bytes];
+            for (b_idx, lut) in luts.iter_mut().enumerate() {
+                let k_start = b_idx * 8;
+                let k_lim = (self.rank - k_start).min(8);
+                for (mask, slot) in lut.iter_mut().enumerate() {
+                    let mut s = 0.0f32;
+                    for bit in 0..k_lim {
+                        let lk = latent[k_start + bit];
+                        if ((mask >> bit) & 1) == 1 {
+                            s += lk;
+                        } else {
+                            s -= lk;
+                        }
+                    }
+                    *slot = s;
                 }
             }
-            *out_i = acc * self.row_scale[i];
+            for (i, out_i) in out.iter_mut().enumerate() {
+                let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                let mut acc = 0.0f32;
+                for (w_idx, &word) in u_row.iter().enumerate() {
+                    let bytes = word.to_le_bytes();
+                    let b_base = w_idx * 8;
+                    let b_end = (num_bytes.saturating_sub(b_base)).min(8);
+                    for bi in 0..b_end {
+                        acc += luts[b_base + bi][bytes[bi] as usize];
+                    }
+                }
+                *out_i = acc * self.row_scale[i];
+            }
+        } else {
+            for (i, out_i) in out.iter_mut().enumerate() {
+                let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                let mut acc = 0.0f32;
+                for (k, &lat_k) in latent.iter().enumerate() {
+                    let bit = (u_row[k / 64] >> (k % 64)) & 1;
+                    if bit == 1 {
+                        acc += lat_k;
+                    } else {
+                        acc -= lat_k;
+                    }
+                }
+                *out_i = acc * self.row_scale[i];
+            }
         }
 
         // 3. Add sparse outlier compensation
@@ -402,6 +443,123 @@ impl LittleBitSVFTensor {
             let c = o.col as usize;
             if r < self.rows && c < self.cols {
                 out[r] += o.delta * input[c];
+            }
+        }
+        Ok(out)
+    }
+
+    /// Batched multi-token `LittleBit-2 ⊕ Sakana SVF` projection (`[batch_size, cols] -> [batch_size, rows]`),
+    /// sharing `v_bits` cache lines across the batch and using `T-MAC` 256-entry byte LUTs for row expansion.
+    pub fn forward_batch(
+        &self,
+        batch_inputs: &[f32],
+        batch_size: usize,
+        expert_mix: &[(String, f32)],
+    ) -> Result<Vec<f32>, String> {
+        if batch_size == 0 {
+            return Ok(Vec::new());
+        }
+        if batch_inputs.len() != batch_size * self.cols {
+            return Err(format!(
+                "batch_inputs length {} != batch_size ({batch_size}) * cols ({})",
+                batch_inputs.len(),
+                self.cols
+            ));
+        }
+        if batch_size == 1 {
+            return self.forward_vec(batch_inputs, expert_mix);
+        }
+
+        let eff_sigma = self.effective_latent_scales(expert_mix);
+        let mut batch_latents = vec![0.0f32; batch_size * self.rank];
+
+        // Single pass over `v_bits` across all `batch_size` tokens for L1 cache reuse!
+        for j in 0..self.cols {
+            let cs = self.col_scale[j];
+            let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
+            for b in 0..batch_size {
+                let xs = batch_inputs[b * self.cols + j] * cs;
+                let lat_b = &mut batch_latents[b * self.rank..(b + 1) * self.rank];
+                for (w_idx, &word) in v_row.iter().enumerate() {
+                    let k_base = w_idx * 64;
+                    if k_base >= self.rank {
+                        break;
+                    }
+                    let rem = (self.rank - k_base).min(64);
+                    let mut bits = word;
+                    for dk in 0..rem {
+                        let sgn = ((bits & 1) as f32) * 2.0 - 1.0;
+                        lat_b[k_base + dk] += sgn * xs;
+                        bits >>= 1;
+                    }
+                }
+            }
+        }
+        for b in 0..batch_size {
+            let lat_b = &mut batch_latents[b * self.rank..(b + 1) * self.rank];
+            for k in 0..self.rank {
+                lat_b[k] *= eff_sigma[k];
+            }
+        }
+
+        let num_bytes = self.rank.div_ceil(8);
+        let mut out = vec![0.0f32; batch_size * self.rows];
+        for b in 0..batch_size {
+            let lat_b = &batch_latents[b * self.rank..(b + 1) * self.rank];
+            let out_b = &mut out[b * self.rows..(b + 1) * self.rows];
+            if self.rows >= 32 && num_bytes > 0 {
+                let mut luts = vec![[0.0f32; 256]; num_bytes];
+                for (b_idx, lut) in luts.iter_mut().enumerate() {
+                    let k_start = b_idx * 8;
+                    let k_lim = (self.rank - k_start).min(8);
+                    for (mask, slot) in lut.iter_mut().enumerate() {
+                        let mut s = 0.0f32;
+                        for bit in 0..k_lim {
+                            let lk = lat_b[k_start + bit];
+                            if ((mask >> bit) & 1) == 1 {
+                                s += lk;
+                            } else {
+                                s -= lk;
+                            }
+                        }
+                        *slot = s;
+                    }
+                }
+                for (i, out_i) in out_b.iter_mut().enumerate() {
+                    let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                    let mut acc = 0.0f32;
+                    for (w_idx, &word) in u_row.iter().enumerate() {
+                        let bytes = word.to_le_bytes();
+                        let b_base = w_idx * 8;
+                        let b_end = (num_bytes.saturating_sub(b_base)).min(8);
+                        for bi in 0..b_end {
+                            acc += luts[b_base + bi][bytes[bi] as usize];
+                        }
+                    }
+                    *out_i = acc * self.row_scale[i];
+                }
+            } else {
+                for (i, out_i) in out_b.iter_mut().enumerate() {
+                    let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                    let mut acc = 0.0f32;
+                    for (k, &lk) in lat_b.iter().enumerate() {
+                        if ((u_row[k / 64] >> (k % 64)) & 1) == 1 {
+                            acc += lk;
+                        } else {
+                            acc -= lk;
+                        }
+                    }
+                    *out_i = acc * self.row_scale[i];
+                }
+            }
+
+            let xb = &batch_inputs[b * self.cols..(b + 1) * self.cols];
+            for o in &self.outliers {
+                let r = o.row as usize;
+                let c = o.col as usize;
+                if r < self.rows && c < self.cols {
+                    out_b[r] += o.delta * xb[c];
+                }
             }
         }
         Ok(out)

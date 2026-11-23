@@ -14,11 +14,12 @@ use axum::{
     routing::{get, post},
 };
 use base64::Engine;
-use joule_db_gpu::{LittleBitGpuKernel, PackedGpuLittleBitWeights};
+use joule_db_gpu::{LittleBitGpuKernel, PackedGpuLittleBitWeights, ResidentGpuLittleBitWeights};
 use joule_db_weights::{
     causal_decoder::{
         BpeTokenizer, CausalDecoderReceipt, CausalGenerationParams, LivePrefixKvStore,
-        detect_causal_decoder, generate_with_littlebit_causal_decoder, parse_hf_causal_config_json,
+        detect_causal_decoder, generate_with_littlebit_causal_decoder_accelerated,
+        parse_hf_causal_config_json,
     },
     checkpoint_ingest::ingest_safetensors_with_options,
     grammar_constrain::{
@@ -49,6 +50,7 @@ fn shared_gpu_kernel() -> Option<&'static LittleBitGpuKernel> {
 pub struct SynapseServerRuntime {
     inner: Mutex<JouleHarnessEngine>,
     gpu_packed_cache: Mutex<HashMap<String, PackedGpuLittleBitWeights>>,
+    gpu_resident_cache: Mutex<HashMap<String, ResidentGpuLittleBitWeights>>,
     live_kv_store: Mutex<LivePrefixKvStore>,
     executor: Option<Arc<dyn QueryExecutor>>,
     snapshot_path: Option<PathBuf>,
@@ -92,6 +94,7 @@ impl SynapseServerRuntime {
         let rt = Self {
             inner: Mutex::new(engine),
             gpu_packed_cache: Mutex::new(HashMap::new()),
+            gpu_resident_cache: Mutex::new(HashMap::new()),
             live_kv_store: Mutex::new(LivePrefixKvStore::new(8)),
             executor,
             snapshot_path,
@@ -138,13 +141,137 @@ impl SynapseServerRuntime {
                 Ok(g) => g,
                 Err(p) => p.into_inner(),
             };
-            if !cache.contains_key(name) && cache.len() >= 128
+            if !cache.contains_key(name) && cache.len() >= 512
                 && let Some(evict) = cache.keys().next().cloned()
             {
                 cache.remove(&evict);
             }
             cache.insert(name.to_string(), packed);
         }
+    }
+
+    fn get_or_upload_resident_gpu(
+        &self,
+        kernel: &LittleBitGpuKernel,
+        name: &str,
+    ) -> Option<ResidentGpuLittleBitWeights> {
+        {
+            let res_guard = match self.gpu_resident_cache.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            if let Some(found) = res_guard.get(name) {
+                return Some(found.clone());
+            }
+        }
+        let packed_opt = {
+            let p_guard = match self.gpu_packed_cache.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            p_guard.get(name).cloned()
+        };
+        let packed = packed_opt?;
+        let uploaded = kernel.upload_resident_weights(&packed);
+        let mut res_guard = match self.gpu_resident_cache.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        if !res_guard.contains_key(name) && res_guard.len() >= 512
+            && let Some(evict) = res_guard.keys().next().cloned()
+        {
+            res_guard.remove(&evict);
+        }
+        res_guard.insert(name.to_string(), uploaded.clone());
+        Some(uploaded)
+    }
+
+    /// Execute a SQL query against JouleDB's live `QueryExecutor` and return structured JSON rows.
+    pub fn execute_sql_json(
+        &self,
+        sql: &str,
+        limit: Option<usize>,
+    ) -> Result<serde_json::Value, String> {
+        let Some(ref exec) = self.executor else {
+            return Err("SQL QueryExecutor is not attached to SynapseServerRuntime".to_string());
+        };
+        let req = QueryRequest {
+            sql: sql.to_string(),
+            params: Default::default(),
+            args: Vec::new(),
+            explain: false,
+            limit,
+            session_id: None,
+            query_timeout_ms: None,
+            branch_id: None,
+            tenant_id: None,
+        };
+        let resp = exec.execute(&req).map_err(|e| e.message)?;
+        let cols: Vec<String> = resp.columns.clone();
+        let mut rows_json = Vec::with_capacity(resp.rows.len());
+        for row in &resp.rows {
+            let mut obj = serde_json::Map::new();
+            for (idx, val) in row.iter().enumerate() {
+                let col_name = cols
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| format!("col_{idx}"));
+                obj.insert(col_name, val.clone());
+            }
+            rows_json.push(serde_json::Value::Object(obj));
+        }
+        Ok(serde_json::json!({
+            "columns": cols,
+            "row_count": resp.rows.len(),
+            "affected_rows": resp.affected_rows,
+            "rows": rows_json,
+            "energy_joules": resp.energy_joules,
+        }))
+    }
+
+    /// Distill a raw tool output into a content-addressed `JouleHarness` observation AND commit any
+    /// grounded factual finding into `Engram` + `Titans` `ContinuumSynapse` (`MVCC` `lsn` increment).
+    pub fn commit_agent_observation_and_titans(
+        &self,
+        source: &str,
+        raw_output: &str,
+        trigger_phrase: &str,
+        fact_payload: &str,
+        commit_titans: bool,
+    ) -> serde_json::Value {
+        let (obs, lsn_before, lsn_after, engram_lsn) = {
+            let mut guard = match self.inner.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let lsn_b = guard.synapse.lsn;
+            let obs = guard.ingest_observation(source.to_string(), raw_output);
+            if commit_titans && !trigger_phrase.trim().is_empty() {
+                let d_in = guard.synapse.d_in.max(1);
+                let d_out = guard.synapse.d_out.max(1);
+                let key_vec = deterministic_seed_vec(trigger_phrase, d_in);
+                let mut target_vec = deterministic_seed_vec(fact_payload, d_out);
+                for v in &mut target_vec {
+                    *v *= 2.5;
+                }
+                let _ = guard.engram.upsert(
+                    trigger_phrase,
+                    key_vec.clone(),
+                    fact_payload.to_string(),
+                );
+                let _ = guard.synapse.observe_and_adapt(&key_vec, &target_vec);
+            }
+            let lsn_a = guard.synapse.lsn;
+            let eng_l = guard.engram.lsn;
+            self.persist_if_configured(&guard);
+            (obs, lsn_b, lsn_a, eng_l)
+        };
+        serde_json::json!({
+            "observation": obs,
+            "synapse_lsn_before": lsn_before,
+            "synapse_lsn_after": lsn_after,
+            "engram_lsn": engram_lsn,
+        })
     }
 
     fn run_sql(&self, sql: String) -> Result<(), String> {
@@ -293,6 +420,69 @@ impl SynapseServerRuntime {
         self.run_living_forward(model_hint, text, use_gpu, allow_titans_plasticity)
     }
 
+    /// Execute causal decoder with optional GPU-resident batched bitplane + fused causal GQA WGSL hooks!
+    pub fn run_causal_decoder(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        params: &CausalGenerationParams,
+        use_gpu: bool,
+    ) -> Result<CausalDecoderReceipt, String> {
+        let gpu_opt = if use_gpu { shared_gpu_kernel() } else { None };
+        let backend_label = if let Some(k) = gpu_opt {
+            format!("wgpu_resident_batch+tmac_lut ({})", k.adapter_name())
+        } else {
+            "cpu_tmac_lut_bitplane".to_string()
+        };
+
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut kv_guard = match self.live_kv_store.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+
+        generate_with_littlebit_causal_decoder_accelerated(
+            &mut guard,
+            &mut kv_guard,
+            model_id,
+            prompt,
+            params,
+            &backend_label,
+            &mut |w_key, batch_x, batch_sz, eff_sigma| {
+                let kernel = gpu_opt?;
+                let resident = self.get_or_upload_resident_gpu(kernel, w_key)?;
+                let matrix_elems = resident.rows * resident.cols;
+                // Hybrid UMA dispatch policy: use Metal/Vulkan GPU for multi-token batched prefill
+                // (`batch_sz >= 4`); keep 1-token autoregressive decode in L1-resident `T-MAC` 8-bit
+                // LUTs (`81+ tok/s`) to avoid ~35 ms per-token GPU fence readback!
+                if batch_sz >= 4 && matrix_elems >= 32_768 {
+                    kernel
+                        .forward_batched_resident(&resident, batch_x, batch_sz, eff_sigma)
+                        .ok()
+                        .map(|r| r.output)
+                } else {
+                    None
+                }
+            },
+            &mut |q_batch, k_flat, v_flat, q_len, total_kv, start_pos, nq, nkv, hd| {
+                let kernel = gpu_opt?;
+                if q_len >= 4 && total_kv >= 8 {
+                    kernel
+                        .forward_causal_gqa(
+                            q_batch, k_flat, v_flat, q_len, total_kv, start_pos, nq, nkv, hd,
+                        )
+                        .ok()
+                        .map(|r| r.output)
+                } else {
+                    None
+                }
+            },
+        )
+    }
+
     /// Execute full multi-layer causal autoregressive token generation (`BpeTokenizer` -> `RoPE` +
     /// `GQA` + `RMSNorm` + `SwiGLU` + materialized `Mooncake` KV prefix reuse -> `LMHead` sampling)
     /// when a `Llama`/`SmolLM2`/`Qwen2.5`/`Mistral` causal decoder is loaded under `model_hint`
@@ -305,8 +495,8 @@ impl SynapseServerRuntime {
         temperature: f32,
         allow_titans_plasticity: bool,
     ) -> Option<(CausalDecoderReceipt, String, u64)> {
-        let outcome: Option<(CausalDecoderReceipt, u64)> = {
-            let mut guard = match self.inner.lock() {
+        let (target_model, mem_bytes) = {
+            let guard = match self.inner.lock() {
                 Ok(g) => g,
                 Err(p) => p.into_inner(),
             };
@@ -324,25 +514,6 @@ impl SynapseServerRuntime {
                 }
                 found
             }?;
-
-            let mut kv_guard = match self.live_kv_store.lock() {
-                Ok(g) => g,
-                Err(p) => p.into_inner(),
-            };
-            let params = CausalGenerationParams {
-                max_new_tokens: max_new_tokens.clamp(1, 256),
-                temperature,
-                ..CausalGenerationParams::default()
-            };
-            let rec = generate_with_littlebit_causal_decoder(
-                &mut guard,
-                &mut kv_guard,
-                &target_model,
-                prompt,
-                &params,
-            )
-            .ok()?;
-
             let pfx = format!("{target_model}::");
             let mut touched_bytes = 0u64;
             for (k, lb) in &guard.littlebit_tensors {
@@ -352,10 +523,18 @@ impl SynapseServerRuntime {
                     );
                 }
             }
-            Some((rec, touched_bytes.max(8192)))
+            (target_model, touched_bytes.max(8192))
         };
 
-        let (rec, mem_bytes) = outcome?;
+        let params = CausalGenerationParams {
+            max_new_tokens: max_new_tokens.clamp(1, 256),
+            temperature,
+            ..CausalGenerationParams::default()
+        };
+        let rec = self
+            .run_causal_decoder(&target_model, prompt, &params, true)
+            .ok()?;
+
         if allow_titans_plasticity {
             self.adapt_titans_from_prompt(prompt);
         }
@@ -734,6 +913,12 @@ pub struct DecoderGenerateReq {
     pub repetition_penalty: f32,
     #[serde(default = "default_rng_seed")]
     pub seed: u64,
+    #[serde(default = "default_true_flag")]
+    pub use_gpu: bool,
+}
+
+fn default_true_flag() -> bool {
+    true
 }
 
 fn default_gen_tokens() -> usize {
@@ -1301,14 +1486,6 @@ async fn handle_decoder_generate(
     State(rt): State<Arc<SynapseServerRuntime>>,
     Json(req): Json<DecoderGenerateReq>,
 ) -> impl IntoResponse {
-    let mut guard = match rt.inner.lock() {
-        Ok(g) => g,
-        Err(p) => p.into_inner(),
-    };
-    let mut kv_guard = match rt.live_kv_store.lock() {
-        Ok(g) => g,
-        Err(p) => p.into_inner(),
-    };
     let params = CausalGenerationParams {
         max_new_tokens: req.max_new_tokens.clamp(1, 256),
         temperature: req.temperature,
@@ -1317,13 +1494,7 @@ async fn handle_decoder_generate(
         seed: req.seed,
         stop_token_ids: Vec::new(),
     };
-    match generate_with_littlebit_causal_decoder(
-        &mut guard,
-        &mut kv_guard,
-        &req.model_id,
-        &req.prompt,
-        &params,
-    ) {
+    match rt.run_causal_decoder(&req.model_id, &req.prompt, &params, req.use_gpu) {
         Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
         Err(e) => bad_request(e),
     }

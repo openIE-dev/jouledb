@@ -135,3 +135,17 @@ def test_synapse_ward_embed_chat_and_messages_sdk(db):
     targs = _json.loads(tcall["function"]["arguments"])
     assert targs["tier"] == "uma"
     assert targs["limit"] == 5
+
+    mcp_catalog = db.mcp_list_tools()
+    assert mcp_catalog["ok"] is True
+    assert mcp_catalog["total_tools"] >= 4
+
+    tbl = "agent_" + uuid.uuid4().hex[:6]
+    db.query(f"CREATE TABLE {tbl} (node TEXT, mw FLOAT)")
+    db.query(f"INSERT INTO {tbl} VALUES ('m5-uma', 24500.0)")
+    ag = db.agent_run(f"SELECT node, mw FROM {tbl}; summarize", max_turns=2)
+    assert ag["ok"] is True
+    assert ag["turns_executed"] == 2
+    assert ag["steps"][0]["selected_tool"] == "jouledb.sql_query"
+    assert ag["steps"][0]["output"]["row_count"] == 1
+    db.query(f"DROP TABLE {tbl}")

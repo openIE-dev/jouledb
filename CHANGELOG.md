@@ -4,7 +4,14 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
 ### Added
+- **GPU-Resident Batched `LittleBit-2` + Causal `GQA` Shaders & `T-MAC` 8-Bit LUT Decoder (`JouleSynapse` & `joule-db-gpu`)**:
+  - Persistent GPU-resident bitplane buffers (`ResidentGpuLittleBitWeights`) with 2D batched multi-token Dual-SVID WGSL compute shaders (`forward_batched_resident`) and fused GPU causal Grouped-Query Attention (`forward_causal_gqa`), paired with Four-Russians / `T-MAC` 256-entry `f32` byte lookup tables (`forward_vec` & `forward_batch`) for branchless L1 bitplane inner products and batched causal prefill.
+- **Database-Native `MCP` Host & Autonomous Multi-Turn SQL / `JouleWard` / `Titans` Agent Loop (`mcp_agent_loop`)**:
+  - Native `MCP` Host registry (`POST /api/v1/mcp/host/servers`, `GET /api/v1/mcp/host/tools`, `POST /api/v1/mcp/host/call`) combining built-in zero-copy database/synapse tools (`jouledb.sql_query`, `jouledb.engram_lookup`, `jouledb.engram_upsert`, `jouledb.synapse_status`) with live Streamable-HTTP `JSON-RPC 2.0` MCP server discovery (`tools/list`) and invocation (`tools/call`).
+  - Single-request autonomous multi-turn agent loop (`POST /api/v1/agent/run`) executing grammar-constrained tool selection, `JoulePulse` `45 nJ` guardrail checks, cryptographic `JouleWard` `ThermoCap` capability confinement, content-addressed `JouleHarness` observation distillation, and `Engram` + `Titans` MVCC memory commits (`mcp_register_server`, `mcp_list_tools`, `mcp_call_tool`, and `agent_run` in Python & Rust SDKs).
 - **Self-Distilled `SVF` Calibration (`JouleSynapse`)**: Dataset-free Coordinate-Ridge singular-value self-distillation (`distill_svf_against_dense`) + exact per-row Cauchy-Schwarz gain projection during `.safetensors` ingestion (`distill_svf: true` by default).
 - **SSE Per-Token Nanojoule Streaming & Zero-Hallucination Grammar/Tool Engine**: Native `stream: true` `text/event-stream` streaming with per-token `x_jouledb_token_nj` deltas plus `XGrammar`-class jump-forward JSON Schema (`response_format`) and function/tool-call (`tools` -> `tool_calls` / `tool_use`) constraining across OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Python SDK (`chat_stream`, `chat_structured`, `chat_tools`), and Rust SDK (`HttpFabricClient`).
 

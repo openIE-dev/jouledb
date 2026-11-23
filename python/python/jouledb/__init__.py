@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 class JouleDBError(RuntimeError):
@@ -258,6 +258,56 @@ class Connection:
                 if data_str and data_str != "[DONE]":
                     events.append(json.loads(data_str))
         return events
+
+    def mcp_register_server(
+        self,
+        server_id: str,
+        endpoint_url: str,
+        discover_live: bool = True,
+    ) -> Dict[str, Any]:
+        """Register an external Streamable-HTTP MCP server on JouleDB's native MCP Host."""
+        return self._json_request(
+            "POST",
+            "/api/v1/mcp/host/servers",
+            {
+                "server_id": server_id,
+                "endpoint_url": endpoint_url,
+                "discover_live": discover_live,
+            },
+        )
+
+    def mcp_list_tools(self) -> Dict[str, Any]:
+        """List all native and remote MCP tools registered on JouleDB's MCP Host."""
+        return self._json_request("GET", "/api/v1/mcp/host/tools")
+
+    def mcp_call_tool(
+        self,
+        tool_name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Invoke a native or remote MCP tool under JoulePulse + JouleWard."""
+        return self._json_request(
+            "POST",
+            "/api/v1/mcp/host/call",
+            {"tool_name": tool_name, "arguments": arguments or {}},
+        )
+
+    def agent_run(
+        self,
+        goal: str,
+        max_turns: int = 2,
+        commit_to_titans: bool = True,
+    ) -> Dict[str, Any]:
+        """Execute a server-side autonomous multi-turn SQL/MCP/Titans agent loop."""
+        return self._json_request(
+            "POST",
+            "/api/v1/agent/run",
+            {
+                "goal": goal,
+                "max_turns": max_turns,
+                "commit_to_titans": commit_to_titans,
+            },
+        )
 
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass

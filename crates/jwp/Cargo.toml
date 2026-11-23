@@ -1,6 +1,6 @@
 [package]
 name        = "jwp"
-version     = "0.2.0"
+version     = "0.2.1"
 description = "Joule Wire Protocol (JWP) — energy-aware binary framing protocol"
 edition.workspace      = true
 rust-version.workspace = true

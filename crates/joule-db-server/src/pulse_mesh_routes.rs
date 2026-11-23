@@ -32,10 +32,11 @@ use serde::Deserialize;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Shared server state for `JoulePulse`, `JouleFlow`, `JouleSynapseMesh`, and `/v1/messages`.
+/// Shared server state for `JoulePulse`, `JouleFlow`, `JouleSynapseMesh`, `/v1/messages`, and `MCP` Host.
 pub struct PulseMeshRuntime {
     pub pulse: PulseEngine,
     pub flow: DurableFlowEngine,
+    pub mcp_host: crate::mcp_agent_loop::McpHostRegistry,
     pub ward_rt: Arc<WardOpenAiRuntime>,
 }
 
@@ -44,6 +45,7 @@ impl PulseMeshRuntime {
         Arc::new(Self {
             pulse: PulseEngine::new(),
             flow: DurableFlowEngine::new(),
+            mcp_host: crate::mcp_agent_loop::McpHostRegistry::new(),
             ward_rt,
         })
     }
@@ -197,6 +199,22 @@ pub fn pulse_mesh_router(rt: Arc<PulseMeshRuntime>) -> Router {
             post(handle_mesh_export_delta),
         )
         .route("/api/v1/synapse/mesh/merge", post(handle_mesh_merge))
+        .route(
+            "/api/v1/mcp/host/servers",
+            post(crate::mcp_agent_loop::handle_mcp_register_server),
+        )
+        .route(
+            "/api/v1/mcp/host/tools",
+            get(crate::mcp_agent_loop::handle_mcp_list_tools),
+        )
+        .route(
+            "/api/v1/mcp/host/call",
+            post(crate::mcp_agent_loop::handle_mcp_call_tool),
+        )
+        .route(
+            "/api/v1/agent/run",
+            post(crate::mcp_agent_loop::handle_autonomous_agent_run),
+        )
         .with_state(rt)
 }
 

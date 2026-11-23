@@ -51,7 +51,7 @@ pub use btree_serialization::{
 };
 pub use hdc_compute::{HdcGpuConfig, HdcGpuEncoder};
 pub use littlebit_compute::{
-    LittleBitGpuKernel, LittleBitGpuReceipt, PackedGpuLittleBitWeights,
+    LittleBitGpuKernel, LittleBitGpuReceipt, PackedGpuLittleBitWeights, ResidentGpuLittleBitWeights,
 };
 
 // Re-export core types for convenience

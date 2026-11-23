@@ -307,6 +307,49 @@ impl HttpFabricClient {
         }
         Ok(events)
     }
+
+    /// Register an external Streamable-HTTP MCP server (`POST /api/v1/mcp/host/servers`).
+    pub async fn mcp_register_server(
+        &self,
+        server_id: &str,
+        endpoint_url: &str,
+        discover_live: bool,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "server_id": server_id,
+            "endpoint_url": endpoint_url,
+            "discover_live": discover_live,
+        });
+        self.request_json("POST", "/api/v1/mcp/host/servers", Some(&body))
+            .await
+    }
+
+    /// List all native + remote MCP tools registered on JouleDB's MCP Host (`GET /api/v1/mcp/host/tools`).
+    pub async fn mcp_list_tools(&self) -> Result<JsonValue> {
+        self.request_json("GET", "/api/v1/mcp/host/tools", None)
+            .await
+    }
+
+    /// Invoke a native or remote MCP tool under `JoulePulse` + `JouleWard` (`POST /api/v1/mcp/host/call`).
+    pub async fn mcp_call_tool(&self, tool_name: &str, arguments: JsonValue) -> Result<JsonValue> {
+        let body = json!({
+            "tool_name": tool_name,
+            "arguments": arguments,
+        });
+        self.request_json("POST", "/api/v1/mcp/host/call", Some(&body))
+            .await
+    }
+
+    /// Execute an autonomous multi-turn SQL/MCP/`Titans` agent loop (`POST /api/v1/agent/run`).
+    pub async fn agent_run(&self, goal: &str, max_turns: usize) -> Result<JsonValue> {
+        let body = json!({
+            "goal": goal,
+            "max_turns": max_turns,
+            "commit_to_titans": true,
+        });
+        self.request_json("POST", "/api/v1/agent/run", Some(&body))
+            .await
+    }
 }
 
 fn decode_chunked_body(raw: &[u8]) -> Result<Vec<u8>> {
