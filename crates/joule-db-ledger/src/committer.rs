@@ -796,7 +796,6 @@ mod tests {
                 qid: "q1".to_string(),
                 tenant_id: "t1".to_string(),
                 workload_tag: None,
-                branch_id: None,
                 energy_joules_total: 0.005,
                 energy_joules_by_stage: Default::default(),
                 kwh: 0.005 / 3_600_000.0,
@@ -807,6 +806,8 @@ mod tests {
                 timestamp_end: ts,
                 device_target: "cpu".to_string(),
                 algorithm_type: "btree".to_string(),
+                branch_id: None,
+                provenance: None,
             };
             tx.send(receipt).await.unwrap();
         }
@@ -1124,7 +1125,6 @@ mod tests {
             qid: id.to_string(),
             tenant_id: "t1".to_string(),
             workload_tag: None,
-            branch_id: None,
             energy_joules_total: 0.005,
             energy_joules_by_stage: Default::default(),
             kwh: 0.005 / 3_600_000.0,
@@ -1135,6 +1135,8 @@ mod tests {
             timestamp_end: ts,
             device_target: "cpu".to_string(),
             algorithm_type: "btree".to_string(),
+            branch_id: None,
+            provenance: None,
         }
     }
 

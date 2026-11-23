@@ -1,0 +1,49 @@
+{
+  "certified_at_utc": "2026-11-22T15:55:17.704822+00:00",
+  "platform_slug": "amd-ryzen-z1-extreme-edge",
+  "os": "Linux",
+  "arch": "x86_64",
+  "gpu_adapter": null,
+  "node_descriptor": {
+    "battery_charging": false,
+    "battery_soc_pct": null,
+    "current_power_watts": 16.25,
+    "endpoint_url": null,
+    "grid_carbon_g_per_kwh": 140.0,
+    "interconnect": "local_in_process",
+    "lanes": [
+      "cpu_scalar_simd",
+      "popcnt_bitwise",
+      "ternary158_bit",
+      "wasm_sandbox"
+    ],
+    "memory_bus": "cxl_pooled",
+    "node_class": "cloud_cxl",
+    "node_id": "cert-amd-ryzen-z1-extreme-edge",
+    "tdp_watts": 65.0,
+    "thermal_state": "Nominal",
+    "utilization": 0.15
+  },
+  "live_sensor_watts": 0.7685899794101715,
+  "thermal_state": "Nominal",
+  "probes": {
+    "sql_semantic_ok": true,
+    "gpu_or_simd_lane": {
+      "executed_lane": "cpu_scalar_simd",
+      "hardware_backend": "rabitq-popcnt-simd",
+      "wall_time_us": 1988,
+      "total_energy_uj": 549.4538239999999,
+      "energy_saved_vs_worst_uj": 0.0
+    },
+    "ternary_158bit_lane": {
+      "executed_lane": "ternary158_bit",
+      "hardware_backend": "ternary-1.58bit-5trit-lut",
+      "wall_time_us": 314,
+      "total_energy_uj": 0.9961472
+    },
+    "hmi_sigql_ok": true,
+    "post_docker_joule_capsule_cow_ok": true,
+    "swot_trimodal_hipporag_ppr_ok": true,
+    "post_silo_joulespace_barge_in_ok": true
+  }
+}

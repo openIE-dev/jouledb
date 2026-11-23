@@ -1,0 +1,24 @@
+[Unit]
+Description=JouleDB — Energy-First Embodied & Edge Heterogeneous Database
+Documentation=https://github.com/joulesperbit/joulesperbit
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jouledb
+Group=jouledb
+Environment=JOULEDB_BIND_HOST=0.0.0.0
+Environment=JOULEDB_FABRIC_NODE_CLASS=edge_robotic
+Environment=JOULEDB_LEDGER_ENABLED=1
+Environment=JOULEDB_LEDGER_DIR=/var/lib/jouledb/ledger
+ExecStart=/usr/local/bin/jouledb --port 8080 --data /var/lib/jouledb/data
+Restart=always
+RestartSec=2
+LimitNOFILE=1048576
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/jouledb
+
+[Install]
+WantedBy=multi-user.target

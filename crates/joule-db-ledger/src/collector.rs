@@ -152,6 +152,7 @@ impl ReceiptCollector {
             timestamp_end,
             device_target: device_target.to_string(),
             algorithm_type: algorithm_type.to_string(),
+            provenance: None,
         };
 
         if let Some(stages) = stage_energy {

@@ -64,7 +64,10 @@ impl<V: Clone> KdTree3<V> {
     /// longest-spread axis at each level. Empty input → empty tree.
     pub fn build(points: Vec<(Point3, V)>) -> Self {
         if points.is_empty() {
-            return Self { nodes: Vec::new(), root: None };
+            return Self {
+                nodes: Vec::new(),
+                root: None,
+            };
         }
 
         let mut nodes = Vec::with_capacity(points.len());
@@ -73,7 +76,10 @@ impl<V: Clone> KdTree3<V> {
         let mut points = points;
         let mut idx: Vec<usize> = (0..points.len()).collect();
         let root = build_recursive(&mut points, &mut idx[..], &mut nodes);
-        Self { nodes, root: Some(root) }
+        Self {
+            nodes,
+            root: Some(root),
+        }
     }
 
     /// Number of points in the tree.
@@ -103,7 +109,9 @@ impl<V: Clone> KdTree3<V> {
         if k == 0 || self.is_empty() {
             return Vec::new();
         }
-        let Some(root) = self.root else { return Vec::new() };
+        let Some(root) = self.root else {
+            return Vec::new();
+        };
 
         // Bounded max-heap of (squared distance, node index).
         // We use a Vec sorted by squared distance descending; the worst
@@ -114,7 +122,7 @@ impl<V: Clone> KdTree3<V> {
         knn_recursive(&self.nodes, root, query, k, &mut heap);
 
         // Sort ascending by distance.
-        heap.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        heap.sort_by(|a, b| a.0.total_cmp(&b.0));
         heap.into_iter()
             .map(|(d2, i)| {
                 let n = &self.nodes[i];
@@ -309,7 +317,11 @@ fn knn_recursive<V>(
         knn_recursive(nodes, n, query, k, heap);
     }
 
-    let worst = if heap.len() == k { heap[0].0 } else { f64::INFINITY };
+    let worst = if heap.len() == k {
+        heap[0].0
+    } else {
+        f64::INFINITY
+    };
     if diff * diff < worst {
         if let Some(f) = far {
             knn_recursive(nodes, f, query, k, heap);
@@ -320,15 +332,18 @@ fn knn_recursive<V>(
 /// Bounded max-heap (slot 0 = worst). Push if there's room or this beats
 /// the worst, then re-establish the worst at slot 0 by linear scan.
 fn push_bounded(heap: &mut Vec<(f64, usize)>, k: usize, d2: f64, idx: usize) {
+    if k == 0 {
+        return;
+    }
     if heap.len() < k {
         heap.push((d2, idx));
         // Find new worst.
         let worst_pos = heap
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.0.partial_cmp(&b.1.0).unwrap())
+            .max_by(|a, b| a.1.0.total_cmp(&b.1.0))
             .map(|(i, _)| i)
-            .unwrap();
+            .unwrap_or(0);
         heap.swap(0, worst_pos);
     } else if d2 < heap[0].0 {
         heap[0] = (d2, idx);
@@ -336,19 +351,14 @@ fn push_bounded(heap: &mut Vec<(f64, usize)>, k: usize, d2: f64, idx: usize) {
         let worst_pos = heap
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.0.partial_cmp(&b.1.0).unwrap())
+            .max_by(|a, b| a.1.0.total_cmp(&b.1.0))
             .map(|(i, _)| i)
-            .unwrap();
+            .unwrap_or(0);
         heap.swap(0, worst_pos);
     }
 }
 
-fn range_recursive<V>(
-    nodes: &[Node<V>],
-    cur: usize,
-    bbox: &Bbox3,
-    hits: &mut Vec<usize>,
-) {
+fn range_recursive<V>(nodes: &[Node<V>], cur: usize, bbox: &Bbox3, hits: &mut Vec<usize>) {
     let node = &nodes[cur];
     if bbox.contains(node.point) {
         hits.push(cur);
@@ -428,9 +438,7 @@ mod tests {
 
     #[test]
     fn knn_returns_sorted_by_distance() {
-        let pts: Vec<_> = (0..20)
-            .map(|i| (p(i as f64, 0.0, 0.0), i as u32))
-            .collect();
+        let pts: Vec<_> = (0..20).map(|i| (p(i as f64, 0.0, 0.0), i as u32)).collect();
         let t = KdTree3::build(pts);
 
         let result = t.knn(p(5.0, 0.0, 0.0), 5);
@@ -477,10 +485,7 @@ mod tests {
 
     #[test]
     fn range_query_empty_when_disjoint() {
-        let pts = vec![
-            (p(0.0, 0.0, 0.0), 1u32),
-            (p(1.0, 1.0, 1.0), 2u32),
-        ];
+        let pts = vec![(p(0.0, 0.0, 0.0), 1u32), (p(1.0, 1.0, 1.0), 2u32)];
         let t = KdTree3::build(pts);
         let bbox = Bbox3::new(p(100.0, 100.0, 100.0), p(200.0, 200.0, 200.0));
         assert!(t.range(bbox).is_empty());

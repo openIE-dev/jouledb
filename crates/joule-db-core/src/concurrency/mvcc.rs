@@ -231,6 +231,18 @@ impl VersionChain {
     }
 }
 
+/// Transaction isolation level for MVCC transactions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum IsolationLevel {
+    /// Snapshot Isolation (SI) with First-Committer-Wins write-conflict detection.
+    #[default]
+    Snapshot,
+    /// Serializable Snapshot Isolation (SSI): prevents write-skew and phantom
+    /// range anomalies for read-write transactions while keeping read-only
+    /// transactions 100% non-blocking and abort-free.
+    Serializable,
+}
+
 /// MVCC transaction state
 #[derive(Debug)]
 pub struct MvccTransaction {
@@ -242,8 +254,12 @@ pub struct MvccTransaction {
     commit_ts: Option<u64>,
     /// Current state
     state: TxState,
-    /// Keys read during transaction (for validation)
+    /// Isolation level (Snapshot vs Serializable)
+    isolation: IsolationLevel,
+    /// Keys read during transaction (for validation; 0 = key was absent/phantom at read_ts)
     read_set: HashMap<Vec<u8>, u64>, // key -> version_ts read
+    /// Prefix ranges scanned during transaction (predicate read locks for SSI)
+    scanned_prefixes: Vec<Vec<u8>>,
     /// Keys written during transaction
     write_set: HashMap<Vec<u8>, Option<Vec<u8>>>, // key -> value (None = delete)
     /// Reference to version store
@@ -251,8 +267,13 @@ pub struct MvccTransaction {
 }
 
 impl MvccTransaction {
-    /// Create new MVCC transaction
+    /// Create new MVCC transaction with Snapshot Isolation (default)
     fn new(store: Arc<MvccStore>) -> Self {
+        Self::new_with_isolation(store, IsolationLevel::Snapshot)
+    }
+
+    /// Create new MVCC transaction with explicit isolation level
+    fn new_with_isolation(store: Arc<MvccStore>, isolation: IsolationLevel) -> Self {
         let ts = next_timestamp();
         let id = ts;
         let read_ts = ts;
@@ -265,10 +286,17 @@ impl MvccTransaction {
             read_ts,
             commit_ts: None,
             state: TxState::Active,
+            isolation,
             read_set: HashMap::new(),
+            scanned_prefixes: Vec::new(),
             write_set: HashMap::new(),
             store,
         }
+    }
+
+    /// Get transaction isolation level
+    pub fn isolation(&self) -> IsolationLevel {
+        self.isolation
     }
 
     /// Get transaction ID
@@ -326,12 +354,23 @@ impl MvccTransaction {
         // Read from version store
         let (value, version_ts) = self.store.read(key, self.read_ts, self.id)?;
 
-        // Track in read set for validation
-        if let Some(ts) = version_ts {
-            self.read_set.insert(key.to_vec(), ts);
-        }
+        // Track in read set for validation (0 = key was absent at read_ts, catches phantoms under SSI)
+        self.read_set
+            .entry(key.to_vec())
+            .or_insert(version_ts.unwrap_or(0));
 
         Ok(value)
+    }
+
+    /// Clean up any uncommitted intent versions written by this transaction and unregister
+    /// from `active_txns` so `oldest_active_ts` and MVCC GC never wedge.
+    fn cleanup_uncommitted(&mut self) {
+        if !self.write_set.is_empty() {
+            let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
+            let _ = self.store.abort_transaction_keys(self.id, &keys);
+            self.write_set.clear();
+        }
+        self.store.unregister_active(self.id);
     }
 
     /// Write a value
@@ -340,18 +379,15 @@ impl MvccTransaction {
             return Err(TransactionError::AlreadyAborted { tx_id: self.id });
         }
 
-        // Check for write-write conflicts with other uncommitted transactions
-        if let Some(holder) = self.store.check_write_conflict_detailed(key, self.id)? {
+        // Atomically check write-write conflicts & write intent under a single write lock
+        if let Err(err) = self
+            .store
+            .write_intent(key, Some(value.to_vec()), self.read_ts, self.id)
+        {
+            self.cleanup_uncommitted();
             self.state = TxState::Aborted;
-            return Err(TransactionError::WriteConflict {
-                key: key.to_vec(),
-                holder_tx_id: holder,
-            });
+            return Err(err);
         }
-
-        // Write intent version to store (uncommitted)
-        self.store
-            .write_intent(key, Some(value.to_vec()), self.read_ts, self.id)?;
 
         // Add to write set for tracking
         self.write_set.insert(key.to_vec(), Some(value.to_vec()));
@@ -368,17 +404,12 @@ impl MvccTransaction {
         // Check if key exists
         let existed = self.get(key)?.is_some();
 
-        // Check for write-write conflicts with other uncommitted transactions
-        if let Some(holder) = self.store.check_write_conflict_detailed(key, self.id)? {
+        // Atomically check write-write conflicts & write tombstone intent
+        if let Err(err) = self.store.write_intent(key, None, self.read_ts, self.id) {
+            self.cleanup_uncommitted();
             self.state = TxState::Aborted;
-            return Err(TransactionError::WriteConflict {
-                key: key.to_vec(),
-                holder_tx_id: holder,
-            });
+            return Err(err);
         }
-
-        // Write tombstone intent to store (uncommitted)
-        self.store.write_intent(key, None, self.read_ts, self.id)?;
 
         // Add tombstone to write set
         self.write_set.insert(key.to_vec(), None);
@@ -408,9 +439,12 @@ impl MvccTransaction {
             }
         }
 
-        // Track reads for validation
-        // (We don't track individual version_ts for prefix scans, but record
-        // that we scanned this prefix range — fine for snapshot isolation)
+        // Track prefix predicate read for Serializable Snapshot Isolation (SSI)
+        if self.isolation == IsolationLevel::Serializable
+            && !self.scanned_prefixes.iter().any(|p| p.as_slice() == prefix)
+        {
+            self.scanned_prefixes.push(prefix.to_vec());
+        }
 
         // Collect non-tombstone entries
         Ok(result_map
@@ -419,25 +453,43 @@ impl MvccTransaction {
             .collect())
     }
 
-    /// Validate transaction (check for serialization conflicts)
-    fn validate(&self) -> Result<bool, TransactionError> {
-        // For snapshot isolation with first-committer-wins:
-        // Check if any key we're WRITING TO was modified by another
-        // committed transaction after our read timestamp
+    /// Validate transaction (check for write-write and optional SSI rw-antidependency conflicts)
+    fn validate(&self) -> Result<Option<&'static str>, TransactionError> {
+        // 1. Snapshot Isolation (First-Committer-Wins):
+        // Check if any key we're WRITING TO was modified by another committed tx after read_ts
         for key in self.write_set.keys() {
             if let Some(latest_ts) = self.store.get_latest_committed_ts(key)? {
-                // If someone committed a newer version to a key we're writing,
-                // that's a write-write conflict (first-committer-wins)
                 if latest_ts > self.read_ts {
-                    return Ok(false);
+                    return Ok(Some("write-write conflict detected"));
                 }
             }
         }
 
-        // Note: Pure read keys don't cause conflicts in snapshot isolation.
-        // The transaction sees a consistent snapshot from read_ts.
+        // 2. Serializable Snapshot Isolation (SSI):
+        // Read-only transactions are always serializable at `read_ts` without validation.
+        // Read-write transactions additionally validate point reads (including absent-key phantoms)
+        // and scanned prefix ranges to eliminate write-skew and phantom anomalies.
+        if self.isolation == IsolationLevel::Serializable && !self.write_set.is_empty() {
+            for key in self.read_set.keys() {
+                if let Some(latest_ts) = self.store.get_latest_committed_ts(key)? {
+                    if latest_ts > self.read_ts {
+                        return Ok(Some(
+                            "SSI rw-antidependency (write-skew) conflict on read key",
+                        ));
+                    }
+                }
+            }
 
-        Ok(true)
+            if !self.scanned_prefixes.is_empty()
+                && self
+                    .store
+                    .has_prefix_committed_after(&self.scanned_prefixes, self.read_ts)?
+            {
+                return Ok(Some("SSI predicate-range phantom conflict detected"));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Commit the transaction
@@ -446,26 +498,44 @@ impl MvccTransaction {
             return Err(TransactionError::AlreadyCommitted { tx_id: self.id });
         }
 
-        // Validate for serialization conflicts
-        if !self.validate()? {
+        // Fast path for read-only transactions: always serializable at `read_ts`
+        if self.write_set.is_empty() {
+            let commit_ts = next_timestamp();
+            self.commit_ts = Some(commit_ts);
+            self.store.unregister_active(self.id);
+            self.state = TxState::Committed;
+            return Ok(());
+        }
+
+        // Serialize validate + commit publication so concurrent SSI write-skew
+        // transactions cannot pass validation simultaneously before publishing commit_ts.
+        let commit_guard = self
+            .store
+            .commit_lock
+            .lock()
+            .map_err(|_| TransactionError::SerializationFailure {
+                reason: "commit_lock poisoned".to_string(),
+            })?;
+
+        if let Some(conflict_reason) = self.validate()? {
+            drop(commit_guard);
             self.state = TxState::Aborted;
             self.store.unregister_active(self.id);
             let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
             self.store.abort_transaction_keys(self.id, &keys)?;
             return Err(TransactionError::SerializationFailure {
-                reason: "write-write conflict detected".to_string(),
+                reason: conflict_reason.to_string(),
             });
         }
 
-        // Get commit timestamp
+        // Get commit timestamp and publish atomically while holding commit_guard
         let commit_ts = next_timestamp();
         self.commit_ts = Some(commit_ts);
 
-        // Update intent versions with commit timestamp and mark committed
-        // Only visit the keys this transaction actually wrote (O(write_set) not O(total_keys))
         let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
         self.store
             .commit_transaction_with_ts_keys(self.id, commit_ts, &keys)?;
+        drop(commit_guard);
 
         // Unregister as active
         self.store.unregister_active(self.id);
@@ -476,19 +546,27 @@ impl MvccTransaction {
 
     /// Rollback the transaction
     pub fn rollback(mut self) -> Result<(), TransactionError> {
-        if self.state != TxState::Active {
+        if self.state == TxState::Committed {
+            return Err(TransactionError::AlreadyCommitted { tx_id: self.id });
+        }
+        let was_already_aborted = self.state == TxState::Aborted;
+        self.cleanup_uncommitted();
+        self.state = TxState::Aborted;
+        if was_already_aborted {
             return Err(TransactionError::AlreadyAborted { tx_id: self.id });
         }
-
-        // Abort only the versions this transaction wrote (O(write_set) not O(total_keys))
-        let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
-        self.store.abort_transaction_keys(self.id, &keys)?;
-
-        // Unregister as active
-        self.store.unregister_active(self.id);
-
-        self.state = TxState::Aborted;
         Ok(())
+    }
+}
+
+impl Drop for MvccTransaction {
+    fn drop(&mut self) {
+        // Guarantee RAII cleanup if a transaction is dropped via `?`, panic, or timeout
+        // without calling `commit()` or `rollback()`.
+        if self.state == TxState::Active {
+            self.cleanup_uncommitted();
+            self.state = TxState::Aborted;
+        }
     }
 }
 
@@ -499,6 +577,8 @@ pub struct MvccStore {
     chains: RwLock<HashMap<Vec<u8>, VersionChain>>,
     /// Active transaction IDs
     active_txns: Mutex<HashSet<TxId>>,
+    /// Serializes validate + commit publication for SSI serializability
+    commit_lock: Mutex<()>,
     /// Oldest active transaction read timestamp (for GC)
     oldest_active_ts: AtomicU64,
     /// Garbage collection threshold (number of versions before GC runs)
@@ -513,6 +593,7 @@ impl MvccStore {
         Self {
             chains: RwLock::new(HashMap::new()),
             active_txns: Mutex::new(HashSet::new()),
+            commit_lock: Mutex::new(()),
             oldest_active_ts: AtomicU64::new(0),
             gc_threshold: 10000,
             version_count: AtomicU64::new(0),
@@ -524,6 +605,7 @@ impl MvccStore {
         Self {
             chains: RwLock::new(HashMap::new()),
             active_txns: Mutex::new(HashSet::new()),
+            commit_lock: Mutex::new(()),
             oldest_active_ts: AtomicU64::new(0),
             gc_threshold,
             version_count: AtomicU64::new(0),
@@ -566,14 +648,14 @@ impl MvccStore {
         read_ts: u64,
         tx_id: TxId,
     ) -> Result<(Option<Vec<u8>>, Option<u64>), TransactionError> {
+        let active = self.get_active_txns();
+
         let chains = self
             .chains
             .read()
             .map_err(|_| TransactionError::SerializationFailure {
                 reason: "lock poisoned".to_string(),
             })?;
-
-        let active = self.get_active_txns();
 
         if let Some(chain) = chains.get(key) {
             // First check for our own uncommitted write
@@ -601,6 +683,8 @@ impl MvccStore {
         read_ts: u64,
         tx_id: TxId,
     ) -> Result<HashMap<Vec<u8>, Option<Vec<u8>>>, TransactionError> {
+        let active = self.get_active_txns();
+
         let chains = self
             .chains
             .read()
@@ -608,7 +692,6 @@ impl MvccStore {
                 reason: "lock poisoned".to_string(),
             })?;
 
-        let active = self.get_active_txns();
         let mut results = HashMap::new();
 
         for (key, chain) in chains.iter() {
@@ -685,7 +768,7 @@ impl MvccStore {
         Ok(None)
     }
 
-    /// Write an intent (uncommitted version) to the store
+    /// Write an intent (uncommitted version) to the store atomically checking write-write conflicts
     fn write_intent(
         &self,
         key: &[u8],
@@ -701,6 +784,16 @@ impl MvccStore {
                 })?;
 
         let chain = chains.entry(key.to_vec()).or_insert_with(VersionChain::new);
+
+        // Atomically reject concurrent uncommitted writers under the exclusive `chains` lock (no TOCTOU!)
+        for version in chain.versions.iter().rev() {
+            if !version.committed && version.created_by != tx_id {
+                return Err(TransactionError::WriteConflict {
+                    key: key.to_vec(),
+                    holder_tx_id: version.created_by,
+                });
+            }
+        }
 
         // Check if we already have an intent from this transaction
         if let Some(existing) = chain.find_by_txn_mut(tx_id) {
@@ -734,6 +827,33 @@ impl MvccStore {
             })?;
 
         Ok(chains.get(key).and_then(|c| c.latest_committed_ts()))
+    }
+
+    /// Check if any key matching any of `prefixes` committed after `read_ts` (for SSI phantom prevention).
+    fn has_prefix_committed_after(
+        &self,
+        prefixes: &[Vec<u8>],
+        read_ts: u64,
+    ) -> Result<bool, TransactionError> {
+        let chains = self
+            .chains
+            .read()
+            .map_err(|_| TransactionError::SerializationFailure {
+                reason: "lock poisoned".to_string(),
+            })?;
+
+        for (key, chain) in chains.iter() {
+            if let Some(latest_ts) = chain.latest_committed_ts() {
+                if latest_ts > read_ts
+                    && prefixes
+                        .iter()
+                        .any(|prefix| key.starts_with(prefix.as_slice()))
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
     }
 
     /// Commit all versions for a transaction
@@ -930,9 +1050,19 @@ impl MvccTransactionManager {
         }
     }
 
-    /// Begin a new transaction
+    /// Begin a new transaction (Snapshot Isolation by default)
     pub fn begin(&self) -> MvccTransaction {
         MvccTransaction::new(self.store.clone())
+    }
+
+    /// Begin a new transaction with Serializable Snapshot Isolation (SSI)
+    pub fn begin_serializable(&self) -> MvccTransaction {
+        MvccTransaction::new_with_isolation(self.store.clone(), IsolationLevel::Serializable)
+    }
+
+    /// Begin a new transaction with explicit isolation level
+    pub fn begin_with_isolation(&self, isolation: IsolationLevel) -> MvccTransaction {
+        MvccTransaction::new_with_isolation(self.store.clone(), isolation)
     }
 
     /// Get store statistics
@@ -1397,5 +1527,84 @@ mod tests {
         let results = tx.scan_prefix(&encode_table_prefix("t")).unwrap();
         assert_eq!(results.len(), 1);
         tx.commit().unwrap();
+    }
+
+    #[test]
+    fn test_ssi_prevents_classic_write_skew_anomaly() {
+        // Classic Cahill write-skew invariant: account_a + account_b >= 100.
+        // Start with account_a = 100, account_b = 100 (sum = 200).
+        let manager = MvccTransactionManager::new();
+        {
+            let mut seed = manager.begin_serializable();
+            seed.put(b"acct:a", b"100").unwrap();
+            seed.put(b"acct:b", b"100").unwrap();
+            seed.commit().unwrap();
+        }
+
+        // T1 and T2 start concurrently under Serializable Snapshot Isolation:
+        // T1 reads both, withdraws 100 from A; T2 reads both, withdraws 100 from B.
+        let mut tx1 = manager.begin_serializable();
+        let mut tx2 = manager.begin_serializable();
+
+        assert_eq!(tx1.get(b"acct:a").unwrap().as_deref(), Some(&b"100"[..]));
+        assert_eq!(tx1.get(b"acct:b").unwrap().as_deref(), Some(&b"100"[..]));
+
+        assert_eq!(tx2.get(b"acct:a").unwrap().as_deref(), Some(&b"100"[..]));
+        assert_eq!(tx2.get(b"acct:b").unwrap().as_deref(), Some(&b"100"[..]));
+
+        tx1.put(b"acct:a", b"0").unwrap();
+        tx2.put(b"acct:b", b"0").unwrap();
+
+        // First committer succeeds; second MUST fail SSI rw-antidependency check!
+        tx1.commit().unwrap();
+        let err = tx2.commit().unwrap_err();
+        assert!(
+            matches!(err, TransactionError::SerializationFailure { .. }),
+            "expected SSI SerializationFailure on write-skew, got {err:?}"
+        );
+
+        // Invariant preserved: sum is 100 >= 100, not 0!
+        let a: i32 = std::str::from_utf8(&manager.get(b"acct:a").unwrap())
+            .unwrap()
+            .parse()
+            .unwrap();
+        let b: i32 = std::str::from_utf8(&manager.get(b"acct:b").unwrap())
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(a + b, 100);
+    }
+
+    #[test]
+    fn test_ssi_prevents_prefix_phantom_skew() {
+        // Two agents concurrently check "are any doctors on-call (`oncall:*`)?"
+        // If only 2 exist, neither may go off-call if the other just went off-call or inserted.
+        let manager = MvccTransactionManager::new();
+        {
+            let mut seed = manager.begin_serializable();
+            seed.put(b"oncall:alice", b"true").unwrap();
+            seed.commit().unwrap();
+        }
+
+        let mut tx1 = manager.begin_serializable();
+        let mut tx2 = manager.begin_serializable();
+
+        let scan1 = tx1.scan_prefix(b"oncall:").unwrap();
+        let scan2 = tx2.scan_prefix(b"oncall:").unwrap();
+        assert_eq!(scan1.len(), 1);
+        assert_eq!(scan2.len(), 1);
+
+        // tx1 inserts bob into `oncall:` prefix and commits; tx2 tries to write summary based on stale scan
+        tx1.put(b"oncall:bob", b"true").unwrap();
+        tx1.commit().unwrap();
+
+        tx2.put(b"summary:count", b"1").unwrap();
+        assert!(
+            matches!(
+                tx2.commit(),
+                Err(TransactionError::SerializationFailure { .. })
+            ),
+            "SSI must abort transaction whose scanned prefix suffered a phantom insert"
+        );
     }
 }

@@ -663,13 +663,14 @@ impl RaftWal {
             return Ok(state);
         }
 
-        let mut cursor = 0;
+        let mut cursor = 0usize;
+        let mut valid_cursor = 0usize;
         let mut entries_replayed = 0;
         let mut meta_replayed = 0;
 
         while cursor < data.len() {
             // Need at least type byte + CRC
-            if cursor + 5 > data.len() {
+            if data.len().saturating_sub(cursor) < 5 {
                 tracing::warn!(
                     "WAL: truncated record at offset {}, stopping replay",
                     cursor
@@ -682,15 +683,21 @@ impl RaftWal {
 
             match record_type {
                 WAL_TYPE_ENTRY => {
-                    if cursor + 4 > data.len() {
+                    if data.len().saturating_sub(cursor) < 4 {
                         tracing::warn!("WAL: truncated entry length at offset {}", cursor - 1);
                         break;
                     }
-                    let len =
-                        u32::from_le_bytes(data[cursor..cursor + 4].try_into().unwrap()) as usize;
+                    let mut len_b = [0u8; 4];
+                    len_b.copy_from_slice(&data[cursor..cursor + 4]);
+                    let len = u32::from_le_bytes(len_b) as usize;
                     cursor += 4;
 
-                    if cursor + len + 4 > data.len() {
+                    let Some(record_end) = cursor.checked_add(len).and_then(|n| n.checked_add(4))
+                    else {
+                        tracing::warn!("WAL: entry length overflow at offset {}", cursor);
+                        break;
+                    };
+                    if record_end > data.len() {
                         tracing::warn!("WAL: truncated entry payload at offset {}", cursor);
                         break;
                     }
@@ -698,8 +705,9 @@ impl RaftWal {
                     // Verify CRC: covers type(1) + len(4) + payload(len)
                     let record_start = cursor - 5; // back to type byte
                     let crc_offset = cursor + len;
-                    let expected_crc =
-                        u32::from_le_bytes(data[crc_offset..crc_offset + 4].try_into().unwrap());
+                    let mut crc_b = [0u8; 4];
+                    crc_b.copy_from_slice(&data[crc_offset..crc_offset + 4]);
+                    let expected_crc = u32::from_le_bytes(crc_b);
                     let actual_crc = crc32fast::hash(&data[record_start..crc_offset]);
                     if expected_crc != actual_crc {
                         tracing::warn!(
@@ -711,67 +719,86 @@ impl RaftWal {
                         break;
                     }
 
-                    let (entry, _): (LogEntry, _) = bincode::serde::decode_from_slice(
+                    let Ok((entry, _)): Result<(LogEntry, _), _> = bincode::serde::decode_from_slice(
                         &data[cursor..cursor + len],
                         bincode::config::standard(),
-                    )
-                    .map_err(|e| format!("WAL entry deserialize: {}", e))?;
+                    ) else {
+                        tracing::warn!("WAL: corrupt bincode entry at offset {}, stopping", record_start);
+                        break;
+                    };
 
-                    // Only apply if this entry is beyond what's in the snapshot
+                    // Raft §5.3 conflict overwrite safety during WAL replay:
+                    // if an entry in the WAL overwrites a conflicting term at `entry.index`,
+                    // truncate `entry.index` and all uncommitted tail entries from the old term!
+                    if let Some(existing_term) = state.get_term(entry.index)
+                        && existing_term != entry.term
+                    {
+                        state.truncate_from(entry.index);
+                    }
                     if entry.index > state.last_log_index() {
                         state.log.push(entry);
                         entries_replayed += 1;
                     }
 
-                    cursor = crc_offset + 4;
+                    cursor = record_end;
+                    valid_cursor = cursor;
                 }
                 WAL_TYPE_META => {
-                    if cursor + 9 > data.len() {
+                    if data.len().saturating_sub(cursor) < 9 {
                         tracing::warn!("WAL: truncated meta at offset {}", cursor - 1);
                         break;
                     }
 
                     let record_start = cursor - 1;
-                    let term = u64::from_le_bytes(data[cursor..cursor + 8].try_into().unwrap());
+                    let mut term_b = [0u8; 8];
+                    term_b.copy_from_slice(&data[cursor..cursor + 8]);
+                    let term = u64::from_le_bytes(term_b);
                     cursor += 8;
 
                     let has_voted = data[cursor];
                     cursor += 1;
 
                     let voted_for = if has_voted == 1 {
-                        if cursor + 4 > data.len() {
+                        if data.len().saturating_sub(cursor) < 4 {
                             tracing::warn!("WAL: truncated voted_for at offset {}", cursor);
                             break;
                         }
-                        let id_len =
-                            u32::from_le_bytes(data[cursor..cursor + 4].try_into().unwrap())
-                                as usize;
+                        let mut id_len_b = [0u8; 4];
+                        id_len_b.copy_from_slice(&data[cursor..cursor + 4]);
+                        let id_len = u32::from_le_bytes(id_len_b) as usize;
                         cursor += 4;
-                        if cursor + id_len > data.len() {
+                        if data.len().saturating_sub(cursor) < id_len {
                             tracing::warn!("WAL: truncated voted_for string at offset {}", cursor);
                             break;
                         }
-                        let id = String::from_utf8(data[cursor..cursor + id_len].to_vec())
-                            .map_err(|e| format!("WAL voted_for UTF-8: {}", e))?;
+                        let Ok(id) = String::from_utf8(data[cursor..cursor + id_len].to_vec()) else {
+                            tracing::warn!("WAL: invalid UTF-8 voted_for at offset {}, stopping", record_start);
+                            break;
+                        };
                         cursor += id_len;
                         Some(id)
-                    } else {
+                    } else if has_voted == 0 {
                         None
+                    } else {
+                        tracing::warn!("WAL: invalid has_voted flag {} at offset {}, stopping", has_voted, record_start);
+                        break;
                     };
 
                     // Verify CRC
-                    if cursor + 4 > data.len() {
+                    if data.len().saturating_sub(cursor) < 4 {
                         tracing::warn!("WAL: truncated meta CRC at offset {}", cursor);
                         break;
                     }
-                    let expected_crc =
-                        u32::from_le_bytes(data[cursor..cursor + 4].try_into().unwrap());
+                    let mut mcrc_b = [0u8; 4];
+                    mcrc_b.copy_from_slice(&data[cursor..cursor + 4]);
+                    let expected_crc = u32::from_le_bytes(mcrc_b);
                     let actual_crc = crc32fast::hash(&data[record_start..cursor]);
                     if expected_crc != actual_crc {
                         tracing::warn!("WAL: meta CRC mismatch, stopping");
                         break;
                     }
                     cursor += 4;
+                    valid_cursor = cursor;
 
                     state.current_term = term;
                     state.voted_for = voted_for;
@@ -786,6 +813,15 @@ impl RaftWal {
                     break;
                 }
             }
+        }
+
+        // Truncate any torn/corrupted power-loss tail bytes from `raft.wal` BEFORE `RaftWal::open`
+        // opens the file with `.append(true)`, preventing post-recovery writes from hiding behind garbage!
+        if valid_cursor < data.len()
+            && let Ok(f) = std::fs::OpenOptions::new().write(true).open(&wal_path)
+        {
+            let _ = f.set_len(valid_cursor as u64);
+            let _ = f.sync_all();
         }
 
         if entries_replayed > 0 || meta_replayed > 0 {
@@ -1750,8 +1786,10 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         for (peer, result) in results {
             match result {
                 Ok(response) => {
-                    // Check if we're still a candidate
-                    if *self.state.read().await != RaftState::Candidate {
+                    // Check if we're still a candidate IN THE SAME ELECTION TERM (Raft §5.2)!
+                    if *self.state.read().await != RaftState::Candidate
+                        || self.current_term().await != term
+                    {
                         return;
                     }
 
@@ -1761,7 +1799,7 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
                         return;
                     }
 
-                    if response.vote_granted {
+                    if response.term == term && response.vote_granted {
                         votes_received.insert(peer);
                         self.stats.votes_granted.fetch_add(1, Ordering::Relaxed);
 
@@ -1959,7 +1997,11 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         // Process responses
         let results = futures::future::join_all(append_futures).await;
 
-        let current_term = self.current_term().await;
+        // Verify we are STILL Leader in the SAME `term` that sent the AppendEntries RPCs!
+        if !self.is_leader().await || self.current_term().await != term {
+            return;
+        }
+        let current_term = term;
 
         for (peer, result) in results {
             match result {
@@ -2216,13 +2258,26 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
             };
         }
 
-        // If RPC request contains term >= currentTerm, recognize leader
-        if request.term >= persistent.current_term {
-            persistent.current_term = request.term;
-            persistent.voted_for = None;
+        // Raft §5.1 / §5.2 Election Safety:
+        // - ONLY clear `voted_for = None` when `request.term > persistent.current_term`!
+        // - When `request.term == persistent.current_term`, recognize the leader and step down
+        //   from Candidate to Follower WITHOUT erasing `voted_for` (otherwise a follower could
+        //   grant a second vote in the same term and create a split-brain second leader!).
+        if request.term > persistent.current_term {
             drop(persistent);
             self.become_follower(request.term, Some(request.leader_id.clone()))
                 .await;
+            persistent = self.persistent.write().await;
+        } else {
+            drop(persistent);
+            {
+                let mut state = self.state.write().await;
+                if *state != RaftState::Follower {
+                    *state = RaftState::Follower;
+                    *self.leader_state.write().await = None;
+                }
+                *self.leader_id.write().await = Some(request.leader_id.clone());
+            }
             persistent = self.persistent.write().await;
         }
 
@@ -2274,10 +2329,12 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         // If an existing entry conflicts with a new one (same index
         // but different terms), delete the existing entry and all that
         // follow it (§5.3)
+        let mut truncated = false;
         for entry in &request.entries {
             if let Some(existing_term) = persistent.get_term(entry.index) {
                 if existing_term != entry.term {
                     persistent.truncate_from(entry.index);
+                    truncated = true;
                     break;
                 }
             }
@@ -2297,8 +2354,31 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
             }
         }
 
-        // Persist after log changes (append or truncate)
-        if appended_count > 0 {
+        // Persist after log changes (if truncated, force atomic checkpoint so overwritten tail
+        // entries from deposed terms can never resurrect across restarts!)
+        if truncated {
+            let checkpoint_res = if let Some(ref wal_mutex) = self.wal {
+                wal_mutex
+                    .lock()
+                    .map_err(|e| RaftError::Internal(e.to_string()))
+                    .and_then(|mut w| w.checkpoint(&persistent).map_err(RaftError::Internal))
+            } else if let Some(ref dir) = self.config.data_dir {
+                persistent.save_to_dir(dir).map_err(RaftError::Internal)
+            } else {
+                Ok(())
+            };
+            if let Err(e) = checkpoint_res {
+                tracing::error!("Raft: checkpoint after conflict truncation failed: {}", e);
+                return AppendEntriesResponse {
+                    term: persistent.current_term,
+                    success: false,
+                    conflict_index: None,
+                    conflict_term: None,
+                    match_index: 0,
+                    energy_state: None,
+                };
+            }
+        } else if appended_count > 0 {
             if let Err(e) = self.persist_state_sync(&persistent, appended_count) {
                 tracing::error!("Raft: WAL persist failed in append_entries: {}", e);
                 return AppendEntriesResponse {

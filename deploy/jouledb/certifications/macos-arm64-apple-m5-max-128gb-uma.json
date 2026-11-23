@@ -1,0 +1,51 @@
+{
+  "certified_at_utc": "2026-11-22T16:01:39.146883+00:00",
+  "platform_slug": "apple-m5-max-128gb-uma",
+  "os": "Darwin",
+  "arch": "arm64",
+  "gpu_adapter": "Apple M5 Max",
+  "node_descriptor": {
+    "battery_charging": false,
+    "battery_soc_pct": null,
+    "current_power_watts": 18.75,
+    "endpoint_url": null,
+    "grid_carbon_g_per_kwh": 140.0,
+    "interconnect": "local_in_process",
+    "lanes": [
+      "cpu_scalar_simd",
+      "popcnt_bitwise",
+      "ternary158_bit",
+      "wasm_sandbox",
+      "gpu_shader",
+      "npu_systolic"
+    ],
+    "memory_bus": "unified_zero_copy",
+    "node_class": "apple_uma",
+    "node_id": "cert-apple-m5-max-128gb-uma",
+    "tdp_watts": 75.0,
+    "thermal_state": "Nominal",
+    "utilization": 0.15
+  },
+  "live_sensor_watts": 17.63637113571167,
+  "thermal_state": "Nominal",
+  "probes": {
+    "sql_semantic_ok": true,
+    "gpu_or_simd_lane": {
+      "executed_lane": "gpu_shader",
+      "hardware_backend": "wgpu-gpu:Apple M5 Max",
+      "wall_time_us": 18238,
+      "total_energy_uj": 104.468992,
+      "energy_saved_vs_worst_uj": 436.59622399999995
+    },
+    "ternary_158bit_lane": {
+      "executed_lane": "ternary158_bit",
+      "hardware_backend": "ternary-1.58bit-5trit-lut",
+      "wall_time_us": 193,
+      "total_energy_uj": 0.4718592
+    },
+    "hmi_sigql_ok": true,
+    "post_docker_joule_capsule_cow_ok": true,
+    "swot_trimodal_hipporag_ppr_ok": true,
+    "post_silo_joulespace_barge_in_ok": true
+  }
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.joulesperbit.jouledb</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/jouledb</string>
+        <string>--port</string>
+        <string>8080</string>
+        <string>--data</string>
+        <string>/usr/local/var/jouledb/data</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>JOULEDB_FABRIC_NODE_CLASS</key>
+        <string>apple_uma</string>
+        <key>JOULEDB_LEDGER_ENABLED</key>
+        <string>1</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>

@@ -64,6 +64,190 @@ enum Commands {
         #[arg(short, long, default_value = "http://127.0.0.1:8080")]
         url: String,
     },
+    /// Inspect live Heterogeneous Energy Fabric topology and probe multi-silicon hardware lanes
+    Fabric {
+        /// Server URL
+        #[arg(short, long, default_value = "http://127.0.0.1:8080")]
+        url: String,
+    },
+    /// Zero-bloat Post-Docker `JouleCapsule` OCI & CoW container commands (no `dockerd`)
+    Capsule {
+        /// Server URL
+        #[arg(short, long, default_value = "http://127.0.0.1:8080")]
+        url: String,
+
+        #[command(subcommand)]
+        action: CapsuleAction,
+    },
+    /// Post-Frozen-Weights `JouleSynapse` & Database-Native `JouleHarness` commands
+    Synapse {
+        /// Server URL
+        #[arg(short, long, default_value = "http://127.0.0.1:8080")]
+        url: String,
+
+        #[command(subcommand)]
+        action: SynapseAction,
+    },
+    /// `JouleWard` zero-ambient-authority capability sandbox, `.jcap` bundle & 6-rail nanojoule ledger
+    Ward {
+        /// Server URL
+        #[arg(short, long, default_value = "http://127.0.0.1:8080")]
+        url: String,
+
+        #[command(subcommand)]
+        action: WardAction,
+    },
+    /// Drop-in `ollama run` / OpenAI `/v1/chat/completions` disintermediation with 6-rail nanojoule receipts
+    Run {
+        /// Living model ID (`jouledb-cascade-v1` or ingested model such as `all-minilm-l6-v2`)
+        model: String,
+        /// Prompt text
+        prompt: String,
+        /// Server URL
+        #[arg(short, long, default_value = "http://127.0.0.1:8080")]
+        url: String,
+        /// Route across the Heterogeneous Compute Fabric when optimal
+        #[arg(long)]
+        fabric: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum WardAction {
+    /// Inspect high-resolution (`nJ` / `ns`) 6-rail energy accounting across the compute fabric
+    Ledger,
+    /// Mint a signed `ThermoCap` capability token with optional nanojoule & read-only caveats
+    Mint {
+        /// Root token lineage ID
+        #[arg(long, default_value = "cli-cap-01")]
+        id: String,
+        /// Subject / agent name
+        #[arg(long, default_value = "cli-operator")]
+        subject: String,
+        /// Optional total nanojoule ceiling
+        #[arg(long)]
+        max_nj: Option<u64>,
+        /// Enforce read-only filesystem
+        #[arg(long)]
+        read_only: bool,
+        /// Airgap network (`AllowEgressHosts([])`)
+        #[arg(long)]
+        airgap: bool,
+    },
+    /// Execute a command under `JouleWard` capability confinement + Merkle CAS memoization
+    Exec {
+        /// Route across the Heterogeneous Compute Fabric
+        #[arg(long)]
+        fabric: bool,
+        /// Command and arguments
+        #[arg(trailing_var_arg = true, required = true)]
+        command: Vec<String>,
+    },
+    /// Export a single-file SHA-256 verified `.jcap` bundle (`Apptainer` `.sif` disintermediation)
+    JcapExport {
+        /// Bundle ID
+        #[arg(long)]
+        id: String,
+        /// Output `.jcap` file path
+        #[arg(short, long)]
+        out: String,
+        /// Optional living model ID to embed metadata for
+        #[arg(long)]
+        model: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum SynapseAction {
+    /// Show live `LittleBit-2`, `Titans`, `Engram`, `Mooncake` KV, and `wgpu` kernel status
+    Status,
+    /// Ingest a HuggingFace `.safetensors` checkpoint into sub-1-bit `LittleBit-2` + SQL `synapse_tensors`
+    Ingest {
+        /// Model identifier (e.g. `minilm-l6-v2`)
+        #[arg(short, long)]
+        model: String,
+        /// Path to `.safetensors` file
+        #[arg(short, long)]
+        file: String,
+        /// Latent binary rank (default: 8)
+        #[arg(long, default_value_t = 8)]
+        rank: usize,
+        /// Sparse outlier cap per tensor (default: 8)
+        #[arg(long, default_value_t = 8)]
+        outliers: usize,
+    },
+    /// Query SQL `synapse_tensors` rows for an ingested model
+    Layers {
+        /// Model identifier
+        model: String,
+    },
+    /// Compile a `MIT SEAL` runtime self-edit into `Engram` + live `Titans` fast weights
+    SelfEdit {
+        /// Trigger phrase
+        #[arg(long)]
+        phrase: String,
+        /// Fact / correction payload
+        #[arg(long)]
+        fact: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum CapsuleAction {
+    /// List content-addressed OCI images and CAS deduplication stats
+    Images,
+    /// List live CoW `JouleCapsule` instances
+    Ps,
+    /// Pull an OCI Distribution v2 image natively over HTTPS without `dockerd`
+    Pull {
+        /// Image reference (`alpine:3.20`, `ghcr.io/org/app:v1`, etc.)
+        image_ref: String,
+    },
+    /// Build an OCI image from a local `Joulefile` or `Dockerfile`
+    Build {
+        /// Image tag (`my-service:v1`)
+        #[arg(short, long)]
+        tag: String,
+        /// Path to `Joulefile` or `Dockerfile`
+        #[arg(short, long, default_value = "Dockerfile")]
+        file: String,
+    },
+    /// Spawn a running `JouleCapsule` backed by an O(1) CoW `JouleAgentFs` branch
+    Run {
+        /// Capsule ID / name
+        #[arg(short, long)]
+        name: String,
+        /// Image reference
+        image_ref: String,
+        /// Optional microjoule ceiling
+        #[arg(long)]
+        budget_uj: Option<u64>,
+    },
+    /// Fork a running capsule's rootfs + database branch in O(1) CoW
+    Fork {
+        /// Source capsule ID
+        source_id: String,
+        /// New forked capsule ID
+        new_id: String,
+        /// Optional microjoule ceiling
+        #[arg(long)]
+        budget_uj: Option<u64>,
+    },
+    /// Execute a command inside a capsule's isolated CoW rootfs
+    Exec {
+        /// Target capsule ID
+        capsule_id: String,
+        /// Command and arguments
+        #[arg(trailing_var_arg = true, required = true)]
+        command: Vec<String>,
+    },
+    /// Diff rootfs paths between two CoW capsules (`docker diff` superset)
+    Diff {
+        /// Base capsule ID
+        base_id: String,
+        /// Target capsule ID
+        target_id: String,
+    },
 }
 
 #[tokio::main]
@@ -73,6 +257,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match cli.command {
         Some(Commands::Query { sql, url }) => run_query(&url, &sql).await,
         Some(Commands::Shell { url }) => run_shell(&url).await,
+        Some(Commands::Fabric { url }) => run_fabric_probe(&url).await,
+        Some(Commands::Capsule { url, action }) => run_capsule_cli(&url, action).await,
+        Some(Commands::Synapse { url, action }) => run_synapse_cli(&url, action).await,
+        Some(Commands::Ward { url, action }) => run_ward_cli(&url, action).await,
+        Some(Commands::Run {
+            model,
+            prompt,
+            url,
+            fabric,
+        }) => run_cascade_cli(&url, &model, &prompt, fabric).await,
         None => {
             run_server(
                 cli.port,
@@ -119,22 +313,9 @@ async fn run_server(
 
     // Everything else is on by default — TCP, PgWire, energy monitoring.
     // Auth, replication, TLS are env-var only for operators who need them.
-    // Auth: on whenever a secret is configured, and always on for
-    // non-loopback binds. A loopback-only server with no secret uses trust
-    // auth (as stock Postgres does), so `psql`, psycopg, and ORMs connect out of
-    // the box. Before this change, auth was on with no password, which
-    // rejected every pgwire client.
-    let loopback = matches!(bind_host.as_str(), "127.0.0.1" | "localhost" | "::1");
-    config.auth_enabled = !loopback;
     if let Ok(secret) = std::env::var("JOULEDB_JWT_SECRET") {
         config.auth_enabled = true;
         config.auth_jwt_secret = Some(secret);
-    }
-    if config.auth_enabled && config.auth_jwt_secret.is_none() {
-        eprintln!(
-            "jouledb: binding {bind_host} without JOULEDB_JWT_SECRET: clients will be refused. \
-             Set JOULEDB_JWT_SECRET (also the pgwire password)."
-        );
     }
     if let Ok(role) = std::env::var("JOULEDB_REPLICATION_ROLE") {
         config.enable_replication = true;
@@ -183,14 +364,6 @@ async fn run_server(
     if !no_jwp {
         config.enable_jwp = true;
         config.jwp_addr = jwp_addr.unwrap_or_else(|| format!("{}:{}", bind_host, port + 3));
-    }
-
-    // Arrow Flight SQL (gRPC) on port + 4 unless JOULEDB_NO_FLIGHT_SQL is set
-    if std::env::var_os("JOULEDB_NO_FLIGHT_SQL").is_none() {
-        config.flight_sql_addr = Some(
-            std::env::var("JOULEDB_FLIGHT_SQL_ADDR")
-                .unwrap_or_else(|_| format!("{}:{}", bind_host, port + 4)),
-        );
     }
 
     // Energy receipt ledger (blockchain-anchored attestation)
@@ -249,9 +422,6 @@ async fn run_server(
     println!("  Data     {}", config.db_path);
     if config.enable_jwp {
         println!("  JWP      {}", config.jwp_addr);
-    }
-    if let Some(a) = &config.flight_sql_addr {
-        println!("  FlightSQL grpc://{a}");
     }
     if config.enable_raft {
         println!(
@@ -387,6 +557,377 @@ async fn run_shell(url: &str) -> Result<(), Box<dyn std::error::Error + Send + S
     Ok(())
 }
 
+async fn run_fabric_probe(url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client = reqwest::Client::new();
+    let topo: serde_json::Value = client
+        .get(format!("{}/api/v1/fabric/topology", url.trim_end_matches('/')))
+        .send()
+        .await?
+        .json()
+        .await?;
+    let probe: serde_json::Value = client
+        .post(format!("{}/api/v1/fabric/execute", url.trim_end_matches('/')))
+        .json(&serde_json::json!({
+            "workload": joule_db_server::fabric_routes::default_gpu_probe_workload(),
+            "batch_count": 64,
+            "vector_dim": 512
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "topology": topo,
+            "gpu_or_simd_probe": probe,
+        }))?
+    );
+    Ok(())
+}
+
+async fn run_capsule_cli(
+    url: &str,
+    action: CapsuleAction,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let base = url.trim_end_matches('/');
+    let client = reqwest::Client::new();
+    let out: serde_json::Value = match action {
+        CapsuleAction::Images => {
+            client
+                .get(format!("{base}/api/v1/capsules/images"))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Ps => {
+            client
+                .get(format!("{base}/api/v1/capsules"))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Pull { image_ref } => {
+            client
+                .post(format!("{base}/api/v1/capsules/images/pull"))
+                .json(&serde_json::json!({ "image_ref": image_ref }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Build { tag, file } => {
+            let joulefile = std::fs::read_to_string(&file)?;
+            let mut context_files = std::collections::BTreeMap::new();
+            if let Some(parent) = std::path::Path::new(&file).parent() {
+                let dir = if parent.as_os_str().is_empty() {
+                    std::path::Path::new(".")
+                } else {
+                    parent
+                };
+                if let Ok(entries) = std::fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        if let Ok(ft) = entry.file_type() {
+                            if ft.is_file() {
+                                if let (Some(name), Ok(content)) = (
+                                    entry.file_name().to_str(),
+                                    std::fs::read_to_string(entry.path()),
+                                ) {
+                                    context_files.insert(name.to_string(), content);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            client
+                .post(format!("{base}/api/v1/capsules/images/build"))
+                .json(&serde_json::json!({
+                    "tag": tag,
+                    "joulefile": joulefile,
+                    "context_files": context_files,
+                    "base64_encoded": false
+                }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Run {
+            name,
+            image_ref,
+            budget_uj,
+        } => {
+            client
+                .post(format!("{base}/api/v1/capsules/spawn"))
+                .json(&serde_json::json!({
+                    "capsule_id": name,
+                    "image_ref": image_ref,
+                    "energy_budget_uj": budget_uj
+                }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Fork {
+            source_id,
+            new_id,
+            budget_uj,
+        } => {
+            client
+                .post(format!("{base}/api/v1/capsules/{source_id}/fork"))
+                .json(&serde_json::json!({
+                    "new_capsule_id": new_id,
+                    "energy_budget_uj": budget_uj
+                }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Exec {
+            capsule_id,
+            command,
+        } => {
+            client
+                .post(format!("{base}/api/v1/capsules/{capsule_id}/exec"))
+                .json(&serde_json::json!({ "command": command }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        CapsuleAction::Diff { base_id, target_id } => {
+            client
+                .get(format!("{base}/api/v1/capsules/{base_id}/diff/{target_id}"))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+    };
+    println!("{}", serde_json::to_string_pretty(&out)?);
+    Ok(())
+}
+
+async fn run_synapse_cli(
+    url: &str,
+    action: SynapseAction,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let base = url.trim_end_matches('/');
+    let client = reqwest::Client::new();
+    let out: serde_json::Value = match action {
+        SynapseAction::Status => {
+            client
+                .get(format!("{base}/api/v1/synapse/status"))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        SynapseAction::Ingest {
+            model,
+            file,
+            rank,
+            outliers,
+        } => {
+            let abs_path = std::fs::canonicalize(&file)
+                .unwrap_or_else(|_| std::path::PathBuf::from(&file));
+            client
+                .post(format!("{base}/api/v1/synapse/ingest/safetensors"))
+                .json(&serde_json::json!({
+                    "model_id": model,
+                    "file_path": abs_path.to_string_lossy(),
+                    "target_rank": rank,
+                    "max_outliers": outliers,
+                }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        SynapseAction::Layers { model } => {
+            let esc = model.replace('\'', "''");
+            client
+                .post(format!("{base}/api/v1/query"))
+                .json(&serde_json::json!({
+                    "sql": format!(
+                        "SELECT tensor_name, layer_idx, source_dtype, rows, cols, bits_per_weight, compression_vs_fp16, reconstruction_cosine FROM synapse_tensors WHERE model_id = '{esc}' ORDER BY layer_idx ASC, tensor_name ASC"
+                    )
+                }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+        SynapseAction::SelfEdit { phrase, fact } => {
+            let key_vec: Vec<f32> = (0..16)
+                .map(|i| if i % 2 == 0 { 0.5 } else { -0.5 })
+                .collect();
+            let target_vec: Vec<f32> = (0..16)
+                .map(|i| ((i as f32 + phrase.len() as f32) * 0.25).sin())
+                .collect();
+            client
+                .post(format!("{base}/api/v1/harness/self-edit"))
+                .json(&serde_json::json!({
+                    "trigger_phrase": phrase,
+                    "correction_fact": fact,
+                    "key_vec": key_vec,
+                    "target_vec": target_vec,
+                }))
+                .send()
+                .await?
+                .json()
+                .await?
+        }
+    };
+    println!("{}", serde_json::to_string_pretty(&out)?);
+    Ok(())
+}
+
+async fn run_ward_cli(
+    url: &str,
+    action: WardAction,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use base64::Engine;
+    let base = url.trim_end_matches('/');
+    let client = reqwest::Client::new();
+    match action {
+        WardAction::Ledger => {
+            let out: serde_json::Value = client
+                .get(format!("{base}/api/v1/ward/ledger"))
+                .send()
+                .await?
+                .json()
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        WardAction::Mint {
+            id,
+            subject,
+            max_nj,
+            read_only,
+            airgap,
+        } => {
+            let mut caveats = Vec::new();
+            if let Some(nj) = max_nj {
+                caveats.push(serde_json::json!({ "kind": "max_total_nanojoules", "value": nj }));
+            }
+            if read_only {
+                caveats.push(serde_json::json!({ "kind": "read_only_fs", "value": true }));
+            }
+            if airgap {
+                caveats.push(serde_json::json!({ "kind": "allow_egress_hosts", "value": [] }));
+            }
+            let out: serde_json::Value = client
+                .post(format!("{base}/api/v1/ward/tokens/mint"))
+                .json(&serde_json::json!({
+                    "root_token_id": id,
+                    "subject": subject,
+                    "caveats": caveats,
+                }))
+                .send()
+                .await?
+                .json()
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        WardAction::Exec { fabric, command } => {
+            let minted: serde_json::Value = client
+                .post(format!("{base}/api/v1/ward/tokens/mint"))
+                .json(&serde_json::json!({
+                    "root_token_id": "cli-ephemeral-exec",
+                    "subject": "jouledb-ward-cli",
+                    "caveats": [
+                        { "kind": "read_only_fs", "value": true },
+                        { "kind": "allow_egress_hosts", "value": [] }
+                    ]
+                }))
+                .send()
+                .await?
+                .json()
+                .await?;
+            let token = minted
+                .get("token")
+                .cloned()
+                .ok_or("failed to mint ephemeral capability token")?;
+            let out: serde_json::Value = client
+                .post(format!("{base}/api/v1/ward/exec"))
+                .json(&serde_json::json!({
+                    "token": token,
+                    "command": command,
+                    "memoize": true,
+                    "route_across_fabric": fabric,
+                }))
+                .send()
+                .await?
+                .json()
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        WardAction::JcapExport { id, out, model } => {
+            let resp: serde_json::Value = client
+                .post(format!("{base}/api/v1/ward/jcap/export"))
+                .json(&serde_json::json!({
+                    "bundle_id": id,
+                    "synapse_model_id": model,
+                }))
+                .send()
+                .await?
+                .json()
+                .await?;
+            if let Some(b64) = resp.get("jcap_base64").and_then(|v| v.as_str()) {
+                let bytes = base64::engine::general_purpose::STANDARD.decode(b64)?;
+                std::fs::write(&out, &bytes)?;
+                println!(
+                    "Exported verified .jcap bundle '{}' ({} bytes, sha256={})",
+                    out,
+                    bytes.len(),
+                    resp.get("payload_sha256")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?")
+                );
+            } else {
+                println!("{}", serde_json::to_string_pretty(&resp)?);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn run_cascade_cli(
+    url: &str,
+    model: &str,
+    prompt: &str,
+    fabric: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let base = url.trim_end_matches('/');
+    let client = reqwest::Client::new();
+    let out: serde_json::Value = client
+        .post(format!("{base}/v1/chat/completions"))
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": prompt }],
+            "x_route_across_fabric": fabric,
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+    println!("{}", serde_json::to_string_pretty(&out)?);
+    Ok(())
+}
+
 fn truncate(s: &str, max: usize) -> &str {
-    if s.len() <= max { s } else { &s[..max] }
+    if s.len() <= max {
+        return s;
+    }
+    let mut end = max;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }

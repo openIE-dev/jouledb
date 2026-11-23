@@ -1,0 +1,56 @@
+[package]
+name = "joule-db-edge"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "JouleDB for edge devices with hardware acceleration (GPU/NPU/TPU)"
+keywords = ["database", "embedded", "edge", "gpu", "accelerator"]
+categories = ["database", "embedded"]
+
+[features]
+default = ["std"]
+std = []
+
+# Hardware acceleration backends
+cuda = []           # NVIDIA Jetson (Jetson Nano, Xavier, Orin)
+tensorrt = ["cuda"] # TensorRT optimization on Jetson
+coral = []          # Google Coral (Edge TPU)
+rknn = []           # Rockchip NPU (RK3588, etc.)
+hailo = []          # Hailo-8 accelerator
+ncs = []            # Intel Neural Compute Stick 2
+mali = []           # ARM Mali GPU (Odroid, etc.)
+vivante = []        # Vivante GPU (i.MX8)
+videcore = []       # Raspberry Pi VideoCore (Pi5)
+
+# RTOS support
+freertos = []
+zephyr = []
+nuttx = []
+threadx = []
+
+# All accelerators
+all-accelerators = ["cuda", "coral", "rknn", "hailo", "videcore"]
+
+[dependencies]
+joule-db-core = { workspace = true }
+
+# Async runtime (optional, for devices with OS)
+tokio = { workspace = true, optional = true }
+
+# Serialization
+bincode = { workspace = true }
+serde = { workspace = true }
+
+# Embedded-friendly hash
+ahash = { workspace = true }
+
+# Low-level memory management
+aligned = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

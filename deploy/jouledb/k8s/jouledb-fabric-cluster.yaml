@@ -1,0 +1,126 @@
+# Kubernetes Manifest: JouleDBCluster CRD + Heterogeneous Fabric StatefulSet
+# Compatible with `joule-cloud-provisioner` (`jouledb.cloud/v1`) and standalone K8s / K3s edge clusters.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jouledb
+---
+apiVersion: jouledb.cloud/v1
+kind: JouleDBCluster
+metadata:
+  name: jouledb-global-fabric
+  namespace: jouledb
+  labels:
+    app: jouledb
+    tier: business
+    jouledb.io/fabric-mode: energy-first
+spec:
+  replicas: 3
+  version: "0.1.0"
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4096Mi"
+    limits:
+      cpu: "4000m"
+      memory: "8192Mi"
+  storage:
+    size: "50Gi"
+    storageClass: "fast-ssd"
+  networking:
+    serviceType: "LoadBalancer"
+    tlsEnabled: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jouledb-headless
+  namespace: jouledb
+  labels:
+    app: jouledb
+spec:
+  clusterIP: None
+  selector:
+    app: jouledb
+  ports:
+    - name: http-mcp-flight
+      port: 8080
+    - name: kv-tcp
+      port: 8081
+    - name: pgwire
+      port: 8082
+    - name: jwp
+      port: 8083
+    - name: raft
+      port: 9001
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jouledb-fabric
+  namespace: jouledb
+spec:
+  serviceName: jouledb-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: jouledb
+  template:
+    metadata:
+      labels:
+        app: jouledb
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: jouledb
+          image: ghcr.io/joulesperbit/jouledb:0.1.0
+          args: ["--port", "8080", "--data", "/var/lib/jouledb/data"]
+          env:
+            - name: JOULEDB_BIND_HOST
+              value: "0.0.0.0"
+            - name: JOULEDB_FABRIC_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: JOULEDB_FABRIC_NODE_CLASS
+              value: "cloud_cxl"
+            - name: JOULEDB_GRID_FACTOR
+              value: "25.0"
+            - name: JOULEDB_LEDGER_ENABLED
+              value: "1"
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8081
+              name: tcp
+            - containerPort: 8082
+              name: pgwire
+            - containerPort: 8083
+              name: jwp
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/jouledb/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 50Gi

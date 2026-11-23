@@ -434,32 +434,69 @@ impl RecoveryLog {
     /// counter is advanced past the highest existing LSN. New entries are
     /// appended to the file.
     pub fn new_durable(path: &std::path::Path) -> Result<Self, String> {
-        use std::io::{BufRead, Write};
-
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create log directory: {e}"))?;
         }
 
-        // Load existing entries
+        // Load existing entries with crash-safe torn-tail detection & truncation.
+        // If power was lost mid-`writeln!`, the final line may lack a trailing `\n`,
+        // contain invalid UTF-8, or hold truncated JSON; leaving those bytes in place
+        // would both fail startup and concatenate with the first post-recovery append.
         let mut entries = Vec::new();
         let mut max_lsn: u64 = 0;
         if path.exists() {
-            let file = std::fs::File::open(path)
-                .map_err(|e| format!("Failed to open recovery log: {e}"))?;
-            let reader = std::io::BufReader::new(file);
-            for line in reader.lines() {
-                let line = line.map_err(|e| format!("Failed to read log line: {e}"))?;
-                if line.trim().is_empty() {
-                    continue;
+            let raw = std::fs::read(path)
+                .map_err(|e| format!("Failed to read recovery log: {e}"))?;
+            let mut valid_len: usize = 0;
+
+            for frame in raw.split_inclusive(|&b| b == b'\n') {
+                // An unterminated final line (no trailing `\n`) may still be valid if
+                // flushed cleanly without newline, or torn by power loss.
+                let trimmed = frame.strip_suffix(b"\n").unwrap_or(frame);
+                let trimmed = trimmed.strip_suffix(b"\r").unwrap_or(trimmed);
+                if trimmed.iter().all(|b| b.is_ascii_whitespace()) {
+                    if frame.ends_with(b"\n") {
+                        valid_len += frame.len();
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
-                let entry: RecoveryLogEntry = serde_json::from_str(&line)
-                    .map_err(|e| format!("Failed to parse log entry: {e}"))?;
-                if entry.lsn > max_lsn {
-                    max_lsn = entry.lsn;
+                match std::str::from_utf8(trimmed)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<RecoveryLogEntry>(s).ok())
+                {
+                    Some(entry) if frame.ends_with(b"\n") => {
+                        if entry.lsn > max_lsn {
+                            max_lsn = entry.lsn;
+                        }
+                        entries.push(entry);
+                        valid_len += frame.len();
+                    }
+                    _ => {
+                        tracing::warn!(
+                            "Truncating torn or corrupted 2PC recovery log tail at byte {} (total {} bytes)",
+                            valid_len,
+                            raw.len()
+                        );
+                        break;
+                    }
                 }
-                entries.push(entry);
+            }
+
+            if valid_len < raw.len() {
+                let repair = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(path)
+                    .map_err(|e| format!("Failed to open recovery log for torn-tail repair: {e}"))?;
+                repair
+                    .set_len(valid_len as u64)
+                    .map_err(|e| format!("Failed to truncate torn recovery log tail: {e}"))?;
+                repair
+                    .sync_all()
+                    .map_err(|e| format!("Failed to fsync repaired recovery log: {e}"))?;
             }
         }
 
@@ -603,8 +640,13 @@ impl RecoveryLog {
                     }
                 }
                 let _ = tmp_file.sync_all();
-                // Atomic rename
+                // Atomic rename + parent directory fsync for power-loss durability
                 if std::fs::rename(&tmp_path, log_path).is_ok() {
+                    if let Some(parent) = log_path.parent() {
+                        if let Ok(dir) = std::fs::File::open(parent) {
+                            let _ = dir.sync_all();
+                        }
+                    }
                     // Reopen the file for future appends
                     if let Ok(new_file) = std::fs::OpenOptions::new().append(true).open(log_path) {
                         if let Ok(mut guard) = file_mutex.lock() {
@@ -1021,11 +1063,12 @@ impl TransactionCoordinator {
 
         if !success {
             tracing::error!(
-                "Participant {} failed to complete transaction {}: {:?}",
+                "Participant {} failed to complete transaction {}: {:?} (withholding ack so coordinator retries)",
                 participant_id,
                 transaction_id,
                 error
             );
+            return Ok(());
         }
 
         // Log ack received
@@ -1757,19 +1800,27 @@ impl<S: ParticipantStorage + 'static> TransactionParticipant<S> {
             )
             .await?;
 
-        let prepared_lsn = {
+        let (already_committed, prepared_lsn) = {
             let mut transactions = self.transactions.write().await;
             let txn = transactions
                 .get_mut(&transaction_id)
                 .ok_or_else(|| TwoPhaseError::TransactionNotFound(transaction_id.clone()))?;
 
-            txn.state = TransactionState::Committing;
-            txn.last_activity = Instant::now();
-            txn.prepared_lsn
+            // Jepsen idempotency invariant: if Coordinator retries Commit because a previous Ack
+            // was lost in a network partition, re-Ack success without re-applying `storage.commit`!
+            if txn.state == TransactionState::Committed {
+                (true, None)
+            } else {
+                txn.state = TransactionState::Committing;
+                txn.last_activity = Instant::now();
+                (false, txn.prepared_lsn)
+            }
         };
 
-        // Apply to local storage
-        let success = if let Some(lsn) = prepared_lsn {
+        // Apply to local storage (unless already committed on an earlier attempt)
+        let success = if already_committed {
+            true
+        } else if let Some(lsn) = prepared_lsn {
             match self.storage.commit(lsn) {
                 Ok(()) => {
                     self.recovery_log
@@ -1841,20 +1892,26 @@ impl<S: ParticipantStorage + 'static> TransactionParticipant<S> {
             )
             .await?;
 
-        let prepared_lsn = {
+        let (already_aborted, prepared_lsn) = {
             let mut transactions = self.transactions.write().await;
             if let Some(txn) = transactions.get_mut(&transaction_id) {
-                txn.state = TransactionState::Aborting;
-                txn.last_activity = Instant::now();
-                txn.prepared_lsn
+                if txn.state == TransactionState::Aborted {
+                    (true, None)
+                } else {
+                    txn.state = TransactionState::Aborting;
+                    txn.last_activity = Instant::now();
+                    (false, txn.prepared_lsn)
+                }
             } else {
-                // Transaction might not exist if abort came before prepare
-                None
+                // Transaction might not exist if abort came before prepare (Presumed Abort)
+                (true, None)
             }
         };
 
-        // Rollback local storage
-        let success = if let Some(lsn) = prepared_lsn {
+        // Rollback local storage (unless already aborted)
+        let success = if already_aborted {
+            true
+        } else if let Some(lsn) = prepared_lsn {
             match self.storage.rollback(lsn) {
                 Ok(()) => true,
                 Err(e) => {

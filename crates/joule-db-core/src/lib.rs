@@ -59,16 +59,21 @@
 // deny(unsafe_code) instead of forbid — allows targeted #[allow(unsafe_code)]
 // in mmap_extent.rs where unsafe is required for memory-mapped I/O.
 #![deny(unsafe_code)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 
 pub mod allocator;
 pub mod catalog;
 pub mod concurrency;
+/// Embodied & Physical-AI substrate (`HLC`, `ECT` + `ASOF` join, `SE(3)` `TransformTree`).
+pub mod embodied;
 pub mod encryption;
 pub mod engine;
 pub mod error;
 pub mod index;
+/// Living Computing & Active-Inference substrate (`SurpriseGate`, `HomeostaticMetabolism`).
+pub mod living;
 pub mod persistence;
 pub mod query;
 pub mod resilience;
@@ -90,12 +95,12 @@ pub use concurrency::{LatchManager, LatchManagerConfig};
 pub use engine::Engine;
 pub use engine::EngineConfig;
 pub use engine::WriteTransaction;
-pub use snapshot::Snapshot;
 pub use error::{
     CodecError, ContextualError, EngineError, Error, ErrorContext, ErrorExt, IndexError, MutexExt,
     QueryError, ReplicationError, Result, ResultExt, RwLockExt, StorageError, TransactionError,
 };
 pub use query::{QueryHandle, TripleBufferedQueries, TripleBufferedQueryManager};
+pub use snapshot::Snapshot;
 pub use storage::buffer::{BufferPool, BufferPoolConfig};
 pub use storage::disk::DiskBackend;
 pub use storage::memory::MemoryBackend;

@@ -37,8 +37,7 @@ use crate::error::CodecError;
 
 /// 3D point in world coordinates (f64 — robotics needs sub-millimeter precision
 /// over kilometers).
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Point3 {
     /// Cartesian X coordinate.
     pub x: f64,
@@ -62,8 +61,7 @@ impl Point3 {
 ///
 /// Stored unnormalized — we trust producers to keep it on the unit sphere.
 /// Renormalize at boundaries (e.g. when composing many poses) to fight drift.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Quat {
     pub w: f64,
     pub x: f64,
@@ -84,8 +82,7 @@ impl Quat {
 ///
 /// Element of SE(3). The `flowG::Spatial3dOp::TransformCompose` /
 /// `TransformInverse` ops operate on this type.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Pose6 {
     pub position: Point3,
     pub orientation: Quat,
@@ -93,7 +90,10 @@ pub struct Pose6 {
 
 impl Pose6 {
     pub const fn new(position: Point3, orientation: Quat) -> Self {
-        Self { position, orientation }
+        Self {
+            position,
+            orientation,
+        }
     }
 
     pub const IDENTITY: Self = Self::new(Point3::ORIGIN, Quat::IDENTITY);
@@ -104,8 +104,7 @@ impl Pose6 {
 /// Used as the spatial-index key for R-tree / BVH / octree. `min` is the
 /// minimum corner, `max` is the maximum corner. We do not enforce
 /// `min <= max` per axis at construction — caller's responsibility.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Bbox3 {
     pub min: Point3,
     pub max: Point3,
@@ -123,16 +122,22 @@ impl Bbox3 {
 
     /// Whether this bbox contains the given point (inclusive on all sides).
     pub fn contains(&self, p: Point3) -> bool {
-        p.x >= self.min.x && p.x <= self.max.x
-            && p.y >= self.min.y && p.y <= self.max.y
-            && p.z >= self.min.z && p.z <= self.max.z
+        p.x >= self.min.x
+            && p.x <= self.max.x
+            && p.y >= self.min.y
+            && p.y <= self.max.y
+            && p.z >= self.min.z
+            && p.z <= self.max.z
     }
 
     /// Whether this bbox intersects another (inclusive).
     pub fn intersects(&self, other: &Self) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x
-            && self.min.y <= other.max.y && self.max.y >= other.min.y
-            && self.min.z <= other.max.z && self.max.z >= other.min.z
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+            && self.min.z <= other.max.z
+            && self.max.z >= other.min.z
     }
 }
 
@@ -141,8 +146,7 @@ impl Bbox3 {
 // ============================================================================
 
 /// Schema-level tag for a spatial 3D column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Spatial3dKind {
     /// 3D point (3 × f64 = 24 bytes).
     Point3,
@@ -193,8 +197,7 @@ impl Spatial3dKind {
 ///
 /// One variant per `Spatial3dKind`. The encoding is tag-byte + fixed-width
 /// little-endian f64s, so the on-disk size matches `Spatial3dKind::byte_size`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Spatial3dValue {
     Point3(Point3),
     Quat(Quat),
@@ -279,12 +282,12 @@ impl Spatial3dValue {
 
     /// Decode a spatial value starting at `bytes[*cursor]` (the inner tag).
     /// Caller has already consumed the outer `tags::SPATIAL3D` byte.
-    pub(crate) fn decode_at(
-        bytes: &[u8],
-        cursor: &mut usize,
-    ) -> Result<Self, CodecError> {
+    pub(crate) fn decode_at(bytes: &[u8], cursor: &mut usize) -> Result<Self, CodecError> {
         if *cursor >= bytes.len() {
-            return Err(CodecError::UnexpectedEof { expected: 1, actual: 0 });
+            return Err(CodecError::UnexpectedEof {
+                expected: 1,
+                actual: 0,
+            });
         }
         let inner = bytes[*cursor];
         *cursor += 1;
@@ -389,7 +392,10 @@ mod tests {
         ] {
             assert_eq!(Spatial3dKind::from_sql(k.sql_name()), Some(k));
         }
-        assert_eq!(Spatial3dKind::from_sql("quaternion"), Some(Spatial3dKind::Quat));
+        assert_eq!(
+            Spatial3dKind::from_sql("quaternion"),
+            Some(Spatial3dKind::Quat)
+        );
         assert_eq!(Spatial3dKind::from_sql("aabb3"), Some(Spatial3dKind::Bbox3));
         assert_eq!(Spatial3dKind::from_sql("nonsense"), None);
     }
@@ -407,7 +413,12 @@ mod tests {
         v.encode_into(&mut buf);
         // payload size = 1 inner tag + N f64s
         let expected_payload = 1 + v.kind().byte_size();
-        assert_eq!(buf.len(), expected_payload, "payload size for {:?}", v.kind());
+        assert_eq!(
+            buf.len(),
+            expected_payload,
+            "payload size for {:?}",
+            v.kind()
+        );
         let mut cursor = 0;
         let decoded = Spatial3dValue::decode_at(&buf, &mut cursor).expect("decode");
         assert_eq!(cursor, buf.len(), "decoder consumed entire payload");

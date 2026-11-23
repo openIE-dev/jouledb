@@ -230,7 +230,9 @@ impl HnswIndex {
             return;
         }
 
-        let mut ep = self.entry_point.unwrap();
+        let Some(mut ep) = self.entry_point else {
+            return;
+        };
         let current_max = self.max_layer;
 
         // Phase 1: greedy search from top layer down to level+1
@@ -307,11 +309,12 @@ impl HnswIndex {
     ///
     /// Returns `Vec<(id, distance)>` sorted by ascending distance.
     pub fn search(&self, query: &[f32], k: usize) -> Vec<(u64, f32)> {
-        if self.entry_point.is_none() || k == 0 {
+        let Some(ep) = self.entry_point else {
+            return Vec::new();
+        };
+        if k == 0 {
             return Vec::new();
         }
-
-        let ep = self.entry_point.unwrap();
         let mut current = ep;
         let mut current_dist = self.distance(query, &self.nodes[&current].vector);
 
@@ -419,11 +422,7 @@ impl HnswIndex {
                     norm_b += b[i] * b[i];
                 }
                 let denom = norm_a.sqrt() * norm_b.sqrt();
-                if denom == 0.0 {
-                    1.0
-                } else {
-                    1.0 - dot / denom
-                }
+                if denom == 0.0 { 1.0 } else { 1.0 - dot / denom }
             }
             DistanceMetric::InnerProduct => {
                 let mut dot = 0.0f32;
@@ -445,7 +444,13 @@ impl HnswIndex {
     /// Greedily traverse a single layer to find the closest node to `query`,
     /// starting from `ep` with known distance `ep_dist`.
     /// Returns (closest_id, closest_dist).
-    fn greedy_closest(&self, query: &[f32], mut ep: u64, mut ep_dist: f32, layer: usize) -> (u64, f32) {
+    fn greedy_closest(
+        &self,
+        query: &[f32],
+        mut ep: u64,
+        mut ep_dist: f32,
+        layer: usize,
+    ) -> (u64, f32) {
         loop {
             let mut changed = false;
             let node = &self.nodes[&ep];
@@ -470,13 +475,7 @@ impl HnswIndex {
 
     /// Search a single layer starting from `entry`, returning up to `ef` closest
     /// candidates as `Vec<(id, distance)>`.
-    fn search_layer(
-        &self,
-        query: &[f32],
-        entry: u64,
-        ef: usize,
-        layer: usize,
-    ) -> Vec<(u64, f32)> {
+    fn search_layer(&self, query: &[f32], entry: u64, ef: usize, layer: usize) -> Vec<(u64, f32)> {
         let entry_dist = self.distance(query, &self.nodes[&entry].vector);
 
         // candidates: min-heap (closest first)
@@ -495,7 +494,11 @@ impl HnswIndex {
         });
         visited.insert(entry);
 
-        while let Some(MinCandidate { dist: c_dist, id: c_id }) = candidates.pop() {
+        while let Some(MinCandidate {
+            dist: c_dist,
+            id: c_id,
+        }) = candidates.pop()
+        {
             // If the closest candidate is farther than the farthest result, stop
             let farthest = results.peek().map(|r| r.dist).unwrap_or(f32::MAX);
             if c_dist > farthest {
@@ -509,8 +512,7 @@ impl HnswIndex {
                         if visited.insert(nid) {
                             if let Some(neighbor) = self.nodes.get(&nid) {
                                 let d = self.distance(query, &neighbor.vector);
-                                let farthest =
-                                    results.peek().map(|r| r.dist).unwrap_or(f32::MAX);
+                                let farthest = results.peek().map(|r| r.dist).unwrap_or(f32::MAX);
 
                                 if d < farthest || results.len() < ef {
                                     candidates.push(MinCandidate { dist: d, id: nid });
@@ -610,34 +612,24 @@ mod tests {
     ) -> Vec<(u64, f32)> {
         let dist = |a: &[f32], b: &[f32]| -> f32 {
             match metric {
-                DistanceMetric::Euclidean => {
-                    a.iter()
-                        .zip(b)
-                        .map(|(x, y)| (x - y) * (x - y))
-                        .sum::<f32>()
-                        .sqrt()
-                }
+                DistanceMetric::Euclidean => a
+                    .iter()
+                    .zip(b)
+                    .map(|(x, y)| (x - y) * (x - y))
+                    .sum::<f32>()
+                    .sqrt(),
                 DistanceMetric::Cosine => {
                     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
                     let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
                     let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
                     let denom = na * nb;
-                    if denom == 0.0 {
-                        1.0
-                    } else {
-                        1.0 - dot / denom
-                    }
+                    if denom == 0.0 { 1.0 } else { 1.0 - dot / denom }
                 }
                 DistanceMetric::InnerProduct => {
                     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
                     -dot
                 }
-                DistanceMetric::Manhattan => {
-                    a.iter()
-                        .zip(b)
-                        .map(|(x, y)| (x - y).abs())
-                        .sum()
-                }
+                DistanceMetric::Manhattan => a.iter().zip(b).map(|(x, y)| (x - y).abs()).sum(),
             }
         };
         let mut scored: Vec<(u64, f32)> = vectors

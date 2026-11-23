@@ -41,6 +41,7 @@
 pub mod backend;
 pub mod btree_serialization;
 pub mod hdc_compute;
+pub mod littlebit_compute;
 pub mod shaders;
 
 pub use backend::{WgpuComputeBackend, WgpuComputeConfig};
@@ -49,6 +50,9 @@ pub use btree_serialization::{
     GpuBTreeNodeSerializer, GpuSerializedNode,
 };
 pub use hdc_compute::{HdcGpuConfig, HdcGpuEncoder};
+pub use littlebit_compute::{
+    LittleBitGpuKernel, LittleBitGpuReceipt, PackedGpuLittleBitWeights,
+};
 
 // Re-export core types for convenience
 pub use joule_db_core::persistence::compute::{

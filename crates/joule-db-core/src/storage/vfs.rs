@@ -32,6 +32,60 @@ pub trait VirtualFile: Read + Write + Seek + Send + Sync {
 
     /// Truncate or extend the file to the specified length.
     fn set_len(&self, size: u64) -> std::io::Result<()>;
+
+    /// Positional lock-free read (`pread` on Unix, `seek_read` on Windows).
+    ///
+    /// Does not modify or contend on the file's sequential cursor, allowing
+    /// concurrent multi-core page reads across threads.
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> std::io::Result<usize>;
+
+    /// Positional lock-free write (`pwrite` on Unix, `seek_write` on Windows).
+    ///
+    /// Does not modify or contend on the file's sequential cursor, allowing
+    /// concurrent multi-core writes to disjoint page offsets.
+    fn write_at(&self, buf: &[u8], offset: u64) -> std::io::Result<usize>;
+
+    /// Read exact bytes at `offset` without mutating the sequential cursor.
+    fn read_exact_at(&self, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
+        while !buf.is_empty() {
+            match self.read_at(buf, offset) {
+                Ok(0) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "failed to fill whole buffer in read_exact_at",
+                    ));
+                }
+                Ok(n) => {
+                    buf = &mut buf[n..];
+                    offset += n as u64;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    /// Write all bytes at `offset` without mutating the sequential cursor.
+    fn write_all_at(&self, mut buf: &[u8], mut offset: u64) -> std::io::Result<()> {
+        while !buf.is_empty() {
+            match self.write_at(buf, offset) {
+                Ok(0) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::WriteZero,
+                        "failed to write whole buffer in write_all_at",
+                    ));
+                }
+                Ok(n) => {
+                    buf = &buf[n..];
+                    offset += n as u64;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Virtual File System that creates and manages virtual files.
@@ -69,7 +123,16 @@ use std::path::Path;
 use std::sync::Mutex;
 
 /// A standard file wrapped to implement VirtualFile.
+///
+/// Uses lock-free positional `pread`/`pwrite` (`FileExt`) on Unix and Windows
+/// for `read_at`/`write_at`/`len`/`sync_*`, reserving the internal mutex strictly
+/// for legacy sequential `Read`/`Write`/`Seek` cursor operations.
 pub struct StdFile {
+    #[cfg(any(unix, windows))]
+    raw: File,
+    #[cfg(any(unix, windows))]
+    cursor_lock: Mutex<()>,
+    #[cfg(not(any(unix, windows)))]
     file: Mutex<File>,
 }
 
@@ -77,6 +140,11 @@ impl StdFile {
     /// Create a new StdFile from a std::fs::File.
     pub fn new(file: File) -> Self {
         Self {
+            #[cfg(any(unix, windows))]
+            raw: file,
+            #[cfg(any(unix, windows))]
+            cursor_lock: Mutex::new(()),
+            #[cfg(not(any(unix, windows)))]
             file: Mutex::new(file),
         }
     }
@@ -84,67 +152,177 @@ impl StdFile {
 
 impl Read for StdFile {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile read")
-            .read(buf)
+        #[cfg(any(unix, windows))]
+        {
+            let _guard = self
+                .cursor_lock
+                .lock()
+                .expect("lock poisoned: StdFile read");
+            (&self.raw).read(buf)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile read")
+                .read(buf)
+        }
     }
 }
 
 impl Write for StdFile {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile write")
-            .write(buf)
+        #[cfg(any(unix, windows))]
+        {
+            let _guard = self
+                .cursor_lock
+                .lock()
+                .expect("lock poisoned: StdFile write");
+            (&self.raw).write(buf)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile write")
+                .write(buf)
+        }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile flush")
-            .flush()
+        #[cfg(any(unix, windows))]
+        {
+            let _guard = self
+                .cursor_lock
+                .lock()
+                .expect("lock poisoned: StdFile flush");
+            (&self.raw).flush()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile flush")
+                .flush()
+        }
     }
 }
 
 impl Seek for StdFile {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile seek")
-            .seek(pos)
+        #[cfg(any(unix, windows))]
+        {
+            let _guard = self
+                .cursor_lock
+                .lock()
+                .expect("lock poisoned: StdFile seek");
+            (&self.raw).seek(pos)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile seek")
+                .seek(pos)
+        }
     }
 }
 
 impl VirtualFile for StdFile {
     fn len(&self) -> std::io::Result<u64> {
-        Ok(self
-            .file
-            .lock()
-            .expect("lock poisoned: StdFile len")
-            .metadata()?
-            .len())
+        #[cfg(any(unix, windows))]
+        {
+            Ok(self.raw.metadata()?.len())
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            Ok(self
+                .file
+                .lock()
+                .expect("lock poisoned: StdFile len")
+                .metadata()?
+                .len())
+        }
     }
 
     fn sync_all(&self) -> std::io::Result<()> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile sync_all")
-            .sync_all()
+        #[cfg(any(unix, windows))]
+        {
+            self.raw.sync_all()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile sync_all")
+                .sync_all()
+        }
     }
 
     fn sync_data(&self) -> std::io::Result<()> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile sync_data")
-            .sync_data()
+        #[cfg(any(unix, windows))]
+        {
+            self.raw.sync_data()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile sync_data")
+                .sync_data()
+        }
     }
 
     fn set_len(&self, size: u64) -> std::io::Result<()> {
-        self.file
-            .lock()
-            .expect("lock poisoned: StdFile set_len")
-            .set_len(size)
+        #[cfg(any(unix, windows))]
+        {
+            self.raw.set_len(size)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            self.file
+                .lock()
+                .expect("lock poisoned: StdFile set_len")
+                .set_len(size)
+        }
+    }
+
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileExt;
+            self.raw.read_at(buf, offset)
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileExt;
+            self.raw.seek_read(buf, offset)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let mut f = self.file.lock().expect("lock poisoned: StdFile read_at");
+            f.seek(SeekFrom::Start(offset))?;
+            f.read(buf)
+        }
+    }
+
+    fn write_at(&self, buf: &[u8], offset: u64) -> std::io::Result<usize> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileExt;
+            self.raw.write_at(buf, offset)
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileExt;
+            self.raw.seek_write(buf, offset)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let mut f = self.file.lock().expect("lock poisoned: StdFile write_at");
+            f.seek(SeekFrom::Start(offset))?;
+            f.write(buf)
+        }
     }
 }
 
@@ -317,6 +495,35 @@ impl VirtualFile for MemoryFile {
             .expect("lock poisoned: MemoryFile set_len");
         data.data.resize(size as usize, 0);
         Ok(())
+    }
+
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
+        let data = self
+            .data
+            .read()
+            .expect("lock poisoned: MemoryFile read_at");
+        let off = offset as usize;
+        if off >= data.data.len() {
+            return Ok(0);
+        }
+        let available = data.data.len() - off;
+        let to_read = buf.len().min(available);
+        buf[..to_read].copy_from_slice(&data.data[off..off + to_read]);
+        Ok(to_read)
+    }
+
+    fn write_at(&self, buf: &[u8], offset: u64) -> std::io::Result<usize> {
+        let mut data = self
+            .data
+            .write()
+            .expect("lock poisoned: MemoryFile write_at");
+        let off = offset as usize;
+        let end = off + buf.len();
+        if end > data.data.len() {
+            data.data.resize(end, 0);
+        }
+        data.data[off..end].copy_from_slice(buf);
+        Ok(buf.len())
     }
 }
 

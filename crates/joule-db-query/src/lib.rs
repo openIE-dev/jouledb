@@ -50,11 +50,13 @@ pub mod timeseries;
 
 pub mod adaptive;
 pub mod columnar;
+pub mod dbsp;
 pub mod execution;
 pub mod executor;
 pub mod functions;
 pub mod geo;
 pub mod graph;
+pub mod hybrid_graphrag;
 pub mod jsonb;
 pub mod planner;
 pub mod prepared;

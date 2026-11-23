@@ -225,8 +225,16 @@ fn build_node<V: Clone>(
         (bounds.min.z + bounds.max.z) * 0.5,
     );
 
-    let mut buckets: [Vec<(Point3, V)>; 8] =
-        [vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]];
+    let mut buckets: [Vec<(Point3, V)>; 8] = [
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    ];
     for (p, v) in points {
         let oct = octant_of(p, center);
         buckets[oct as usize].push((p, v));
@@ -280,12 +288,36 @@ fn octant_of(p: Point3, center: Point3) -> u8 {
 }
 
 fn octant_bounds(parent: Bbox3, center: Point3, oct: u8) -> Bbox3 {
-    let min_x = if oct & 0b001 != 0 { center.x } else { parent.min.x };
-    let max_x = if oct & 0b001 != 0 { parent.max.x } else { center.x };
-    let min_y = if oct & 0b010 != 0 { center.y } else { parent.min.y };
-    let max_y = if oct & 0b010 != 0 { parent.max.y } else { center.y };
-    let min_z = if oct & 0b100 != 0 { center.z } else { parent.min.z };
-    let max_z = if oct & 0b100 != 0 { parent.max.z } else { center.z };
+    let min_x = if oct & 0b001 != 0 {
+        center.x
+    } else {
+        parent.min.x
+    };
+    let max_x = if oct & 0b001 != 0 {
+        parent.max.x
+    } else {
+        center.x
+    };
+    let min_y = if oct & 0b010 != 0 {
+        center.y
+    } else {
+        parent.min.y
+    };
+    let max_y = if oct & 0b010 != 0 {
+        parent.max.y
+    } else {
+        center.y
+    };
+    let min_z = if oct & 0b100 != 0 {
+        center.z
+    } else {
+        parent.min.z
+    };
+    let max_z = if oct & 0b100 != 0 {
+        parent.max.z
+    } else {
+        center.z
+    };
     Bbox3::new(
         Point3::new(min_x, min_y, min_z),
         Point3::new(max_x, max_y, max_z),
@@ -389,7 +421,7 @@ fn nearest_recursive<V>(
                     }
                 })
                 .collect();
-            order.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            order.sort_by(|a, b| a.1.total_cmp(&b.1));
 
             for (child_idx, _) in order {
                 nearest_recursive(nodes, child_idx, query, max_d2, best);
@@ -481,7 +513,7 @@ mod tests {
             world(),
             vec![
                 (p(50.0, 50.0, 50.0), 1u32),
-                (p(-1.0, 50.0, 50.0), 2u32), // outside on x
+                (p(-1.0, 50.0, 50.0), 2u32),  // outside on x
                 (p(50.0, 200.0, 50.0), 3u32), // outside on y
             ],
         );
@@ -619,8 +651,7 @@ mod tests {
             let qz = ((q * 4093 + 11111) % 80000) as f64 / 1000.0;
             let bbox = Bbox3::new(p(qx, qy, qz), p(qx + 20.0, qy + 20.0, qz + 20.0));
 
-            let mut tree_ids: Vec<u32> =
-                t.range(bbox).iter().map(|(_, v)| **v).collect();
+            let mut tree_ids: Vec<u32> = t.range(bbox).iter().map(|(_, v)| **v).collect();
             tree_ids.sort();
             let mut brute_ids: Vec<u32> = pts_clone
                 .iter()

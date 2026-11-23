@@ -73,7 +73,7 @@ pub trait IndexIterator: Iterator<Item = Result<IndexEntry, IndexError>> + Send 
 /// Core index trait
 ///
 /// An index maps keys to values with efficient lookup and optional range queries.
-pub trait Index: Send + Sync {
+pub trait Index: crate::persistence::compute::ComputeThreadSafe {
     /// Point lookup - get value for a key
     ///
     /// Returns None if the key doesn't exist.

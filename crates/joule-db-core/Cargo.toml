@@ -36,8 +36,12 @@ dashmap = { workspace = true }
 # Optional: tokio for async utilities
 tokio = { workspace = true, optional = true }
 
-# Memory-mapped I/O for zero-copy extent reads
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Memory-mapped I/O for zero-copy extent reads (OS platforms)
 memmap2 = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 # Note: This crate should remain mostly platform-agnostic.
 # Tokio is optional and only used for resilience utilities.

@@ -1,0 +1,35 @@
+language = "C"
+include_guard = "JOULE_DB_H"
+tab_width = 4
+style = "both"
+cpp_compat = true
+
+header = """
+/*
+ * JouleDB - Universal Database Engine
+ *
+ * C API for embedding JouleDB in applications.
+ * Thread-safe. Each handle is independent.
+ *
+ * Basic usage:
+ *   JouleDB *db = joule_db_open("my.db");
+ *   joule_db_exec(db, "CREATE TABLE t (id INT, name TEXT)", NULL);
+ *
+ *   JouleDBStmt *stmt = joule_db_prepare(db, "INSERT INTO t VALUES ($1, $2)");
+ *   joule_db_bind_int(stmt, 1, 42);
+ *   joule_db_bind_text(stmt, 2, "hello");
+ *   joule_db_step(stmt);
+ *   joule_db_finalize(stmt);
+ *
+ *   joule_db_close(db);
+ */
+"""
+
+[export]
+prefix = "Joule"
+
+[export.rename]
+"JouleDBHandle" = "JouleDB"
+
+[fn]
+rename_args = "GeckoCase"

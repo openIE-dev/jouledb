@@ -82,7 +82,10 @@ impl<V: Clone> RTree3<V> {
     /// O(N log N) build, near-optimal locality. Empty input → empty tree.
     pub fn build(entries: Vec<(Bbox3, V)>) -> Self {
         if entries.is_empty() {
-            return Self { nodes: Vec::new(), root: None };
+            return Self {
+                nodes: Vec::new(),
+                root: None,
+            };
         }
 
         let mut nodes: Vec<Node<V>> = Vec::new();
@@ -103,14 +106,19 @@ impl<V: Clone> RTree3<V> {
             pack_internals(leaves, &mut nodes)
         };
 
-        Self { nodes, root: Some(root) }
+        Self {
+            nodes,
+            root: Some(root),
+        }
     }
 
     /// Number of leaf entries (≠ number of nodes).
     pub fn len(&self) -> usize {
         match self.root {
             None => 0,
-            Some(_) => self.nodes.iter()
+            Some(_) => self
+                .nodes
+                .iter()
                 .filter(|n| n.is_leaf)
                 .map(|n| n.leaf_values.len())
                 .sum(),
@@ -154,10 +162,7 @@ impl<V: Clone> RTree3<V> {
 // STR bulk load
 // ============================================================================
 
-fn pack_leaves<V: Clone>(
-    mut entries: Vec<(Bbox3, V)>,
-    nodes: &mut Vec<Node<V>>,
-) -> Vec<usize> {
+fn pack_leaves<V: Clone>(mut entries: Vec<(Bbox3, V)>, nodes: &mut Vec<Node<V>>) -> Vec<usize> {
     let n = entries.len();
     let leaf_count = n.div_ceil(M);
     // Number of vertical slabs ≈ ⌈√(leaf_count)⌉. Round up so each slab
@@ -168,19 +173,19 @@ fn pack_leaves<V: Clone>(
     let slab_size = ((n + slab_count - 1) / slab_count).max(1);
 
     // Sort by centroid X.
-    entries.sort_by(|a, b| centroid_x(&a.0).partial_cmp(&centroid_x(&b.0)).unwrap());
+    entries.sort_by(|a, b| centroid_x(&a.0).total_cmp(&centroid_x(&b.0)));
 
     let mut leaves = Vec::with_capacity(leaf_count);
 
     for slab in entries.chunks_mut(slab_size) {
         // Sort this slab by centroid Y.
-        slab.sort_by(|a, b| centroid_y(&a.0).partial_cmp(&centroid_y(&b.0)).unwrap());
+        slab.sort_by(|a, b| centroid_y(&a.0).total_cmp(&centroid_y(&b.0)));
 
         // Partition slab into rows of M entries (each row = one leaf).
         // For 3D we'd do another sort+partition by Z within each row, but
         // since each row is already ≤ M we just sort by Z and pack.
         for row in slab.chunks_mut(M) {
-            row.sort_by(|a, b| centroid_z(&a.0).partial_cmp(&centroid_z(&b.0)).unwrap());
+            row.sort_by(|a, b| centroid_z(&a.0).total_cmp(&centroid_z(&b.0)));
 
             let leaf_values: Vec<(Bbox3, V)> = row.to_vec();
             let mbr = compute_mbr(leaf_values.iter().map(|(b, _)| *b));
@@ -198,10 +203,7 @@ fn pack_leaves<V: Clone>(
     leaves
 }
 
-fn pack_internals<V: Clone>(
-    mut current_level: Vec<usize>,
-    nodes: &mut Vec<Node<V>>,
-) -> usize {
+fn pack_internals<V: Clone>(mut current_level: Vec<usize>, nodes: &mut Vec<Node<V>>) -> usize {
     while current_level.len() > 1 {
         let n = current_level.len();
         let next_count = n.div_ceil(M);
@@ -211,9 +213,7 @@ fn pack_internals<V: Clone>(
 
         // Sort by MBR centroid X.
         current_level.sort_by(|&a, &b| {
-            centroid_x(&nodes[a].mbr)
-                .partial_cmp(&centroid_x(&nodes[b].mbr))
-                .unwrap()
+            centroid_x(&nodes[a].mbr).total_cmp(&centroid_x(&nodes[b].mbr))
         });
 
         let mut next_level = Vec::with_capacity(next_count);
@@ -225,17 +225,13 @@ fn pack_internals<V: Clone>(
             let mut slab_vec = slab.to_vec();
             // Sort slab by MBR centroid Y.
             slab_vec.sort_by(|&a, &b| {
-                centroid_y(&nodes[a].mbr)
-                    .partial_cmp(&centroid_y(&nodes[b].mbr))
-                    .unwrap()
+                centroid_y(&nodes[a].mbr).total_cmp(&centroid_y(&nodes[b].mbr))
             });
 
             for row in slab_vec.chunks(M) {
                 let mut row_vec = row.to_vec();
                 row_vec.sort_by(|&a, &b| {
-                    centroid_z(&nodes[a].mbr)
-                        .partial_cmp(&centroid_z(&nodes[b].mbr))
-                        .unwrap()
+                    centroid_z(&nodes[a].mbr).total_cmp(&centroid_z(&nodes[b].mbr))
                 });
 
                 let mbr = compute_mbr(row_vec.iter().map(|&i| nodes[i].mbr));
@@ -537,8 +533,7 @@ mod tests {
             let qz = ((q * 4093 + 11111) % 233280) as f64 / 1000.0;
             let qb = b((qx, qy, qz), (qx + 50.0, qy + 50.0, qz + 50.0));
 
-            let mut tree_ids: Vec<u32> =
-                t.intersects(qb).iter().map(|&(_, v)| *v).collect();
+            let mut tree_ids: Vec<u32> = t.intersects(qb).iter().map(|&(_, v)| *v).collect();
             tree_ids.sort();
 
             let mut brute_ids: Vec<u32> = entries_clone

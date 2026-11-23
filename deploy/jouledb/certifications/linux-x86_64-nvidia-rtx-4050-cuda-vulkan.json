@@ -1,0 +1,50 @@
+{
+  "certified_at_utc": "2026-11-22T15:55:16.196954+00:00",
+  "platform_slug": "nvidia-rtx-4050-cuda-vulkan",
+  "os": "Linux",
+  "arch": "x86_64",
+  "gpu_adapter": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "node_descriptor": {
+    "battery_charging": false,
+    "battery_soc_pct": null,
+    "current_power_watts": 31.25,
+    "endpoint_url": null,
+    "grid_carbon_g_per_kwh": 140.0,
+    "interconnect": "local_in_process",
+    "lanes": [
+      "cpu_scalar_simd",
+      "popcnt_bitwise",
+      "ternary158_bit",
+      "wasm_sandbox",
+      "gpu_shader"
+    ],
+    "memory_bus": "cxl_pooled",
+    "node_class": "cloud_cxl",
+    "node_id": "cert-nvidia-rtx-4050-cuda-vulkan",
+    "tdp_watts": 125.0,
+    "thermal_state": "Nominal",
+    "utilization": 0.15
+  },
+  "live_sensor_watts": 11.889148950576782,
+  "thermal_state": "Nominal",
+  "probes": {
+    "sql_semantic_ok": true,
+    "gpu_or_simd_lane": {
+      "executed_lane": "gpu_shader",
+      "hardware_backend": "wgpu-gpu:NVIDIA GeForce RTX 4050 Laptop GPU",
+      "wall_time_us": 256676,
+      "total_energy_uj": 140.120576,
+      "energy_saved_vs_worst_uj": 409.3332479999999
+    },
+    "ternary_158bit_lane": {
+      "executed_lane": "ternary158_bit",
+      "hardware_backend": "ternary-1.58bit-5trit-lut",
+      "wall_time_us": 240,
+      "total_energy_uj": 0.9961472
+    },
+    "hmi_sigql_ok": true,
+    "post_docker_joule_capsule_cow_ok": true,
+    "swot_trimodal_hipporag_ppr_ok": true,
+    "post_silo_joulespace_barge_in_ok": true
+  }
+}

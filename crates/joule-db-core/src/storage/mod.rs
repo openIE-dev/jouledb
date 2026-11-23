@@ -22,16 +22,21 @@
 //! - File backends (in joule-db-local)
 //! - Browser backends (in joule-db-browser)
 
+/// Vortex/DuckDB-class lossless `ALP` + `MonotonicTimestamp` + `SymbolDict` columnar codecs.
+pub mod alp_fsst;
 pub mod buffer;
 pub mod disk;
+pub mod io_ring;
 pub mod memory;
 pub mod memory64;
 /// Zero-copy mmap for extent-based large blob reads (LLM weights).
+#[cfg(not(target_arch = "wasm32"))]
 pub mod mmap_extent;
 pub mod page;
 mod traits;
 pub mod vfs;
 
+pub use io_ring::{IoCqe, IoRingEngine, IoRingStats, IoSqe, IoSqeOp};
 pub use memory64::{Memory64Backend, Memory64Config, Memory64PageAllocator, Memory64PageId};
 pub use page::{
     DEFAULT_PAGE_SIZE, NULL_PAGE_ID, PAGE_HEADER_SIZE, Page, PageFlags, PageHeader, PageId,

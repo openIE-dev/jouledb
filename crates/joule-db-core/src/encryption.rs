@@ -555,13 +555,21 @@ impl<S: StorageBackend> EncryptedBackend<S> {
 
     /// Force key rotation
     pub fn rotate_key(&mut self) -> KeyId {
-        let mut manager = self.key_manager.write().unwrap();
+        let Ok(mut manager) = self.key_manager.write() else {
+            return 0;
+        };
         manager.create_new_dek()
     }
 
     /// Get statistics about encryption
     pub fn encryption_stats(&self) -> EncryptionStats {
-        let manager = self.key_manager.read().unwrap();
+        let Ok(manager) = self.key_manager.read() else {
+            return EncryptionStats {
+                total_deks: 0,
+                active_dek_id: 0,
+                pages_with_active_dek: 0,
+            };
+        };
         EncryptionStats {
             total_deks: manager.dek_count(),
             active_dek_id: manager.active_dek().map(|d| d.id).unwrap_or(0),
@@ -572,22 +580,20 @@ impl<S: StorageBackend> EncryptedBackend<S> {
     /// Get or create AES-256-GCM cipher for a DEK
     fn get_cipher(&self, dek_id: KeyId) -> Option<Aes256Gcm> {
         // Check cache first
-        {
-            let cache = self.cipher_cache.read().unwrap();
+        if let Ok(cache) = self.cipher_cache.read() {
             if let Some(cipher) = cache.get(&dek_id) {
                 return Some(cipher.clone());
             }
         }
 
         // Get key from manager and create cipher
-        let manager = self.key_manager.read().unwrap();
+        let manager = self.key_manager.read().ok()?;
         let dek = manager.get_dek(dek_id)?;
         let key = Key::<Aes256Gcm>::from_slice(&dek.key);
         let cipher = Aes256Gcm::new(key);
 
         // Cache it
-        {
-            let mut cache = self.cipher_cache.write().unwrap();
+        if let Ok(mut cache) = self.cipher_cache.write() {
             cache.insert(dek_id, cipher.clone());
         }
 
@@ -596,7 +602,10 @@ impl<S: StorageBackend> EncryptedBackend<S> {
 
     /// Encrypt a page's data
     fn encrypt_page_data(&self, page: &Page) -> Result<Vec<u8>, StorageError> {
-        let mut manager = self.key_manager.write().unwrap();
+        let mut manager = self
+            .key_manager
+            .write()
+            .map_err(|e| StorageError::Backend(format!("key manager lock poisoned: {e}")))?;
 
         // Check if rotation is needed
         manager.rotate_if_needed();

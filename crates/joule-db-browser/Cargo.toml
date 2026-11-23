@@ -1,0 +1,145 @@
+[package]
+name = "joule-db-browser"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Browser/WASM bindings for JouleDB with IndexedDB and OPFS storage"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["indexeddb"]
+indexeddb = []
+opfs = []
+novel = []  # Enable novel features (holographic, hyperdimensional, predictive)
+compression-test = ["rand", "base64"]  # Compression testing utilities
+learned = []  # Learned indexes using WebNN
+deterministic = []  # Deterministic execution
+encryption = ["aes-gcm", "chacha20poly1305", "argon2"]  # Full encryption support
+viz = []  # Visualization hint inference
+
+[dependencies]
+joule-db-core = { workspace = true }
+joule-db-query = { workspace = true, features = ["sql", "storage-executor"] }
+joule-db-gpu = { workspace = true }
+joule-db-hdc = { workspace = true, features = ["holographic", "hyperdimensional", "predictive"] }
+rand = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+
+# Encryption (optional)
+aes-gcm = { workspace = true, optional = true }
+chacha20poly1305 = { workspace = true, optional = true }
+argon2 = { workspace = true, optional = true, features = ["alloc"] }
+getrandom = { version = "0.2", features = ["js"] }  # For WASM random number generation
+getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+
+# WASM bindings
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Event",
+    "EventTarget",
+    "DomStringList",
+    "IdbFactory",
+    "IdbDatabase",
+    "IdbTransaction",
+    "IdbTransactionMode",
+    "IdbObjectStore",
+    "IdbRequest",
+    "IdbOpenDbRequest",
+    "IdbCursorWithValue",
+    "IdbKeyRange",
+    "DomException",
+    "FileSystemDirectoryHandle",
+    "FileSystemFileHandle",
+    "FileSystemWritableFileStream",
+    "FileSystemSyncAccessHandle",
+    "StorageManager",
+    "Navigator",
+    "Crypto",
+    "CryptoKey",
+    "IdbVersionChangeEvent",
+    "Lock",
+    "LockManager",
+    "ServiceWorker",
+    "ServiceWorkerRegistration",
+    "SubtleCrypto",
+] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6"
+bincode = { workspace = true }
+
+# Common utilities
+tracing = { workspace = true }
+once_cell = { workspace = true }
+
+# Non-WASM async runtime (for testing and non-browser platforms)
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["sync", "time", "rt"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+tokio = { workspace = true, features = ["rt", "macros", "rt-multi-thread"] }
+criterion = { workspace = true, features = ["async_tokio"] }
+serde-wasm-bindgen = "0.6"
+rand = { workspace = true }
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
+
+[[example]]
+name = "gpu_acceleration"
+path = "examples/gpu_acceleration.rs"
+
+# [[example]]
+# name = "query_to_viz"
+# path = "examples/query_to_viz.rs"
+# required-features = ["viz"]  # TODO: Implement viz feature
+
+[[example]]
+name = "error_recovery"
+path = "examples/error_recovery.rs"
+
+[[example]]
+name = "monitoring"
+path = "examples/monitoring.rs"
+
+[[bench]]
+name = "htap_benchmarks"
+harness = false
+path = "benches/htap_benchmarks.rs"
+
+[[bench]]
+name = "learned_index_benchmarks"
+harness = false
+path = "benches/learned_index_benchmarks.rs"
+required-features = ["learned"]
+
+[[bench]]
+name = "deterministic_benchmarks"
+harness = false
+path = "benches/deterministic_benchmarks.rs"
+required-features = ["deterministic"]
+
+[[bench]]
+name = "htap_compression"
+harness = false
+path = "benches/htap_compression.rs"
+required-features = ["compression-test"]
+
+[[test]]
+name = "htap_compression_local_test"
+path = "tests/htap_compression_local_test.rs"
+required-features = ["compression-test"]
+
+[lints]
+workspace = true

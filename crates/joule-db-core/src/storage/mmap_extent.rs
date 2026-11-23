@@ -10,7 +10,7 @@
 //! Callers must not outlive the Arc. The data is read-only.
 #![allow(unsafe_code)]
 
-use super::page::{PageId, PAGE_HEADER_SIZE};
+use super::page::{PAGE_HEADER_SIZE, PageId};
 use crate::error::StorageError;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -66,7 +66,9 @@ impl MmapOverlay {
             *lock = Some(Arc::new(new_mmap));
         }
 
-        Ok(lock.as_ref().unwrap().clone())
+        lock.as_ref()
+            .cloned()
+            .ok_or_else(|| StorageError::Io("mmap missing after refresh".to_string()))
     }
 
     /// Invalidate the cached mmap (e.g., after writes that grew the file).
@@ -96,7 +98,10 @@ impl MmapOverlay {
         if extent_end > mmap.len() {
             return Err(StorageError::Backend(format!(
                 "Extent [{}, +{}] ({}B) exceeds mmap size {}",
-                first_page_id, page_count, extent_end, mmap.len()
+                first_page_id,
+                page_count,
+                extent_end,
+                mmap.len()
             )));
         }
 

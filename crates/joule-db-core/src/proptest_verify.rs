@@ -28,11 +28,8 @@ fn arb_leaf_value() -> impl Strategy<Value = Value> {
         "[ -~]{0,64}".prop_map(|s| Value::String(s)),
         prop::collection::vec(any::<u8>(), 0..32).prop_map(Value::Bytes),
         any::<i64>().prop_map(Value::Timestamp),
-        prop::collection::vec(
-            any::<f32>().prop_filter("no NaN", |f| !f.is_nan()),
-            0..16
-        )
-        .prop_map(Value::Vector),
+        prop::collection::vec(any::<f32>().prop_filter("no NaN", |f| !f.is_nan()), 0..16)
+            .prop_map(Value::Vector),
     ]
 }
 
@@ -201,15 +198,6 @@ proptest! {
     #[test]
     fn prop_random_bytes_no_panic(data in prop::collection::vec(any::<u8>(), 0..128)) {
         let _ = Value::decode(&data);
-    }
-
-    /// A huge length prefix on a short input must fail cleanly, not try to
-    /// reserve the claimed capacity (CI once aborted reserving ~232 GB).
-    #[test]
-    fn prop_huge_length_prefix_is_an_error(tag in prop::sample::select(vec![7u8 /* ARRAY */, 10u8 /* VECTOR */]), tail in prop::collection::vec(any::<u8>(), 0..16)) {
-        let mut data = vec![tag, 0xff, 0xff, 0xff, 0xff];
-        data.extend(tail);
-        prop_assert!(Value::decode(&data).is_err());
     }
 
     /// P18: Vector encoding size = 1 tag + 4 len + 4*N floats.

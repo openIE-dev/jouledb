@@ -29,6 +29,11 @@ members = [
     "crates/joule-db-server",
     "crates/joule-db-ternary",
     "crates/joule-db-viz",
+    "crates/joule-db-weights",
+    "crates/joule-db-odbc",
+    "crates/joule-db-edge",
+    "crates/joule-db-c",
+    "crates/joule-db-browser",
     "crates/joule-energy",
     "crates/joule-runtime",
     "crates/joule-runtime/runtime/joule-energy-rt",
@@ -73,6 +78,11 @@ joule-db-amorphic   = { path = "crates/joule-db-amorphic" }
 joule-db-energy     = { path = "crates/joule-db-energy" }
 joule-db-ternary    = { path = "crates/joule-db-ternary" }
 joule-db-viz        = { path = "crates/joule-db-viz" }
+joule-db-weights    = { path = "crates/joule-db-weights" }
+joule-db-edge       = { path = "crates/joule-db-edge" }
+joule-db-browser    = { path = "crates/joule-db-browser" }
+joule-db-c          = { path = "crates/joule-db-c" }
+joule-db-odbc       = { path = "crates/joule-db-odbc" }
 joule-db-ledger     = { path = "crates/joule-db-ledger" }
 joule-runtime       = { path = "crates/joule-runtime" }
 joule-metal-rt      = { path = "crates/joule-runtime/runtime/joule-metal-rt" }

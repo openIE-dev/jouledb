@@ -417,6 +417,7 @@ mod tests {
             device_target: "cpu".to_string(),
             algorithm_type: "btree".to_string(),
             branch_id: None,
+            provenance: None,
         };
         store
             .receipts

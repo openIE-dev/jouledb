@@ -33,6 +33,8 @@
 //! backend commitment reference. Third parties can independently verify
 //! receipt integrity by recomputing the proof against the published root.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod backend;
 #[cfg(feature = "ethereum")]
 pub mod backend_eth;
@@ -63,4 +65,7 @@ pub use collector::{CollectorMetrics, LedgerConfig, ReceiptCollector};
 pub use committer::{BatchCommitter, CommitterMetrics, ReceiptStore};
 pub use error::LedgerError;
 pub use merkle::{MerkleProof, MerkleTree};
-pub use receipt::{ExecutionStage, LedgerEnergyReceipt};
+pub use receipt::{
+    AcquisitionTier, CascadeTierTag, EnergyProvenance, ExecutionStage, ExternalApiSpend,
+    HardwareChannelJoules, LedgerEnergyReceipt, ProvenanceError, ReceiptAttestation,
+};

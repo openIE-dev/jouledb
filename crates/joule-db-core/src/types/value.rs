@@ -216,13 +216,22 @@ impl Value {
     }
 
     /// Decode value from bytes
+    /// Decode value from bytes
     pub fn decode(bytes: &[u8]) -> Result<Self, CodecError> {
         let mut cursor = 0;
-        Self::decode_at(bytes, &mut cursor)
+        Self::decode_at(bytes, &mut cursor, 0)
     }
 
+    /// Maximum allowed nesting depth for `Array` / `Map` values to prevent stack-overflow DoS.
+    const MAX_DECODE_DEPTH: usize = 64;
+
     /// Decode value from bytes at a given position
-    fn decode_at(bytes: &[u8], cursor: &mut usize) -> Result<Self, CodecError> {
+    fn decode_at(bytes: &[u8], cursor: &mut usize, depth: usize) -> Result<Self, CodecError> {
+        if depth > Self::MAX_DECODE_DEPTH {
+            return Err(CodecError::InvalidFormat {
+                reason: "maximum Value nesting depth exceeded".into(),
+            });
+        }
         if *cursor >= bytes.len() {
             return Err(CodecError::UnexpectedEof {
                 expected: 1,
@@ -257,21 +266,35 @@ impl Value {
             }
             tags::ARRAY => {
                 let len = read_u32(bytes, cursor)? as usize;
-                // The length comes from the input: every element takes at
-                // least one byte, so never reserve more than what remains.
-                let mut arr = Vec::with_capacity(len.min(bytes.len() - *cursor));
+                let remaining = bytes.len().saturating_sub(*cursor);
+                // Every encoded `Value` consumes at least 1 tag byte; reject OOM allocation bombs upfront!
+                if len > remaining {
+                    return Err(CodecError::UnexpectedEof {
+                        expected: len,
+                        actual: remaining,
+                    });
+                }
+                let mut arr = Vec::with_capacity(len.min(4096));
                 for _ in 0..len {
-                    arr.push(Self::decode_at(bytes, cursor)?);
+                    arr.push(Self::decode_at(bytes, cursor, depth + 1)?);
                 }
                 Ok(Value::Array(arr))
             }
             tags::MAP => {
                 let len = read_u32(bytes, cursor)? as usize;
+                let remaining = bytes.len().saturating_sub(*cursor);
+                // Each map entry consumes at least 4 (key_len) + 1 (val tag) = 5 bytes
+                if len.saturating_mul(5) > remaining {
+                    return Err(CodecError::UnexpectedEof {
+                        expected: len.saturating_mul(5),
+                        actual: remaining,
+                    });
+                }
                 let mut map = BTreeMap::new();
                 for _ in 0..len {
                     let key_len = read_u32(bytes, cursor)? as usize;
                     let key = read_string(bytes, cursor, key_len)?;
-                    let value = Self::decode_at(bytes, cursor)?;
+                    let value = Self::decode_at(bytes, cursor, depth + 1)?;
                     map.insert(key, value);
                 }
                 Ok(Value::Map(map))
@@ -282,14 +305,18 @@ impl Value {
             }
             tags::VECTOR => {
                 let len = read_u32(bytes, cursor)? as usize;
-                let mut v = Vec::with_capacity(len.min((bytes.len() - *cursor) / 4));
+                let remaining = bytes.len().saturating_sub(*cursor);
+                let byte_len = len.checked_mul(4).ok_or_else(|| CodecError::InvalidFormat {
+                    reason: "vector length overflow".into(),
+                })?;
+                if byte_len > remaining {
+                    return Err(CodecError::UnexpectedEof {
+                        expected: byte_len,
+                        actual: remaining,
+                    });
+                }
+                let mut v = Vec::with_capacity(len);
                 for _ in 0..len {
-                    if *cursor + 4 > bytes.len() {
-                        return Err(CodecError::UnexpectedEof {
-                            expected: 4,
-                            actual: bytes.len() - *cursor,
-                        });
-                    }
                     let arr: [u8; 4] = bytes[*cursor..*cursor + 4]
                         .try_into()
                         .expect("exact 4-byte slice");
@@ -307,13 +334,14 @@ impl Value {
     }
 }
 
-// Helper functions for reading primitive types
+// Helper functions for reading primitive types (overflow-safe on both 32-bit WASM and 64-bit)
 
 fn read_i64(bytes: &[u8], cursor: &mut usize) -> Result<i64, CodecError> {
-    if *cursor + 8 > bytes.len() {
+    let remaining = bytes.len().saturating_sub(*cursor);
+    if remaining < 8 {
         return Err(CodecError::UnexpectedEof {
             expected: 8,
-            actual: bytes.len() - *cursor,
+            actual: remaining,
         });
     }
     let arr: [u8; 8] = bytes[*cursor..*cursor + 8]
@@ -324,10 +352,11 @@ fn read_i64(bytes: &[u8], cursor: &mut usize) -> Result<i64, CodecError> {
 }
 
 fn read_f64(bytes: &[u8], cursor: &mut usize) -> Result<f64, CodecError> {
-    if *cursor + 8 > bytes.len() {
+    let remaining = bytes.len().saturating_sub(*cursor);
+    if remaining < 8 {
         return Err(CodecError::UnexpectedEof {
             expected: 8,
-            actual: bytes.len() - *cursor,
+            actual: remaining,
         });
     }
     let arr: [u8; 8] = bytes[*cursor..*cursor + 8]
@@ -338,10 +367,11 @@ fn read_f64(bytes: &[u8], cursor: &mut usize) -> Result<f64, CodecError> {
 }
 
 fn read_u32(bytes: &[u8], cursor: &mut usize) -> Result<u32, CodecError> {
-    if *cursor + 4 > bytes.len() {
+    let remaining = bytes.len().saturating_sub(*cursor);
+    if remaining < 4 {
         return Err(CodecError::UnexpectedEof {
             expected: 4,
-            actual: bytes.len() - *cursor,
+            actual: remaining,
         });
     }
     let arr: [u8; 4] = bytes[*cursor..*cursor + 4]
@@ -352,10 +382,11 @@ fn read_u32(bytes: &[u8], cursor: &mut usize) -> Result<u32, CodecError> {
 }
 
 fn read_bytes(bytes: &[u8], cursor: &mut usize, len: usize) -> Result<Vec<u8>, CodecError> {
-    if *cursor + len > bytes.len() {
+    let remaining = bytes.len().saturating_sub(*cursor);
+    if remaining < len {
         return Err(CodecError::UnexpectedEof {
             expected: len,
-            actual: bytes.len() - *cursor,
+            actual: remaining,
         });
     }
     let result = bytes[*cursor..*cursor + len].to_vec();

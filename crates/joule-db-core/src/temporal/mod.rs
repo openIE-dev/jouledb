@@ -140,10 +140,7 @@ impl TemporalTable {
         data: HashMap<String, serde_json::Value>,
         now: Timestamp,
     ) -> Result<(), String> {
-        let mut rows = self
-            .rows
-            .write()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let mut rows = self.rows.write().map_err(|_| "lock poisoned".to_string())?;
 
         let versions = rows.entry(row_id.to_string()).or_default();
 
@@ -171,10 +168,7 @@ impl TemporalTable {
         data: HashMap<String, serde_json::Value>,
         now: Timestamp,
     ) -> Result<(), String> {
-        let mut rows = self
-            .rows
-            .write()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let mut rows = self.rows.write().map_err(|_| "lock poisoned".to_string())?;
 
         let versions = rows
             .get_mut(row_id)
@@ -200,10 +194,7 @@ impl TemporalTable {
 
     /// Delete a row: closes the active version.
     pub fn delete(&self, row_id: &str, now: Timestamp) -> Result<(), String> {
-        let mut rows = self
-            .rows
-            .write()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let mut rows = self.rows.write().map_err(|_| "lock poisoned".to_string())?;
 
         let versions = rows
             .get_mut(row_id)
@@ -220,10 +211,7 @@ impl TemporalTable {
 
     /// Query current state (equivalent to `AS OF now`).
     pub fn scan_current(&self) -> Result<Vec<VersionedRow>, String> {
-        let rows = self
-            .rows
-            .read()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let rows = self.rows.read().map_err(|_| "lock poisoned".to_string())?;
 
         let mut result = Vec::new();
         for versions in rows.values() {
@@ -238,10 +226,7 @@ impl TemporalTable {
 
     /// Point-in-time query: return rows as they existed at `timestamp`.
     pub fn scan_as_of(&self, timestamp: Timestamp) -> Result<Vec<VersionedRow>, String> {
-        let rows = self
-            .rows
-            .read()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let rows = self.rows.read().map_err(|_| "lock poisoned".to_string())?;
 
         let mut result = Vec::new();
         for versions in rows.values() {
@@ -260,10 +245,7 @@ impl TemporalTable {
         start: Timestamp,
         end: Timestamp,
     ) -> Result<Vec<VersionedRow>, String> {
-        let rows = self
-            .rows
-            .read()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let rows = self.rows.read().map_err(|_| "lock poisoned".to_string())?;
 
         let mut result = Vec::new();
         for versions in rows.values() {
@@ -278,10 +260,7 @@ impl TemporalTable {
 
     /// Return all versions (FOR SYSTEM_TIME ALL).
     pub fn scan_all_versions(&self) -> Result<Vec<VersionedRow>, String> {
-        let rows = self
-            .rows
-            .read()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let rows = self.rows.read().map_err(|_| "lock poisoned".to_string())?;
 
         let mut result = Vec::new();
         for versions in rows.values() {
@@ -293,10 +272,7 @@ impl TemporalTable {
     }
 
     /// Execute a temporal query based on a TemporalClause.
-    pub fn scan_temporal(
-        &self,
-        clause: &TemporalClause,
-    ) -> Result<Vec<VersionedRow>, String> {
+    pub fn scan_temporal(&self, clause: &TemporalClause) -> Result<Vec<VersionedRow>, String> {
         match clause {
             TemporalClause::AsOf(ts) => self.scan_as_of(*ts),
             TemporalClause::Between(start, end) => self.scan_between(*start, *end),
@@ -307,10 +283,7 @@ impl TemporalTable {
     /// Garbage collect historical versions older than retention period.
     /// Returns the number of versions purged.
     pub fn gc(&self, now: Timestamp) -> Result<usize, String> {
-        let mut rows = self
-            .rows
-            .write()
-            .map_err(|_| "lock poisoned".to_string())?;
+        let mut rows = self.rows.write().map_err(|_| "lock poisoned".to_string())?;
 
         let cutoff = now - self.retention_us;
         let mut purged = 0;
@@ -382,9 +355,15 @@ fn parse_date(s: &str) -> Result<Timestamp, String> {
     if parts.len() != 3 {
         return Err(format!("invalid date: {}", s));
     }
-    let year: i64 = parts[0].parse().map_err(|_| format!("invalid year: {}", parts[0]))?;
-    let month: i64 = parts[1].parse().map_err(|_| format!("invalid month: {}", parts[1]))?;
-    let day: i64 = parts[2].parse().map_err(|_| format!("invalid day: {}", parts[2]))?;
+    let year: i64 = parts[0]
+        .parse()
+        .map_err(|_| format!("invalid year: {}", parts[0]))?;
+    let month: i64 = parts[1]
+        .parse()
+        .map_err(|_| format!("invalid month: {}", parts[1]))?;
+    let day: i64 = parts[2]
+        .parse()
+        .map_err(|_| format!("invalid day: {}", parts[2]))?;
 
     // Simplified: days since epoch (not handling leap seconds, etc.)
     // Good enough for temporal versioning; real impl would use chrono.
@@ -405,10 +384,16 @@ fn parse_time(s: &str) -> Result<Timestamp, String> {
     if parts.len() < 2 {
         return Err(format!("invalid time: {}", s));
     }
-    let hour: i64 = parts[0].parse().map_err(|_| format!("invalid hour: {}", parts[0]))?;
-    let min: i64 = parts[1].parse().map_err(|_| format!("invalid minute: {}", parts[1]))?;
+    let hour: i64 = parts[0]
+        .parse()
+        .map_err(|_| format!("invalid hour: {}", parts[0]))?;
+    let min: i64 = parts[1]
+        .parse()
+        .map_err(|_| format!("invalid minute: {}", parts[1]))?;
     let sec: i64 = if parts.len() > 2 {
-        parts[2].parse().map_err(|_| format!("invalid second: {}", parts[2]))?
+        parts[2]
+            .parse()
+            .map_err(|_| format!("invalid second: {}", parts[2]))?
     } else {
         0
     };
@@ -454,11 +439,11 @@ mod tests {
     fn test_validity_overlaps() {
         let v = Validity::new(100, 200);
         assert!(v.overlaps(150, 250)); // partial overlap right
-        assert!(v.overlaps(50, 150));  // partial overlap left
-        assert!(v.overlaps(50, 250));  // contains
+        assert!(v.overlaps(50, 150)); // partial overlap left
+        assert!(v.overlaps(50, 250)); // contains
         assert!(v.overlaps(120, 180)); // contained
         assert!(!v.overlaps(200, 300)); // adjacent, no overlap
-        assert!(!v.overlaps(0, 100));   // adjacent, no overlap
+        assert!(!v.overlaps(0, 100)); // adjacent, no overlap
     }
 
     #[test]
@@ -623,9 +608,7 @@ mod tests {
             .unwrap();
 
         // AsOf
-        let r = table
-            .scan_temporal(&TemporalClause::AsOf(150))
-            .unwrap();
+        let r = table.scan_temporal(&TemporalClause::AsOf(150)).unwrap();
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].data["name"], "Alice");
 

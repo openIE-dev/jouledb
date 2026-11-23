@@ -1,0 +1,38 @@
+[package]
+name = "joule-db-query-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.joule-db-query]
+path = ".."
+features = ["sql", "cypher", "cql"]
+
+[[bin]]
+name = "fuzz_sql"
+path = "fuzz_targets/fuzz_sql.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_cql"
+path = "fuzz_targets/fuzz_cql.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_cypher"
+path = "fuzz_targets/fuzz_cypher.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_graphql"
+path = "fuzz_targets/fuzz_graphql.rs"
+doc = false
+
+[workspace]
+members = ["."]

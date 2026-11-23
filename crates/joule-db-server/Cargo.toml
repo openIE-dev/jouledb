@@ -36,6 +36,8 @@ joule-db-local = { workspace = true }
 joule-db-query = { workspace = true, features = ["sql", "cypher", "cql", "graphql", "storage-executor", "hdc"] }
 joule-db-amorphic = { workspace = true, features = ["durable"] }
 joule-db-branch = { workspace = true }
+joule-db-ternary = { workspace = true }
+joule-db-weights = { workspace = true }
 joule-db-crdt = { workspace = true }
 wgpu = { workspace = true }
 pollster = { workspace = true }

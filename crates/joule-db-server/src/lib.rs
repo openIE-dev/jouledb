@@ -99,6 +99,13 @@ pub mod mvcc_adapter;
 pub mod spatial_index;
 pub mod vector_index;
 pub mod vector_routes;
+pub mod ducklake;
+pub mod fabric_routes;
+pub mod living_embodied_routes;
+pub mod swot_capsule_routes;
+pub mod synapse_routes;
+pub mod ward_openai_routes;
+pub mod wasm_reducers;
 
 // Re-exports
 pub use auth::{ApiKey, AuthConfig, AuthError, AuthenticationManager, JwtClaims, Session};
@@ -524,6 +531,13 @@ pub struct Server {
     workflow_manager: Arc<workflow::WorkflowManager>,
     /// Edge Points of Presence manager
     edge_pop_manager: Arc<edge_pop::EdgePopManager>,
+    ducklake_catalog: Arc<ducklake::DuckLakeCatalog>,
+    reducer_runtime: Arc<wasm_reducers::ReducerRuntime>,
+    living_embodied_runtime: Arc<living_embodied_routes::LivingEmbodiedRuntime>,
+    fabric_runtime: Arc<fabric_routes::FabricRuntime>,
+    swot_capsule_runtime: Arc<swot_capsule_routes::SwotCapsuleRuntime>,
+    synapse_runtime: Arc<synapse_routes::SynapseServerRuntime>,
+    ward_openai_runtime: Arc<ward_openai_routes::WardOpenAiRuntime>,
 }
 
 /// Database handler for TCP server - bridges TCP protocol to actual database
@@ -831,6 +845,37 @@ impl Server {
         };
 
         let db_path = config.db_path.clone();
+        let branch_manager = Arc::new(joule_db_branch::manager::BranchManager::new(0));
+        let ducklake_catalog = Arc::new(ducklake::DuckLakeCatalog::new(
+            format!("file://{}/ducklake", db_path),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+        ));
+        let reducer_runtime = Arc::new(wasm_reducers::ReducerRuntime::new(
+            branch_manager.clone(),
+            wasm_reducers::ReducerEnergyPolicy::default(),
+        ));
+        let living_embodied_runtime =
+            Arc::new(living_embodied_routes::LivingEmbodiedRuntime::new());
+        let fabric_runtime =
+            fabric_routes::FabricRuntime::from_platform(&platform_info, query_executor.clone());
+        let swot_capsule_runtime = swot_capsule_routes::SwotCapsuleRuntime::new(
+            branch_manager.clone(),
+            query_executor.clone(),
+            &db_path,
+        );
+        let synapse_runtime = Arc::new(synapse_routes::SynapseServerRuntime::with_executor_and_path(
+            query_executor.clone(),
+            &db_path,
+        ));
+        let ward_openai_runtime = ward_openai_routes::WardOpenAiRuntime::new(
+            fabric_runtime.clone(),
+            swot_capsule_runtime.clone(),
+            synapse_runtime.clone(),
+            &db_path,
+        );
 
         Ok(Self {
             config,
@@ -856,7 +901,7 @@ impl Server {
             ledger_store,
             ledger_collector,
             dynamic_route_manager,
-            branch_manager: Arc::new(joule_db_branch::manager::BranchManager::new(0)),
+            branch_manager,
             tenant_manager: Arc::new(tenant::TenantManager::new()),
             vector_index_manager: Arc::new(std::sync::RwLock::new(
                 vector_index::VectorIndexManager::new(),
@@ -874,6 +919,13 @@ impl Server {
                 edge_pop::EdgePopManager::open(&format!("{}/edge_pops", db_path))
                     .unwrap_or_else(|_| edge_pop::EdgePopManager::new()),
             ),
+            ducklake_catalog,
+            reducer_runtime,
+            living_embodied_runtime,
+            fabric_runtime,
+            swot_capsule_runtime,
+            synapse_runtime,
+            ward_openai_runtime,
         })
     }
 
@@ -1147,7 +1199,20 @@ impl Server {
             .merge(memory_routes)
             .merge(workflow_routes)
             .merge(edge_routes)
-            .merge(mcp_rt);
+            .merge(mcp_rt)
+            .merge(ducklake::ducklake_routes(self.ducklake_catalog.clone()))
+            .merge(wasm_reducers::reducer_routes(self.reducer_runtime.clone()))
+            .merge(living_embodied_routes::living_embodied_routes(
+                self.living_embodied_runtime.clone(),
+            ))
+            .merge(fabric_routes::fabric_router(self.fabric_runtime.clone()))
+            .merge(swot_capsule_routes::swot_capsule_router(
+                self.swot_capsule_runtime.clone(),
+            ))
+            .merge(synapse_routes::synapse_router(self.synapse_runtime.clone()))
+            .merge(ward_openai_routes::ward_openai_router(
+                self.ward_openai_runtime.clone(),
+            ));
 
         // Merge ledger verification routes (if ledger is enabled)
         let merged = if let Some(ref store) = self.ledger_store {

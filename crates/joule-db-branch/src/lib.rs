@@ -20,9 +20,16 @@
 //! duplicated. Each branch can optionally carry an energy budget that the
 //! query executor enforces before dispatching.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
+pub mod agentfs;
+pub mod capsule;
 pub mod energy;
+pub mod joulespace;
 pub mod manager;
+pub mod object_tier;
 pub mod storage;
+pub mod ward;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

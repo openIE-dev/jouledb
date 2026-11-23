@@ -1,0 +1,70 @@
+# Turnkey 3-Node Heterogeneous Energy Fabric (Edge Robot + Regional UMA + Hydro Cloud Lakehouse)
+#
+# Usage:
+#   docker compose -f deploy/jouledb/docker-compose.fabric.yml up --build -d
+
+services:
+  uma-coordinator:
+    build:
+      context: ../..
+      dockerfile: deploy/jouledb/Dockerfile
+    container_name: jouledb-uma-coordinator
+    environment:
+      JOULEDB_BIND_HOST: "0.0.0.0"
+      JOULEDB_FABRIC_NODE_ID: "uma-coordinator-01"
+      JOULEDB_FABRIC_NODE_CLASS: "apple_uma"
+      JOULEDB_GRID_REGION: "us-west-clean"
+      JOULEDB_GRID_FACTOR: "68.0"
+      JOULEDB_LEDGER_ENABLED: "1"
+      JOULEDB_DISABLE_RATE_LIMIT: "1"
+    ports:
+      - "18080:8080"
+      - "18081:8081"
+      - "18082:8082"
+      - "18083:8083"
+    volumes:
+      - uma_data:/var/lib/jouledb/data
+      - uma_ledger:/var/lib/jouledb/ledger
+
+  edge-robot-peer:
+    build:
+      context: ../..
+      dockerfile: deploy/jouledb/Dockerfile
+    container_name: jouledb-edge-robot
+    environment:
+      JOULEDB_BIND_HOST: "0.0.0.0"
+      JOULEDB_FABRIC_NODE_ID: "edge-robot-arm-01"
+      JOULEDB_FABRIC_NODE_CLASS: "edge_robotic"
+      JOULEDB_BATTERY_SOC_PCT: "12.0"
+      JOULEDB_BATTERY_CHARGING: "false"
+      JOULEDB_GRID_FACTOR: "140.0"
+      JOULEDB_LEDGER_ENABLED: "1"
+      JOULEDB_DISABLE_RATE_LIMIT: "1"
+    ports:
+      - "18090:8080"
+    volumes:
+      - edge_data:/var/lib/jouledb/data
+
+  hydro-lakehouse-peer:
+    build:
+      context: ../..
+      dockerfile: deploy/jouledb/Dockerfile
+    container_name: jouledb-hydro-lakehouse
+    environment:
+      JOULEDB_BIND_HOST: "0.0.0.0"
+      JOULEDB_FABRIC_NODE_ID: "hydro-nordic-cxl-01"
+      JOULEDB_FABRIC_NODE_CLASS: "cloud_cxl"
+      JOULEDB_GRID_REGION: "eu-north-hydro"
+      JOULEDB_GRID_FACTOR: "14.0"
+      JOULEDB_LEDGER_ENABLED: "1"
+      JOULEDB_DISABLE_RATE_LIMIT: "1"
+    ports:
+      - "18100:8080"
+    volumes:
+      - hydro_data:/var/lib/jouledb/data
+
+volumes:
+  uma_data:
+  uma_ledger:
+  edge_data:
+  hydro_data:

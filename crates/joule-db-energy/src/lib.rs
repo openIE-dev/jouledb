@@ -16,6 +16,7 @@ pub mod advisor;
 pub mod bridge;
 pub mod budget;
 pub mod controller;
+pub mod fabric;
 pub mod monitor;
 pub mod platform;
 pub mod router;

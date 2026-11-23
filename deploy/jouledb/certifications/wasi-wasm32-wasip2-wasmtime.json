@@ -1,0 +1,16 @@
+{
+  "all_ok": true,
+  "arch": "wasm32",
+  "checks": {
+    "alp_lossless_float_codec_ok": true,
+    "embodied_causal_asof_ok": true,
+    "living_surprise_gate_ok": true,
+    "post_docker_joule_capsule_cow_ok": true,
+    "post_silo_joulespace_barge_in_ok": true,
+    "rabitq_1bit_popcnt_ok": true,
+    "se3_kinematic_slerp_ok": true
+  },
+  "elapsed_us": 370,
+  "family": "",
+  "os": ""
+}

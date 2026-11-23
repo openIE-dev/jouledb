@@ -459,10 +459,12 @@ mod tests {
     use serde_json::json;
 
     fn default_stop_words() -> HashSet<String> {
-        ["the", "a", "an", "is", "are", "was", "were", "in", "on", "at", "to", "of"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect()
+        [
+            "the", "a", "an", "is", "are", "was", "were", "in", "on", "at", "to", "of",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
     }
 
     // ------------------------------------------------------------------
@@ -509,8 +511,7 @@ mod tests {
         let result = idx.search_jsonb_contains(&json!({"user": {"role": "admin"}}));
         assert_eq!(result, BTreeSet::from([1, 3]));
 
-        let result =
-            idx.search_jsonb_contains(&json!({"user": {"role": "admin", "active": true}}));
+        let result = idx.search_jsonb_contains(&json!({"user": {"role": "admin", "active": true}}));
         assert_eq!(result, BTreeSet::from([1]));
     }
 

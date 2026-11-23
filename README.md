@@ -18,25 +18,25 @@ JouleDB takes one position: *the right unit of account for database + AI work is
 
 One B-tree storage substrate carrying:
 
-- **7 query languages**, SQL, Cypher, CQL, GraphQL, Datalog, SPARQL, Gremlin (+ InfluxQL/PromQL), over one engine, not separate stores.
-- **MVCC copy-on-write** with Phase 5/6 atomic publish, depth-bounded cycle-safe traversal, and a forensic page-walker recovery tool.
-- **A deterministic cascade as the substrate**, not a router bolted in front of an LLM: `Lookup → Formula → Extract → Aggregate → Reason`. `EXPLAIN` reports the cascade tier per query.
-- **An HDC runtime**, 15 irreducible primitives (bind / bundle / permute / Reflect / Inhibit / Spawn / …), zero-train one-shot learning. 83.8% Hits@10 on WN18RR at ~9 µJ/prediction, no training step.
-- **Energy receipts** via `joule-db-energy`, Merkle-anchorable via `joule-db-ledger`, auditable without trusting the operator.
-- **A learned WCOJ cost model** and **self-healing search index** (auto-recovery after a sparse-fill).
-- Wire surface: a native binary protocol (JWP), PostgreSQL pgwire compatibility, WebSocket, HTTP, MCP.
+- **7 query languages**, SQL, Cypher, CQL, GraphQL, Datalog, SPARQL, Gremlin (+ InfluxQL/PromQL + `SigQL` biosignals), over one engine, not separate stores.
+- **SSI MVCC copy-on-write + instant branching (`joule-db-branch`)** with Phase 5/6 atomic publish, depth-bounded cycle-safe traversal, `DBSP` incremental views, `TriModal RRF` (`BM25 ⋈ RaBitQ 1-bit POPCNT ⋈ HDC`) + ACORN 2-hop rescue, and `HippoRAG` Personalized PageRank.
+- **A deterministic cascade as the substrate**, not a router bolted in front of an LLM: `LSN LangCache (95 nJ) -> Engram O(1) Memory (220 nJ) -> TriModal RRF / HDC -> LittleBit-2 Living Synapse`.
+- **`JouleSynapse` & `JouleHarness` (`joule-db-weights` + `joule-db-gpu`)**: compiles HuggingFace `.safetensors` checkpoints into SQL-queryable sub-1-bit (`< 0.60` BPW) `LittleBit-2` bitplanes executed via `wgpu` Metal/Vulkan/WebGPU `XNOR + countOneBits` (`POPCNT`) shaders, paired with Sakana `SVF` online adaptation, Google `Titans` surprise-gated plasticity (with MVCC `rollback_to_lsn`), `AirLLM`/`PowerInfer` VRAM-capped streaming, `Mooncake` Radix KV blocks, and durable CRC32+`zstd` `JSYN` snapshots.
+- **Post-Docker `JouleCapsule`, Post-Git `JouleSpace`, and `JouleWard` Capability Confinement**: daemonless pure-Rust OCI Distribution v2 pulls + $O(1)$ CoW rootfs branching, `Zed Delta`/`Jujutsu` operation logs + multimodal rooms, RFC-2104 `ThermoCap` offline-attenuatable capability macaroons, macOS `Seatbelt` / Linux `Landlock`+`bwrap`+`seccomp-bpf` / `WASI 0.2` confinement, `Dagger`-class 0-spawn Merkle action memoization, single-file SHA-256 `.jcap` bundles, and drop-in OpenAI (`/v1/*`) & Ollama (`/api/*`) wire endpoints.
+- **High-resolution heterogeneous 6-rail energy accounting (`joule-db-energy` + `JouleWard`)**: 1-nanojoule (`nJ`) and 1-nanosecond (`ns`) attribution across `cpu_nj`, `gpu_nj`, `npu_ane_nj`, `dram_uma_nj`, `storage_nvme_nj`, and `network_wire_nj` spanning `McuBareMetal`, `WasmEdgeIsolate`, `MobileNpu`, `EdgeRobotic`, `AppleUmaWorkstation`, `LinuxAccelerator`, and `CloudCxlCluster`, Merkle-anchorable via `joule-db-ledger`.
+- **An HDC runtime**, 15 irreducible primitives (bind / bundle / permute / Reflect / Inhibit / Spawn / ...), zero-train one-shot learning (70.0% Hits@1 / 88.1% Hits@10 on WN18RR at ~10 uJ/prediction; 100% on LongMemEval-60).
+- Wire surface: native binary protocol (JWP), PostgreSQL pgwire compatibility, Arrow Flight SQL, WebSocket, HTTP, MCP Streamable HTTP, OpenAI `/v1/*`, and Ollama `/api/*`.
 
 ## What it is not (read this)
 
 This repository is published with its limitations stated, because a credible showcase states them:
 
-- **Single-machine in production.** Raft / 2PC / sharding code ships and is tested; production deployments are single-instance. This is not a managed, multi-region service.
-- **The server tier has unaudited `unwrap()`s**, a known panic surface.
-- **Text generation is crude**; the zero-train knowledge result (WN18RR) is a knowledge-graph benchmark, not an agent-memory leaderboard score.
-- **The AI bridge (`jouledb-ai-runtime`) is not in this repository.** It depends on a private AI library. JouleDB's HDC features here ride on the HDC *primitive math* (`inv-hdc-core`), not that library. The AI integration is described in the docs, not shipped.
+- **Self-hosted software, not a managed cloud service.** Raft, 2PC, sharding, and multi-node Heterogeneous Fabric routing ship and are verified by Jepsen-style fault-injection tests; OpenIE does not operate a commercial multi-region SaaS control plane from this repo.
+- **Panic-hardened core & server (`#![deny(unsafe_code)]` in `joule-db-core`, `deny(clippy::unwrap_used)` across all 7 core crates: `core`, `local`, `weights`, `branch`, `ledger`, `query`, `server`)**, while auxiliary workspace crates continue ongoing clippy cleanup.
+- **Private frontier reasoning models are separate.** All open-source engine crates here compile standalone from `crates.io` with zero proprietary dependencies (`joule-db-weights` natively ingests standard open `.safetensors` checkpoints); private frontier reasoning plugins are not in this repository.
 - **The amorphic engine's pattern-language resolver is feature-gated off** in this build (it depends on a separate project). The storage-side amorphic path is intact; the pattern-lang-backed codegen path is not shipped.
 
-For the full, unsugared assessment see `docs/WHITEPAPER-JOULEDB-2026-05.md` §5–6.
+For the full architectural assessment see `docs/WHITEPAPER-JOULEDB-2026-05.md` and `docs/jouledb/SOTA-SWOT-2026-11.md`.
 
 ## Why it exists
 

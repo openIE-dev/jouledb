@@ -14,9 +14,7 @@
 
 use std::sync::RwLock;
 
-use super::traits::{
-    Bound, Index, IndexEntry, IndexIterator, OrderedIndex, ScanDirection,
-};
+use super::traits::{Bound, Index, IndexEntry, IndexIterator, OrderedIndex, ScanDirection};
 use crate::error::IndexError;
 
 // ---------------------------------------------------------------------------
@@ -703,10 +701,8 @@ fn art_insert_inner(node: &mut Box<ArtNode>, key: &[u8], value: &[u8], depth: us
         };
         *node.prefix_mut() = remaining_prefix;
 
-        let old_node = std::mem::replace(
-            node,
-            Box::new(ArtNode::Node4(Node4::new(Prefix::empty()))),
-        );
+        let old_node =
+            std::mem::replace(node, Box::new(ArtNode::Node4(Node4::new(Prefix::empty()))));
 
         let new_leaf = Box::new(ArtNode::Leaf(Leaf {
             key: key.to_vec(),
@@ -735,17 +731,13 @@ fn art_insert_inner(node: &mut Box<ArtNode>, key: &[u8], value: &[u8], depth: us
     }
     let next_byte = key[new_depth];
 
-    if node.find_child(next_byte).is_some() {
+    if let Some(child) = node.find_child_mut(next_byte) {
         // Child exists — recurse.
-        let child = node.find_child_mut(next_byte).unwrap();
         art_insert_inner(child, key, value, new_depth + 1);
     } else {
         // No child for this byte — add new leaf.
         if node.should_grow() {
-            let grown = std::mem::replace(
-                &mut **node,
-                ArtNode::Node4(Node4::new(Prefix::empty())),
-            );
+            let grown = std::mem::replace(&mut **node, ArtNode::Node4(Node4::new(Prefix::empty())));
             **node = grown.grow();
         }
         let new_leaf = Box::new(ArtNode::Leaf(Leaf {
@@ -836,11 +828,7 @@ fn art_delete(node: &mut Option<Box<ArtNode>>, key: &[u8], depth: usize) -> bool
             deleted
         }
         ArtNode::Node256(n) => {
-            let deleted = art_delete(
-                &mut n.children[next_byte as usize],
-                key,
-                new_depth + 1,
-            );
+            let deleted = art_delete(&mut n.children[next_byte as usize], key, new_depth + 1);
             if deleted && n.children[next_byte as usize].is_none() {
                 n.num_children -= 1;
             }
@@ -867,7 +855,7 @@ fn art_delete(node: &mut Option<Box<ArtNode>>, key: &[u8], depth: usize) -> bool
                     match &**child {
                         ArtNode::Leaf(_) => {
                             // Replace inner with the leaf.
-                            *some_node = n.children[0].clone().unwrap();
+                            *some_node = child.clone();
                         }
                         _ => {
                             // Merge prefixes: parent_prefix + key_byte + child_prefix.
@@ -890,7 +878,7 @@ fn art_delete(node: &mut Option<Box<ArtNode>>, key: &[u8], depth: usize) -> bool
                                 merged.push(child_prefix.bytes[i]);
                             }
 
-                            let mut new_child = n.children[0].clone().unwrap();
+                            let mut new_child = child.clone();
                             let p = new_child.prefix_mut();
                             *p = Prefix::from_slice(&merged);
                             p.len = total;
@@ -1544,10 +1532,9 @@ mod tests {
         let mut btree = BTreeIndex::new();
 
         let keys: Vec<&[u8]> = vec![
-            b"alpha", b"beta", b"gamma", b"delta", b"epsilon",
-            b"zeta", b"eta", b"theta", b"iota", b"kappa",
-            b"lambda", b"mu", b"nu", b"xi", b"omicron",
-            b"pi", b"rho", b"sigma", b"tau", b"upsilon",
+            b"alpha", b"beta", b"gamma", b"delta", b"epsilon", b"zeta", b"eta", b"theta", b"iota",
+            b"kappa", b"lambda", b"mu", b"nu", b"xi", b"omicron", b"pi", b"rho", b"sigma", b"tau",
+            b"upsilon",
         ];
 
         for (i, key) in keys.iter().enumerate() {

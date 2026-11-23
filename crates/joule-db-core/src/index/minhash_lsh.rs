@@ -20,9 +20,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::RwLock;
 
-use super::traits::{
-    Bound, Index, IndexEntry, IndexIterator, ScanDirection, SimilarityIndex,
-};
+use super::traits::{Bound, Index, IndexEntry, IndexIterator, ScanDirection, SimilarityIndex};
 use crate::error::IndexError;
 
 /// MinHash-LSH index configuration.
@@ -94,9 +92,13 @@ impl MinHashLshIndex {
         let mut seeds = Vec::with_capacity(config.num_hashes);
         let mut rng: u64 = 0xDEADBEEFCAFEBABE;
         for _ in 0..config.num_hashes {
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let a = rng | 1; // Ensure odd (coprime with 2^64).
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let b = rng;
             seeds.push((a, b));
         }
@@ -152,9 +154,7 @@ impl MinHashLshIndex {
             return tokens;
         }
         for window in data.windows(3) {
-            let h = (window[0] as u64)
-                | ((window[1] as u64) << 8)
-                | ((window[2] as u64) << 16);
+            let h = (window[0] as u64) | ((window[1] as u64) << 8) | ((window[2] as u64) << 16);
             tokens.insert(h);
         }
         tokens
@@ -164,7 +164,11 @@ impl MinHashLshIndex {
     pub fn jaccard(a: &HashSet<u64>, b: &HashSet<u64>) -> f64 {
         let intersection = a.intersection(b).count() as f64;
         let union = a.union(b).count() as f64;
-        if union == 0.0 { 0.0 } else { intersection / union }
+        if union == 0.0 {
+            0.0
+        } else {
+            intersection / union
+        }
     }
 
     /// Insert an entry with pre-computed tokens.
@@ -190,10 +194,7 @@ impl MinHashLshIndex {
             let start = band_idx * self.config.rows;
             let end = start + self.config.rows;
             let band_hash = self.hash_band(&signature[start..end]);
-            buckets[band_idx]
-                .entry(band_hash)
-                .or_default()
-                .push(idx);
+            buckets[band_idx].entry(band_hash).or_default().push(idx);
         }
 
         entries.push(LshEntry {
@@ -242,10 +243,7 @@ impl MinHashLshIndex {
                 let entry = &entries[idx];
                 let sim = Self::jaccard(&query_tokens, &entry.tokens) as f32;
                 if sim > 0.0 {
-                    Some((
-                        IndexEntry::new(entry.key.clone(), entry.value.clone()),
-                        sim,
-                    ))
+                    Some((IndexEntry::new(entry.key.clone(), entry.value.clone()), sim))
                 } else {
                     None
                 }
@@ -281,14 +279,19 @@ struct VecIterator {
 
 impl VecIterator {
     fn new(entries: Vec<IndexEntry>) -> Self {
-        Self { entries, position: 0 }
+        Self {
+            entries,
+            position: 0,
+        }
     }
 }
 
 impl Iterator for VecIterator {
     type Item = Result<IndexEntry, IndexError>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.position >= self.entries.len() { return None; }
+        if self.position >= self.entries.len() {
+            return None;
+        }
         let entry = self.entries[self.position].clone();
         self.position += 1;
         Some(Ok(entry))
@@ -358,7 +361,9 @@ impl SimilarityIndex for MinHashLshIndex {
     fn snr(&self) -> f32 {
         // Approximate SNR based on index density.
         let n = self.len() as f32;
-        if n <= 1.0 { return f32::INFINITY; }
+        if n <= 1.0 {
+            return f32::INFINITY;
+        }
         // Higher threshold config → better SNR.
         self.config.threshold() as f32 * (1.0 / n.sqrt())
     }
@@ -435,11 +440,16 @@ mod tests {
     #[test]
     fn test_find_similar_exact() {
         let mut idx = MinHashLshIndex::with_defaults();
-        idx.insert(b"the quick brown fox jumps over the lazy dog", b"doc1").unwrap();
-        idx.insert(b"the quick brown fox leaps over the lazy dog", b"doc2").unwrap();
-        idx.insert(b"completely different unrelated text here now", b"doc3").unwrap();
+        idx.insert(b"the quick brown fox jumps over the lazy dog", b"doc1")
+            .unwrap();
+        idx.insert(b"the quick brown fox leaps over the lazy dog", b"doc2")
+            .unwrap();
+        idx.insert(b"completely different unrelated text here now", b"doc3")
+            .unwrap();
 
-        let results = idx.find_similar(b"the quick brown fox jumps over the lazy dog", 10).unwrap();
+        let results = idx
+            .find_similar(b"the quick brown fox jumps over the lazy dog", 10)
+            .unwrap();
 
         // Should find doc1 (exact match, sim=1.0) and doc2 (near-duplicate).
         assert!(!results.is_empty());
@@ -451,15 +461,22 @@ mod tests {
     #[test]
     fn test_find_similar_near_duplicate() {
         let mut idx = MinHashLshIndex::with_defaults();
-        idx.insert(b"the quick brown fox jumps over the lazy dog", b"doc1").unwrap();
-        idx.insert(b"the quick brown fox jumps over the lazy cat", b"doc2").unwrap();
+        idx.insert(b"the quick brown fox jumps over the lazy dog", b"doc1")
+            .unwrap();
+        idx.insert(b"the quick brown fox jumps over the lazy cat", b"doc2")
+            .unwrap();
 
-        let results = idx.find_similar(b"the quick brown fox jumps over the lazy dog", 10).unwrap();
+        let results = idx
+            .find_similar(b"the quick brown fox jumps over the lazy dog", 10)
+            .unwrap();
 
         // Both should be candidates.
         assert!(results.len() >= 2);
         // doc2 should have high similarity (only "dog"→"cat" differs).
-        let doc2_sim = results.iter().find(|(e, _)| e.value == b"doc2").map(|(_, s)| *s);
+        let doc2_sim = results
+            .iter()
+            .find(|(e, _)| e.value == b"doc2")
+            .map(|(_, s)| *s);
         assert!(doc2_sim.unwrap_or(0.0) > 0.7);
     }
 

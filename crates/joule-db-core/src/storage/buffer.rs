@@ -175,11 +175,14 @@ impl BufferPool {
             .ok_or_else(|| StorageError::Backend(format!("Page {} not found", page_id)))?;
 
         let page_ref = Arc::new(RwLock::new(page));
-        frames.insert(page_id, FrameMeta {
-            page: page_ref.clone(),
-            last_access: tick,
-            pinned: false,
-        });
+        frames.insert(
+            page_id,
+            FrameMeta {
+                page: page_ref.clone(),
+                last_access: tick,
+                pinned: false,
+            },
+        );
 
         Ok(page_ref)
     }
@@ -218,11 +221,14 @@ impl BufferPool {
         page.data = EMPTY_LEAF_BODY.to_vec();
         page.mark_dirty();
         let page_ref = Arc::new(RwLock::new(page));
-        frames.insert(page_id, FrameMeta {
-            page: page_ref.clone(),
-            last_access: tick,
-            pinned: false,
-        });
+        frames.insert(
+            page_id,
+            FrameMeta {
+                page: page_ref.clone(),
+                last_access: tick,
+                pinned: false,
+            },
+        );
 
         Ok(page_ref)
     }
@@ -258,11 +264,14 @@ impl BufferPool {
             let mut page = Page::new(page_id, super::page::PageType::Free);
             page.mark_dirty();
             let page_ref = Arc::new(RwLock::new(page));
-            frames.insert(page_id, FrameMeta {
-                page: page_ref,
-                last_access: tick,
-                pinned: false,
-            });
+            frames.insert(
+                page_id,
+                FrameMeta {
+                    page: page_ref,
+                    last_access: tick,
+                    pinned: false,
+                },
+            );
         }
 
         Ok(first_id)
@@ -295,7 +304,8 @@ impl BufferPool {
                 .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
 
             for meta in frames.values() {
-                let mut page = meta.page
+                let mut page = meta
+                    .page
                     .write()
                     .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
                 if page.is_dirty() {
@@ -404,7 +414,8 @@ impl BufferPool {
                     continue; // Don't evict pinned pages
                 }
                 // Flush if dirty
-                let mut page = meta.page
+                let mut page = meta
+                    .page
                     .write()
                     .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
                 if page.is_dirty() {
@@ -462,11 +473,14 @@ impl BufferPool {
 
             if let Some(page) = backend.read_page(page_id)? {
                 let page_ref = Arc::new(RwLock::new(page));
-                frames.insert(page_id, FrameMeta {
-                    page: page_ref,
-                    last_access: tick,
-                    pinned: false,
-                });
+                frames.insert(
+                    page_id,
+                    FrameMeta {
+                        page: page_ref,
+                        last_access: tick,
+                        pinned: false,
+                    },
+                );
             }
         }
         Ok(())
@@ -529,43 +543,87 @@ impl BufferPool {
         }
     }
 
-    /// Evict the least-recently-used unpinned page from a shard.
-    fn evict_lru(
-        &self,
-        frames: &mut HashMap<PageId, FrameMeta>,
-    ) -> Result<(), StorageError> {
-        // Find the unpinned page with the lowest last_access counter
-        let victim_id = frames
+    /// Evict the least-recently-used **evictable** page from a shard.
+    ///
+    /// A page is evictable only if it is unpinned AND not currently locked. We
+    /// probe candidates in LRU order with a non-blocking `try_write`: a page
+    /// that is read- or write-locked *right now* is in active use, and blocking
+    /// on its lock here would **self-deadlock** the very thread driving the
+    /// eviction. The concrete case: a reader holds a leaf node's page read-guard
+    /// while reassembling that node's extent-stored value (`Engine::read_extent`
+    /// → `get_page` over the extent's data pages). With a small pool, reading
+    /// enough data pages makes the leaf page itself the LRU victim; a blocking
+    /// `write()` on it then waits forever for a lock the same thread already
+    /// holds for read. So we skip any page we can't immediately lock and try the
+    /// next-oldest. If nothing is evictable this instant, we proceed without
+    /// evicting (the pool transiently exceeds `capacity`) rather than deadlock.
+    fn evict_lru(&self, frames: &mut HashMap<PageId, FrameMeta>) -> Result<(), StorageError> {
+        // Fast path: the single least-recently-used unpinned page, in ONE O(n)
+        // scan with NO allocation and NO sort. This is the steady-state case
+        // (the LRU page is not in active use), so eviction stays O(n) per call —
+        // a streaming read that evicts ~once per page-fault must not pay
+        // O(n log n) (sort the whole shard) each time.
+        let lru = frames
             .iter()
             .filter(|(_, meta)| !meta.pinned)
             .min_by_key(|(_, meta)| meta.last_access)
             .map(|(&id, _)| id);
+        let Some(lru_id) = lru else { return Ok(()) }; // nothing unpinned to evict
+        if self.try_evict_page(frames, lru_id)? {
+            return Ok(());
+        }
 
-        let victim_id = match victim_id {
-            Some(id) => id,
-            None => {
-                // All pages are pinned — can't evict. This shouldn't happen
-                // with proper budget management, but don't panic.
+        // Slow path (rare): the LRU page is read/write-locked by an active reader
+        // — e.g. a leaf node whose extent value is mid-`read_extent`. Blocking on
+        // its lock here would self-deadlock the very thread driving the eviction,
+        // so probe the remaining unpinned pages oldest-first and evict the first
+        // we can `try_write`-lock.
+        let mut candidates: Vec<(PageId, u64)> = frames
+            .iter()
+            .filter(|&(&id, meta)| !meta.pinned && id != lru_id)
+            .map(|(&id, meta)| (id, meta.last_access))
+            .collect();
+        candidates.sort_unstable_by_key(|&(_, access)| access);
+        for (victim_id, _) in candidates {
+            if self.try_evict_page(frames, victim_id)? {
                 return Ok(());
             }
-        };
+        }
 
-        // Flush dirty page before eviction
-        if let Some(meta) = frames.get(&victim_id) {
-            let mut page = meta.page
+        // Nothing evictable right now (all pinned or actively locked). Don't
+        // panic and don't block — the caller inserts anyway and the pool
+        // temporarily holds more than `capacity` frames.
+        Ok(())
+    }
+
+    /// Evict page `id`: flush it if dirty, then drop it from the frame map.
+    /// Returns `false` (skip, don't evict) if the page is currently locked — a
+    /// non-blocking `try_write` keeps eviction from ever deadlocking on a page in
+    /// active use.
+    fn try_evict_page(
+        &self,
+        frames: &mut HashMap<PageId, FrameMeta>,
+        id: PageId,
+    ) -> Result<bool, StorageError> {
+        let page_arc = match frames.get(&id) {
+            Some(meta) => meta.page.clone(),
+            None => return Ok(false),
+        };
+        let mut page = match page_arc.try_write() {
+            Ok(guard) => guard,
+            Err(_) => return Ok(false),
+        };
+        if page.is_dirty() {
+            let mut backend = self
+                .backend
                 .write()
                 .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-            if page.is_dirty() {
-                let mut backend = self
-                    .backend
-                    .write()
-                    .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-                backend.write_page(page.clone())?;
-                page.clear_dirty();
-            }
+            backend.write_page(page.clone())?;
+            page.clear_dirty();
         }
-        frames.remove(&victim_id);
-        Ok(())
+        drop(page);
+        frames.remove(&id);
+        Ok(true)
     }
 }
 
@@ -594,6 +652,54 @@ mod tests {
             ]),
             0,
             "num_keys = 0"
+        );
+    }
+
+    /// Regression for the 2026-06-26 extent-read self-deadlock.
+    ///
+    /// A reader that holds a page's read-guard (e.g. a leaf node mid
+    /// `Engine::read_extent`, reassembling that node's extent-stored value)
+    /// could make that very page the LRU eviction victim once the read paged in
+    /// enough of the extent. The old eviction took a **blocking** `write()` on
+    /// the victim, so it waited forever for a lock the same thread already held
+    /// for read — a 0%-CPU hang (only with a pool smaller than the value, hence
+    /// it hid behind the 256 MB default). Eviction must now skip any page it
+    /// cannot immediately lock. This test reproduces the exact shape: hold a
+    /// read-guard on the LRU page, then force an eviction.
+    #[test]
+    fn evict_skips_a_locked_lru_page_instead_of_deadlocking() {
+        use crate::storage::memory::MemoryBackend;
+
+        let backend: Arc<RwLock<Box<dyn StorageBackend>>> =
+            Arc::new(RwLock::new(Box::new(MemoryBackend::new())));
+        // capacity 1, single shard → per-shard capacity = 1/1 + 1 = 2 frames.
+        let pool = BufferPool::new(
+            backend,
+            BufferPoolConfig {
+                capacity: 1,
+                num_shards: 1,
+            },
+        );
+
+        let a = pool.new_page().expect("alloc A");
+        let a_id = a.read().expect("read A id").id;
+        let _b = pool.new_page().expect("alloc B"); // shard now holds 2 = capacity
+
+        // Hold a READ guard on A (the oldest, untouched page → the LRU victim).
+        let guard_a = a.read().expect("hold read guard on A");
+
+        // Allocating C overflows the shard and triggers eviction. The oldest
+        // candidate is A — read-locked right here. Pre-fix this blocks forever;
+        // post-fix it skips A, evicts B, and returns.
+        let c = pool.new_page().expect("alloc C must not deadlock");
+        assert_ne!(c.read().unwrap().id, a_id);
+
+        // A was skipped, not evicted: still the same cached frame.
+        drop(guard_a);
+        let a_again = pool.get_page(a_id).expect("A still resident");
+        assert!(
+            Arc::ptr_eq(&a, &a_again),
+            "the locked LRU page must survive eviction (skipped, not evicted)"
         );
     }
 }

@@ -179,10 +179,7 @@ mod tests {
             "snapshot must NOT see writer's v2 insert"
         );
         // The engine's current view does see the new state.
-        assert_eq!(
-            engine.get(b"alpha").unwrap().as_deref(),
-            Some(&b"v2-A"[..])
-        );
+        assert_eq!(engine.get(b"alpha").unwrap().as_deref(), Some(&b"v2-A"[..]));
         assert_eq!(engine.get(b"delta").unwrap().as_deref(), Some(&b"v2-D"[..]));
 
         // Round 3: another commit.

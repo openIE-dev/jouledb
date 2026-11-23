@@ -476,7 +476,11 @@ impl fmt::Display for QueryError {
                     position,
                     message,
                     if query.len() > 50 {
-                        &query[..50]
+                        let mut end = 50;
+                        while end > 0 && !query.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                        &query[..end]
                     } else {
                         query
                     }

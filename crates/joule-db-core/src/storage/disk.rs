@@ -1,29 +1,97 @@
 //! Disk-based storage backend
 //!
-//! Provides durable storage using the filesystem.
+//! Provides durable storage using lock-free positional I/O (`pread`/`pwrite`
+//! on Unix, `seek_read`/`seek_write` on Windows) so concurrent multi-core
+//! readers and writers never contend on a shared file-cursor mutex.
 
 use std::fs::File;
+#[cfg(not(any(unix, windows)))]
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::page::{DEFAULT_PAGE_SIZE, Page, PageId, PageType};
 use super::traits::{StorageBackend, StorageStats};
 use crate::error::StorageError;
 
+#[cfg(unix)]
+fn pread_exact_file(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
+    use std::os::unix::fs::FileExt;
+    file.read_exact_at(buf, offset)
+}
+
+#[cfg(unix)]
+fn pwrite_all_file(file: &File, buf: &[u8], offset: u64) -> std::io::Result<()> {
+    use std::os::unix::fs::FileExt;
+    file.write_all_at(buf, offset)
+}
+
+#[cfg(windows)]
+fn pread_exact_file(file: &File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
+    use std::os::windows::fs::FileExt;
+    while !buf.is_empty() {
+        match file.seek_read(buf, offset) {
+            Ok(0) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "Unexpected EOF reading page",
+                ));
+            }
+            Ok(n) => {
+                buf = &mut buf[n..];
+                offset += n as u64;
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn pwrite_all_file(file: &File, mut buf: &[u8], mut offset: u64) -> std::io::Result<()> {
+    use std::os::windows::fs::FileExt;
+    while !buf.is_empty() {
+        match file.seek_write(buf, offset) {
+            Ok(0) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WriteZero,
+                    "WriteZero writing page",
+                ));
+            }
+            Ok(n) => {
+                buf = &buf[n..];
+                offset += n as u64;
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
 /// Disk-based storage backend
 ///
-/// Stores pages in a single file. Thread-safe using internal mutex.
+/// Stores pages in a single file using lock-free positional `pread`/`pwrite`
+/// syscalls on Unix/Windows. Multiple reader threads can execute concurrent
+/// cache-miss reads across NVMe queues with zero lock contention.
 ///
 /// For zero-copy extent reads, use `MmapOverlay` from the `mmap_extent` module
 /// alongside this backend. On Apple Silicon UMA, mmap'd extents are directly
 /// GPU-accessible via Metal's StorageModeShared.
 pub struct DiskBackend {
+    #[cfg(any(unix, windows))]
+    file: File,
+    #[cfg(not(any(unix, windows)))]
     file: Mutex<File>,
     path: std::path::PathBuf,
     page_size: usize,
-    page_count: Mutex<u64>,
+    page_count: AtomicU64,
     free_list_head: Mutex<PageId>,
+    free_pages_count: AtomicU64,
+    pages_read: AtomicU64,
+    pages_written: AtomicU64,
 }
 
 impl DiskBackend {
@@ -46,11 +114,17 @@ impl DiskBackend {
         let page_count = len / page_size as u64;
 
         let mut backend = Self {
+            #[cfg(any(unix, windows))]
+            file,
+            #[cfg(not(any(unix, windows)))]
             file: Mutex::new(file),
             path,
             page_size,
-            page_count: Mutex::new(page_count),
+            page_count: AtomicU64::new(page_count),
             free_list_head: Mutex::new(0),
+            free_pages_count: AtomicU64::new(0),
+            pages_read: AtomicU64::new(0),
+            pages_written: AtomicU64::new(0),
         };
 
         // Initialize or load metadata
@@ -67,46 +141,50 @@ impl DiskBackend {
         let mut backend = Self::open(path)?;
         backend.page_size = page_size;
 
-        {
-            let file = backend
-                .file
-                .lock()
-                .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-            let len = file
-                .metadata()
-                .map_err(|e| StorageError::Io(e.to_string()))?
-                .len();
-            *backend
-                .page_count
-                .lock()
-                .expect("lock poisoned: page_count") = len / page_size as u64;
-        }
-
-        // Re-init metadata with new page size if needed/implied
-        // Note: Changing page size on existing DB invalidates data, assuming clean slate for tests
+        let len = backend.file_len()?;
+        backend
+            .page_count
+            .store(len / page_size as u64, Ordering::SeqCst);
 
         Ok(backend)
     }
 
+    #[inline]
+    fn file_len(&self) -> Result<u64, StorageError> {
+        #[cfg(any(unix, windows))]
+        {
+            Ok(self
+                .file
+                .metadata()
+                .map_err(|e| StorageError::Io(e.to_string()))?
+                .len())
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let file = self
+                .file
+                .lock()
+                .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
+            Ok(file
+                .metadata()
+                .map_err(|e| StorageError::Io(e.to_string()))?
+                .len())
+        }
+    }
+
     fn init_metadata(&mut self, file_len: u64) -> Result<(), StorageError> {
         if file_len == 0 {
-            // New database: Create metadata page at Page 1
-            // We use Page 1 as metadata page (Offset 0)
-            // Page ID 1 maps to Offset 0 in our scheme
             let mut head_page = Page::new(1, PageType::Metadata);
-            // Write initial free list head (0 = empty)
             head_page.data.extend_from_slice(&0u64.to_le_bytes());
 
-            // Write directly using internal helper query to avoid recursion or checks
             self.write_page_internal(head_page)?;
 
-            *self.page_count.lock().expect("lock poisoned: page_count") = 1;
+            self.page_count.store(1, Ordering::SeqCst);
             *self
                 .free_list_head
                 .lock()
                 .expect("lock poisoned: free_list_head") = 0;
         } else {
-            // Existing database: Read Page 1
             match self.read_page_internal(1)? {
                 Some(page) if page.page_type == PageType::Metadata => {
                     if page.data.len() >= 8 {
@@ -118,44 +196,53 @@ impl DiskBackend {
                     }
                 }
                 Some(_) => {
-                    // Page 1 exists but is not Metadata?
-                    // This implies legacy DB or corrupted.
-                    // For now, we defaulting free list to 0 (append only) to be safe.
-                    // Ideally we should migration here.
                     *self
                         .free_list_head
                         .lock()
                         .expect("lock poisoned: free_list_head") = 0;
                 }
-                None => {
-                    // Should not happen if len > 0
-                }
+                None => {}
             }
         }
         Ok(())
     }
 
-    // internal helper to avoid locking self.file multiple times if we composed methods
     fn read_page_internal(&self, page_id: PageId) -> Result<Option<Page>, StorageError> {
-        // ... (Logic from read_page)
-        // Duplicating logic here is messy without refactoring read_page to use this.
-        // Let's just call self.read_page() since it's public and effectively stateless regarding 'self' mutation,
-        // except keeping the file lock which we don't hold across calls in init_metadata
         self.read_page(page_id)
     }
 
     fn write_page_internal(&self, page: Page) -> Result<(), StorageError> {
-        let mut file = self
-            .file
-            .lock()
-            .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
         let offset = (page.id - 1) as u64 * self.page_size as u64;
-        file.seek(SeekFrom::Start(offset))
-            .map_err(|e| StorageError::Io(e.to_string()))?;
         let encoded = page.encode(self.page_size)?;
-        file.write_all(&encoded)
-            .map_err(|e| StorageError::Io(e.to_string()))?;
+        #[cfg(any(unix, windows))]
+        {
+            pwrite_all_file(&self.file, &encoded, offset)
+                .map_err(|e| StorageError::Io(e.to_string()))?;
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let mut file = self
+                .file
+                .lock()
+                .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
+            file.seek(SeekFrom::Start(offset))
+                .map_err(|e| StorageError::Io(e.to_string()))?;
+            file.write_all(&encoded)
+                .map_err(|e| StorageError::Io(e.to_string()))?;
+        }
+        self.pages_written.fetch_add(1, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Lock-free positional page write (`pwrite`) usable from `&self` by concurrent callers
+    /// writing disjoint page IDs.
+    pub fn write_page_concurrent(&self, page: Page) -> Result<(), StorageError> {
+        if page.id == 0 {
+            return Err(StorageError::Backend(
+                "Cannot write to null page ID 0".to_string(),
+            ));
+        }
+        self.write_page_internal(page)
     }
 
     /// Get the file path for this backend.
@@ -172,47 +259,45 @@ impl StorageBackend for DiskBackend {
             ));
         }
 
-        let mut file = self
-            .file
-            .lock()
-            .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-
-        // Calculate offset
-        // Page ID 1 is at offset 0 (0-indexed file, 1-indexed IDs usually, but let's assume 1-based IDs map to offset (id-1)*size)
-        // If IDs are just raw indices, we can use id * size.
-        // Let's assume PageId is an index starting at 0 for simplicity in mapping,
-        // BUT traits.rs says NULL_PAGE_ID is 0. So valid pages start at 1.
-        // Map PageId 1 -> Offset 0.
         let offset = (page_id - 1) as u64 * self.page_size as u64;
-
-        let file_len = file
-            .metadata()
-            .map_err(|e| StorageError::Io(e.to_string()))?
-            .len();
+        let file_len = self.file_len()?;
         if offset >= file_len {
             return Ok(None);
         }
 
-        file.seek(SeekFrom::Start(offset))
-            .map_err(|e| StorageError::Io(e.to_string()))?;
-
         let mut buf = vec![0u8; self.page_size];
-        file.read_exact(&mut buf).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                StorageError::Backend("Unexpected EOF reading page".to_string())
-            } else {
-                StorageError::Io(e.to_string())
-            }
-        })?;
+        #[cfg(any(unix, windows))]
+        {
+            pread_exact_file(&self.file, &mut buf, offset).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                    StorageError::Backend("Unexpected EOF reading page".to_string())
+                } else {
+                    StorageError::Io(e.to_string())
+                }
+            })?;
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let mut file = self
+                .file
+                .lock()
+                .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
+            file.seek(SeekFrom::Start(offset))
+                .map_err(|e| StorageError::Io(e.to_string()))?;
+            file.read_exact(&mut buf).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                    StorageError::Backend("Unexpected EOF reading page".to_string())
+                } else {
+                    StorageError::Io(e.to_string())
+                }
+            })?;
+        }
 
-        // Decode the page
-        // Page::decode expects the buffer to start with the header
+        self.pages_read.fetch_add(1, Ordering::Relaxed);
+
         match Page::decode(&buf) {
             Ok(page) => {
-                // Verify ID matches
                 if page.id != page_id {
-                    // specific case: free pages or zeroed pages might allow mismatch if we handle it?
-                    // For now, strict check.
                     return Err(StorageError::Backend(format!(
                         "Page ID mismatch at offset {}: expected {}, got {}",
                         offset, page_id, page.id
@@ -230,22 +315,7 @@ impl StorageBackend for DiskBackend {
                 "Cannot write to null page ID 0".to_string(),
             ));
         }
-
-        let mut file = self
-            .file
-            .lock()
-            .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-
-        let offset = (page.id - 1) as u64 * self.page_size as u64;
-
-        file.seek(SeekFrom::Start(offset))
-            .map_err(|e| StorageError::Io(e.to_string()))?;
-
-        let encoded = page.encode(self.page_size)?;
-        file.write_all(&encoded)
-            .map_err(|e| StorageError::Io(e.to_string()))?;
-
-        Ok(())
+        self.write_page_internal(page)
     }
 
     fn allocate_page(&mut self) -> Result<PageId, StorageError> {
@@ -291,16 +361,17 @@ impl StorageBackend for DiskBackend {
 
             // Update memory
             *head_lock = next_free;
+            self.free_pages_count
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
+                    Some(c.saturating_sub(1))
+                })
+                .ok();
 
             return Ok(page_id);
         }
 
-        let mut count = self
-            .page_count
-            .lock()
-            .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-        *count += 1;
-        Ok(*count)
+        let new_id = self.page_count.fetch_add(1, Ordering::SeqCst) + 1;
+        Ok(new_id)
     }
 
     fn allocate_contiguous(&mut self, count: usize) -> Result<PageId, StorageError> {
@@ -309,13 +380,8 @@ impl StorageBackend for DiskBackend {
         }
         // Always allocate at end of file to guarantee contiguity.
         // Bypasses free list — these pages are fresh, sequential.
-        let mut page_count_lock = self
-            .page_count
-            .lock()
-            .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-        let first_id = *page_count_lock + 1;
-        *page_count_lock += count as u64;
-        Ok(first_id)
+        let prev = self.page_count.fetch_add(count as u64, Ordering::SeqCst);
+        Ok(prev + 1)
     }
 
     fn free_page(&mut self, page_id: PageId) -> Result<(), StorageError> {
@@ -349,16 +415,26 @@ impl StorageBackend for DiskBackend {
 
         // 4. Update memory
         *head_lock = page_id;
+        self.free_pages_count.fetch_add(1, Ordering::Relaxed);
 
         Ok(())
     }
 
     fn sync(&mut self) -> Result<(), StorageError> {
-        let file = self
-            .file
-            .lock()
-            .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
-        file.sync_all().map_err(|e| StorageError::Io(e.to_string()))
+        #[cfg(any(unix, windows))]
+        {
+            self.file
+                .sync_all()
+                .map_err(|e| StorageError::Io(e.to_string()))
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let file = self
+                .file
+                .lock()
+                .map_err(|_| StorageError::Backend("Lock poisoned".to_string()))?;
+            file.sync_all().map_err(|e| StorageError::Io(e.to_string()))
+        }
     }
 
     fn page_size(&self) -> usize {
@@ -366,12 +442,11 @@ impl StorageBackend for DiskBackend {
     }
 
     fn stats(&self) -> StorageStats {
-        let count = *self.page_count.lock().unwrap_or_else(|e| e.into_inner()); // handle poison gracefully-ish
         StorageStats {
-            total_pages: count,
-            free_pages: 0, // Not tracking free pages yet
-            pages_read: 0, // Not tracking I/O stats yet
-            pages_written: 0,
+            total_pages: self.page_count.load(Ordering::Relaxed),
+            free_pages: self.free_pages_count.load(Ordering::Relaxed),
+            pages_read: self.pages_read.load(Ordering::Relaxed),
+            pages_written: self.pages_written.load(Ordering::Relaxed),
             page_size: self.page_size,
         }
     }
@@ -381,6 +456,7 @@ impl StorageBackend for DiskBackend {
 mod tests {
     use super::*;
     use crate::storage::page::PageType;
+    use std::sync::Arc;
     use tempfile::tempdir;
 
     #[test]
@@ -402,6 +478,73 @@ mod tests {
         let read_page = backend.read_page(page_id).unwrap().unwrap();
         assert_eq!(read_page.id, page_id);
         assert_eq!(read_page.data, data);
+
+        let stats = backend.stats();
+        assert!(stats.pages_read >= 1);
+        assert!(stats.pages_written >= 2);
+    }
+
+    #[test]
+    fn test_lockfree_concurrent_positional_io() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("concurrent_pread_pwrite.db");
+        let mut backend = DiskBackend::open(&path).unwrap();
+
+        let num_threads = 8usize;
+        let pages_per_thread = 32usize;
+        let first_page = backend
+            .allocate_contiguous(num_threads * pages_per_thread)
+            .unwrap();
+        backend.sync().unwrap();
+
+        let shared = Arc::new(backend);
+
+        // Concurrent disjoint pwrite across 8 OS threads without any Mutex<File>
+        let mut writers = Vec::new();
+        for t in 0..num_threads {
+            let db = Arc::clone(&shared);
+            writers.push(std::thread::spawn(move || {
+                for i in 0..pages_per_thread {
+                    let pid = first_page + (t * pages_per_thread + i) as u64;
+                    let payload = format!("thread-{t}-page-{i}-payload-{pid}").into_bytes();
+                    let page = Page::with_data(pid, PageType::BTreeLeaf, payload);
+                    db.write_page_concurrent(page).unwrap();
+                }
+            }));
+        }
+        for w in writers {
+            w.join().unwrap();
+        }
+
+        // Concurrent lock-free pread verification across 8 OS threads
+        let mut readers = Vec::new();
+        for t in 0..num_threads {
+            let db = Arc::clone(&shared);
+            readers.push(std::thread::spawn(move || {
+                for round in 0..4 {
+                    for i in 0..pages_per_thread {
+                        let pid = first_page + (((t + round) % num_threads) * pages_per_thread + i) as u64;
+                        let expected_t = (t + round) % num_threads;
+                        let expected =
+                            format!("thread-{expected_t}-page-{i}-payload-{pid}").into_bytes();
+                        let got = db.read_page(pid).unwrap().unwrap();
+                        assert_eq!(got.id, pid);
+                        assert_eq!(got.data, expected);
+                    }
+                }
+            }));
+        }
+        for r in readers {
+            r.join().unwrap();
+        }
+
+        let stats = shared.stats();
+        assert_eq!(
+            stats.total_pages,
+            1 + (num_threads * pages_per_thread) as u64
+        );
+        assert!(stats.pages_written >= (num_threads * pages_per_thread) as u64);
+        assert!(stats.pages_read >= (num_threads * pages_per_thread * 4) as u64);
     }
 
     #[test]

@@ -137,12 +137,7 @@ impl BTreeNode {
     /// than `max_page_data`. Engines that don't check this end up
     /// writing oversized pages that fail at the storage encode step.
     /// See `docs/joule-db/cow-mvcc-design.md` known limitations.
-    fn can_merge_with(
-        &self,
-        other: &BTreeNode,
-        separator: &[u8],
-        max_page_data: usize,
-    ) -> bool {
+    fn can_merge_with(&self, other: &BTreeNode, separator: &[u8], max_page_data: usize) -> bool {
         // Each node's serialized_size includes the 5-byte fixed
         // prefix (is_leaf + num_keys). The merged node has only one
         // such prefix, so subtract one of them. For internal nodes,
@@ -732,6 +727,61 @@ pub struct PrefixCount {
     pub errors: Vec<(PageId, String)>,
 }
 
+/// One frame in the descent path captured by `diagnose_tree_cycles`.
+/// Records the internal node we passed through, the child slot we
+/// descended into, and (when available) the separator key at that
+/// slot. The chain of frames lets an operator pinpoint where in the
+/// tree the cycle lives — and which row keys are downstream of it.
+#[derive(Debug, Clone)]
+pub struct CycleFrame {
+    pub page_id: PageId,
+    /// Index in this node's `children` array we followed to reach
+    /// the next frame (or the cycle).
+    pub child_slot: usize,
+    /// The separator key at `child_slot` (right-hand neighbour) when
+    /// present; useful as a "where in the keyspace this lives" hint.
+    pub key_at_slot: Option<Vec<u8>>,
+}
+
+/// One cycle discovered by `Engine::diagnose_tree_cycles`. Names the
+/// page whose child pointer creates the loop, the slot of the bad
+/// pointer, and which ancestor it points back at — together with the
+/// full descent path from the tree root down to the offending node.
+///
+/// Repair strategy depends on the chain: a one-page cycle (the
+/// pointer references its own immediate ancestor) is usually
+/// recoverable by rewriting the slot to a fresh empty leaf. A longer
+/// cycle is more likely catastrophic and the affected subtree has to
+/// be rebuilt from a known-good ancestor.
+#[derive(Debug, Clone)]
+pub struct CycleReport {
+    pub cycle_at_page: PageId,
+    pub child_slot: usize,
+    /// The page id stored at `children[child_slot]` that loops back
+    /// to an ancestor.
+    pub bad_pointer: PageId,
+    /// Where in the ancestor stack `bad_pointer` re-appears. `0` =
+    /// root, `chain.len()` = the cycle node itself.
+    pub closes_at_depth: usize,
+    /// Full descent path: `chain[0]` is the root, `chain[chain.len()-1]`
+    /// is the cycle node (== `cycle_at_page`).
+    pub chain: Vec<CycleFrame>,
+}
+
+/// Result of `Engine::diagnose_tree_cycles` — all cycles found in one
+/// pass plus the count of pages visited so the caller can size the
+/// repair effort.
+#[derive(Debug, Clone, Default)]
+pub struct DiagnosisReport {
+    pub cycles: Vec<CycleReport>,
+    /// Total internal+leaf pages successfully visited.
+    pub pages_visited: u64,
+    /// Pages that failed to load — recorded as `(page_id, reason)`.
+    pub unreadable_pages: Vec<(PageId, String)>,
+    pub root_page_id: PageId,
+    pub tree_height_estimate: u32,
+}
+
 /// Helper for `Engine::prefix_count` subtree pruning. Given an
 /// internal node's child range — exclusive lower bound (`lower`,
 /// `None` if child is leftmost) and exclusive upper bound (`upper`,
@@ -941,15 +991,12 @@ impl Engine {
         // atomically at the last successful sync, so it cannot be
         // torn. Fall back to page 1 when the backend has no record
         // (legacy v0 database, or a backend that doesn't persist meta).
-        let backend_meta = buffer_pool
-            .read_committed_meta()
-            .map_err(Error::Storage)?;
+        let backend_meta = buffer_pool.read_committed_meta().map_err(Error::Storage)?;
         let (root_id, committed_version) = match backend_meta {
             Some(meta) => (meta.committed_root, meta.committed_version),
             None => {
                 let meta_page_arc = buffer_pool.get_page(METADATA_PAGE_ID)?;
-                let meta_page =
-                    meta_page_arc.read().expect("lock poisoned: meta page read");
+                let meta_page = meta_page_arc.read().expect("lock poisoned: meta page read");
                 (Self::decode_metadata(&meta_page.data)?, 0)
             }
         };
@@ -1013,9 +1060,7 @@ impl Engine {
 
                     // CoW MVCC Phase 2: prefer backend committed_meta
                     // over legacy page-1 root, same as `open_with_config`.
-                    let backend_meta = buffer_pool
-                        .read_committed_meta()
-                        .map_err(Error::Storage)?;
+                    let backend_meta = buffer_pool.read_committed_meta().map_err(Error::Storage)?;
                     let (root_id, committed_version) = match backend_meta {
                         Some(meta) => (meta.committed_root, meta.committed_version),
                         None => (root_id_legacy, 0),
@@ -1033,7 +1078,7 @@ impl Engine {
                         committed_root: AtomicU64::new(root_id),
                         live_snapshots: std::sync::atomic::AtomicUsize::new(0),
                         pending_free_pages: std::sync::Mutex::new(Vec::new()),
-            pending_allocations: std::sync::Mutex::new(Vec::new()),
+                        pending_allocations: std::sync::Mutex::new(Vec::new()),
                         next_tx_id: AtomicU64::new(1),
                         buffer_pool,
                         page_latches,
@@ -1664,11 +1709,7 @@ impl Engine {
     /// The caller must have either already captured the root via
     /// `acquire_snapshot` (so deferred frees keep the subtree intact)
     /// or be reading the engine's current root.
-    pub fn get_at_root(
-        &self,
-        root: PageId,
-        key: &[u8],
-    ) -> Result<Option<Vec<u8>>, Error> {
+    pub fn get_at_root(&self, root: PageId, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
         // Latched traversal — same correctness as the standard
         // `get_internal` path but skips the optimistic latch-free
         // attempt to avoid coupling snapshot reads to the writer's
@@ -1856,11 +1897,7 @@ impl Engine {
 
     /// Read a value from a contiguous extent.
     /// `first_page_id` is the extent header page.
-    pub fn read_extent(
-        &self,
-        first_page_id: PageId,
-        total_len: usize,
-    ) -> Result<Vec<u8>, Error> {
+    pub fn read_extent(&self, first_page_id: PageId, total_len: usize) -> Result<Vec<u8>, Error> {
         // Read header page
         let page_arc = self.buffer_pool.get_page(first_page_id)?;
         let page = page_arc.read().expect("lock poisoned");
@@ -1872,12 +1909,12 @@ impl Engine {
             }));
         }
 
-        let page_count = u64::from_le_bytes(
-            page.data[0..8].try_into().unwrap()
-        ) as usize;
-        let stored_total = u64::from_le_bytes(
-            page.data[8..16].try_into().unwrap()
-        ) as usize;
+        let mut pc_b = [0u8; 8];
+        pc_b.copy_from_slice(&page.data[0..8]);
+        let mut st_b = [0u8; 8];
+        st_b.copy_from_slice(&page.data[8..16]);
+        let page_count = u64::from_le_bytes(pc_b) as usize;
+        let stored_total = u64::from_le_bytes(st_b) as usize;
 
         let expected_len = total_len.min(stored_total);
         let mut result = Vec::with_capacity(expected_len);
@@ -1913,7 +1950,9 @@ impl Engine {
         let page = page_arc.read().expect("lock poisoned");
 
         let page_count = if page.data.len() >= 8 {
-            u64::from_le_bytes(page.data[0..8].try_into().unwrap()) as usize
+            let mut pc_b = [0u8; 8];
+            pc_b.copy_from_slice(&page.data[0..8]);
+            u64::from_le_bytes(pc_b) as usize
         } else {
             1
         };
@@ -2350,6 +2389,157 @@ impl Engine {
         Ok(PrefixCount { count, errors })
     }
 
+    /// Walk the entire B-tree and return every cycle found in the
+    /// internal child-pointer chain, with the full ancestor descent
+    /// path for each. Read-only — never modifies state.
+    ///
+    /// Companion to the `insert_non_full_serial: depth bound exceeded`
+    /// error and the `count_subtree` cycle-skip behaviour. Where
+    /// `prefix_count` swallows corruption and gives a partial answer,
+    /// this returns an operator-facing diagnostic naming exactly
+    /// which page → slot → page chain to repair.
+    ///
+    /// Returns immediately after walking the whole tree once; not
+    /// streamable. For very large corpora the walk is bounded by the
+    /// number of reachable pages (cycles are bounded by `max_depth`
+    /// via the descent-path guard).
+    pub fn diagnose_tree_cycles(&self) -> Result<DiagnosisReport, Error> {
+        self.diagnose_tree_cycles_with_cap(u64::MAX, None)
+    }
+
+    /// As `diagnose_tree_cycles`, but with belt-and-suspenders limits
+    /// to keep a corrupt or unexpectedly large tree from running the
+    /// machine into OOM:
+    ///
+    /// - `max_pages` caps total pages visited (default: unbounded).
+    /// - `progress` (optional) is called every 100 000 pages with the
+    ///   running count + the count of cycles found so far. Lets the
+    ///   operator `tail` a log instead of staring at a silent process.
+    pub fn diagnose_tree_cycles_with_cap(
+        &self,
+        max_pages: u64,
+        progress: Option<&dyn Fn(u64, usize)>,
+    ) -> Result<DiagnosisReport, Error> {
+        let root_id = *self
+            .root_page_id
+            .read()
+            .expect("lock poisoned: root_page_id read");
+        let tree_height = self.tree_height.load(Ordering::Acquire);
+        let max_depth = tree_height as usize + 16;
+        let mut report = DiagnosisReport {
+            cycles: Vec::new(),
+            pages_visited: 0,
+            unreadable_pages: Vec::new(),
+            root_page_id: root_id,
+            tree_height_estimate: tree_height,
+        };
+        let mut chain: Vec<CycleFrame> = Vec::with_capacity(max_depth);
+        let mut next_progress_at: u64 = 100_000;
+        self.diagnose_subtree(
+            root_id,
+            max_depth,
+            &mut chain,
+            &mut report,
+            max_pages,
+            progress,
+            &mut next_progress_at,
+        );
+        Ok(report)
+    }
+
+    /// Recursive helper for [`Engine::diagnose_tree_cycles`].
+    ///
+    /// `chain` is the descent path from root down to (but not
+    /// including) `page_id`. Every internal node we enter pushes a
+    /// `CycleFrame { page_id, child_slot, key_at_slot }` for the
+    /// child we descend into, then pops it on the way back up.
+    ///
+    /// When a child pointer references a page already on `chain`,
+    /// we report the cycle (capturing chain + bad pointer + closes-at
+    /// depth) and *do not recurse* — recursing would loop until
+    /// depth_remaining hits zero.
+    #[allow(clippy::too_many_arguments)]
+    fn diagnose_subtree(
+        &self,
+        page_id: PageId,
+        depth_remaining: usize,
+        chain: &mut Vec<CycleFrame>,
+        report: &mut DiagnosisReport,
+        max_pages: u64,
+        progress: Option<&dyn Fn(u64, usize)>,
+        next_progress_at: &mut u64,
+    ) {
+        if report.pages_visited >= max_pages {
+            return;
+        }
+        if depth_remaining == 0 {
+            report
+                .unreadable_pages
+                .push((page_id, "depth bound exceeded during diagnose".into()));
+            return;
+        }
+        // Uncached load — see `load_node_uncached` rationale: caching
+        // every visited node on a multi-hundred-GB tree pressures jetsam.
+        let node = match self.load_node_uncached(page_id) {
+            Ok(n) => n,
+            Err(e) => {
+                report
+                    .unreadable_pages
+                    .push((page_id, format!("load_node: {e}")));
+                return;
+            }
+        };
+        report.pages_visited += 1;
+        if report.pages_visited >= *next_progress_at
+            && let Some(cb) = progress
+        {
+            cb(report.pages_visited, report.cycles.len());
+            *next_progress_at += 100_000;
+        }
+        if node.is_leaf {
+            return;
+        }
+        // Internal node — push a placeholder frame, recurse into each
+        // child, mutate the slot/key on the way in.
+        chain.push(CycleFrame {
+            page_id,
+            child_slot: 0,
+            key_at_slot: None,
+        });
+        for (i, child_id) in node.children.iter().enumerate() {
+            if report.pages_visited >= max_pages {
+                break;
+            }
+            // Cycle check: is the child already on the descent path?
+            if let Some(depth) = chain.iter().position(|f| f.page_id == *child_id) {
+                report.cycles.push(CycleReport {
+                    cycle_at_page: page_id,
+                    child_slot: i,
+                    bad_pointer: *child_id,
+                    closes_at_depth: depth,
+                    chain: chain.clone(),
+                });
+                continue;
+            }
+            // Update the current frame so the recursive call's chain
+            // snapshot is accurate for any cycle deeper down.
+            if let Some(frame) = chain.last_mut() {
+                frame.child_slot = i;
+                frame.key_at_slot = node.keys.get(i).cloned();
+            }
+            self.diagnose_subtree(
+                *child_id,
+                depth_remaining - 1,
+                chain,
+                report,
+                max_pages,
+                progress,
+                next_progress_at,
+            );
+        }
+        chain.pop();
+    }
+
     /// Recursive helper: never returns Err. On error in a subtree,
     /// records (page_id, reason) in `errors` and returns 0 for that
     /// subtree, so siblings still contribute to the total.
@@ -2421,8 +2611,7 @@ impl Engine {
             if !child_range_overlaps_prefix(lower, upper, prefix) {
                 continue;
             }
-            total +=
-                self.count_subtree(*child_id, prefix, depth_remaining - 1, ancestors, errors);
+            total += self.count_subtree(*child_id, prefix, depth_remaining - 1, ancestors, errors);
         }
         ancestors.pop();
         total
@@ -2544,24 +2733,26 @@ impl Engine {
     fn search_node(&self, mut page_id: PageId, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
         let max_depth = self.tree_height.load(Ordering::Acquire) as usize + 16;
         for _ in 0..max_depth {
-            let step: SearchResult = self.page_latches.with_read(page_id, || -> Result<SearchResult, Error> {
-                let node = self.load_node(page_id)?;
-                let idx = node.find_key_index(key);
-                if node.is_leaf {
-                    if idx < node.keys.len() && node.keys[idx] == key {
-                        Ok(SearchResult::Found(node.values[idx].clone()))
-                    } else {
-                        Ok(SearchResult::NotFound)
-                    }
-                } else {
-                    let child_id = if idx < node.keys.len() && node.keys[idx] == key {
-                        node.children[idx + 1]
-                    } else {
-                        node.children[idx]
-                    };
-                    Ok(SearchResult::Continue(child_id))
-                }
-            })?;
+            let step: SearchResult =
+                self.page_latches
+                    .with_read(page_id, || -> Result<SearchResult, Error> {
+                        let node = self.load_node(page_id)?;
+                        let idx = node.find_key_index(key);
+                        if node.is_leaf {
+                            if idx < node.keys.len() && node.keys[idx] == key {
+                                Ok(SearchResult::Found(node.values[idx].clone()))
+                            } else {
+                                Ok(SearchResult::NotFound)
+                            }
+                        } else {
+                            let child_id = if idx < node.keys.len() && node.keys[idx] == key {
+                                node.children[idx + 1]
+                            } else {
+                                node.children[idx]
+                            };
+                            Ok(SearchResult::Continue(child_id))
+                        }
+                    })?;
             match step {
                 SearchResult::Found(value) => return Ok(value),
                 SearchResult::NotFound => return Ok(None),
@@ -3087,11 +3278,7 @@ impl Engine {
     /// 1. Borrow from left sibling
     /// 2. Borrow from right sibling
     /// 3. Merge with a sibling
-    fn rebalance_after_delete(
-        &self,
-        parent_id: PageId,
-        child_idx: usize,
-    ) -> Result<PageId, Error> {
+    fn rebalance_after_delete(&self, parent_id: PageId, child_idx: usize) -> Result<PageId, Error> {
         let parent = self.load_node(parent_id)?;
         let child_id = parent.children[child_idx];
         let child = self.load_node(child_id)?;
@@ -3388,6 +3575,24 @@ impl Engine {
         Ok(node)
     }
 
+    /// Load a node from disk WITHOUT touching the node cache.
+    ///
+    /// Companion to [`load_node`] for whole-tree scans where caching
+    /// every visited node would blow up memory on a large corpus
+    /// (each node holds its keys + values + children vectors; on a
+    /// multi-hundred-GB B-tree the unbounded `node_cache` can grow to
+    /// many tens of GB and pressure jetsam).
+    ///
+    /// Same error policy as `load_node`: corrupt pages and parse
+    /// failures propagate so the operator gets a real diagnostic.
+    pub(crate) fn load_node_uncached(&self, page_id: PageId) -> Result<Arc<BTreeNode>, Error> {
+        let page_arc = self.buffer_pool.get_page(page_id).map_err(Error::Storage)?;
+        let page = page_arc.read().expect("lock poisoned: page read");
+        Ok(Arc::new(
+            self.deserialize_node_with_overflow(page_id, &page.data)?,
+        ))
+    }
+
     /// Take a node for writing: removes from cache and returns owned node.
     /// Uses Arc::try_unwrap for zero-copy when possible, falls back to clone.
     fn take_node_for_write(&self, page_id: PageId) -> Result<BTreeNode, Error> {
@@ -3641,9 +3846,7 @@ impl<'a> BTreeRangeIterator<'a> {
             // Internal node.
             let child_idx = match &self.start_bound {
                 Bound::Unbounded => 0,
-                Bound::Included(start) | Bound::Excluded(start) => {
-                    node.find_key_index(start)
-                }
+                Bound::Included(start) | Bound::Excluded(start) => node.find_key_index(start),
             };
             // Push this internal node's position so next_forward can
             // continue to the next child after we exit this subtree.

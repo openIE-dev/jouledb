@@ -110,7 +110,6 @@ async fn duplicate_receipts_deduped_in_committer() {
             qid: "q1".to_string(),
             tenant_id: "t1".to_string(),
             workload_tag: None,
-            branch_id: None,
             energy_joules_total: 0.005,
             energy_joules_by_stage: Default::default(),
             kwh: 0.005 / 3_600_000.0,
@@ -121,6 +120,8 @@ async fn duplicate_receipts_deduped_in_committer() {
             timestamp_end: ts,
             device_target: "cpu".to_string(),
             algorithm_type: "btree".to_string(),
+            branch_id: None,
+            provenance: None,
         };
         tx.send(receipt).await.unwrap();
     }
@@ -154,7 +155,6 @@ async fn same_id_different_content_still_deduped() {
             qid: "q1".to_string(),
             tenant_id: "t1".to_string(),
             workload_tag: None,
-            branch_id: None,
             energy_joules_total: 0.001 * (i as f64 + 1.0),
             energy_joules_by_stage: Default::default(),
             kwh: 0.001 / 3_600_000.0,
@@ -165,6 +165,8 @@ async fn same_id_different_content_still_deduped() {
             timestamp_end: ts,
             device_target: "cpu".to_string(),
             algorithm_type: "btree".to_string(),
+            branch_id: None,
+            provenance: None,
         };
         tx.send(receipt).await.unwrap();
     }
@@ -630,7 +632,6 @@ fn stage_energy_all_stages_set() {
         qid: "q1".to_string(),
         tenant_id: "t1".to_string(),
         workload_tag: None,
-        branch_id: None,
         energy_joules_total: 1.0,
         energy_joules_by_stage: Default::default(),
         kwh: 0.0,
@@ -641,6 +642,8 @@ fn stage_energy_all_stages_set() {
         timestamp_end: ts,
         device_target: "cpu".to_string(),
         algorithm_type: "btree".to_string(),
+        branch_id: None,
+        provenance: None,
     };
 
     // Set all stages
