@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 
 class JouleDBError(RuntimeError):
@@ -189,6 +189,7 @@ class Connection:
         prompt: str,
         max_new_tokens: int = 24,
         temperature: float = 0.0,
+        speculative_draft_k: int = 0,
     ) -> Dict[str, Any]:
         """Run autoregressive causal token generation over sub-1-bit LittleBit-2 bitplanes."""
         return self._json_request(
@@ -199,6 +200,7 @@ class Connection:
                 "prompt": prompt,
                 "max_new_tokens": max_new_tokens,
                 "temperature": temperature,
+                "speculative_draft_k": speculative_draft_k,
             },
         )
 
@@ -307,6 +309,31 @@ class Connection:
                 "max_turns": max_turns,
                 "commit_to_titans": commit_to_titans,
             },
+        )
+
+    def vision_encode(
+        self,
+        image_base64: str,
+        model_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Encode an image (base64 PPM/BMP/image bytes) via sub-1-bit SigLIP/ViT bitplanes."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/vision/encode",
+            {"model_id": model_id, "image_base64": image_base64},
+        )
+
+    def audio_transcribe(
+        self,
+        audio_base64: str,
+        model: str = "whisper-1",
+        prompt: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Transcribe base64 WAV audio via OpenAI-compatible POST /v1/audio/transcriptions."""
+        return self._json_request(
+            "POST",
+            "/v1/audio/transcriptions",
+            {"model": model, "audio_base64": audio_base64, "prompt": prompt},
         )
 
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use

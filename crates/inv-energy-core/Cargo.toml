@@ -1,6 +1,6 @@
 [package]
 name = "inv-energy-core"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "Shared energy accounting traits for the Invisible/JouleDB energy chain"
 

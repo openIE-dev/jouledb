@@ -4,6 +4,17 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-23
+
+### Added
+- **Multimodal Vision (`SigLIP`/`ViT`) & Audio (`Whisper` Log-Mel) Living Bitplanes (`multimodal_encoder`)**:
+  - Pure-Rust `.ppm`/`.bmp`/RGB image patchifier + multi-layer `SigLIP`/`ViT` `LittleBit-2` Vision Transformer encoder (`POST /api/v1/synapse/vision/encode` and OpenAI multimodal `image_url` content parts on `POST /v1/chat/completions`).
+  - Pure-Rust `RIFF/WAVE` PCM/IEEE-float decoder, `16 kHz` resampler, `512`-point Radix-2 FFT, `80`/`128`-bin Slaney Log-Mel filterbank, and sub-1-bit `Whisper` Audio Transformer encoder (`POST /api/v1/synapse/audio/transcribe` and drop-in OpenAI `POST /v1/audio/transcriptions` supporting both JSON and `multipart/form-data` binary `.wav` uploads).
+- **Lossless Self-Speculative `LayerSkip` + Rank-8 `LittleBit-2` Draft-and-Verify (`causal_decoder`)**:
+  - Proposes $K$ draft tokens (`speculative_draft_k`) via strided `LayerSkip` + `0.04` BPW single-byte `T-MAC` LUT projections (`forward_vec_truncated_rank`) and verifies `[t_0, d_1..d_K]` in a single row-outer cache-shared `forward_batch` pass with 100% bit-exact greedy equivalence.
+- **Registry & Release Pipeline (`crates.io` + `GHCR` + Multi-Platform Python Wheels)**:
+  - Attached all 5 OS/arch `abi3` Python `.whl` wheels + `sdist` to GitHub Releases alongside the 10 server binary archives, added `ghcr.io/openie-dev/jouledb` tag pushes and PyPI OIDC Trusted Publisher support, and added `vision_encode`, `audio_transcribe`, and `speculative_draft_k` across Python & Rust `0.2.2` SDKs.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

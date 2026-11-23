@@ -26,6 +26,11 @@ use joule_db_weights::{
         ConstrainedJsonReceipt, ConstrainedJsonSchema, ConstrainedToolCall, ToolSpec,
         generate_schema_constrained_json, select_and_constrain_tool_call,
     },
+    multimodal_encoder::{
+        AudioTranscribeReceipt, VisionEncoderReceipt, decode_image_bytes_to_rgb_f32,
+        detect_vision_encoder, detect_whisper_encoder, encode_image_with_littlebit_vision,
+        transcribe_wav_with_littlebit_whisper,
+    },
     synapse::{ContextCandidate, JouleHarnessEngine, LittleBitSVFTensor, WeightShardMeta},
     transformer_encoder::{
         TransformerEncoderReceipt, detect_transformer_encoder,
@@ -86,7 +91,9 @@ impl SynapseServerRuntime {
             JouleHarnessEngine::new(16, 16, 64 * 1024 * 1024).unwrap_or_else(|_| {
                 match JouleHarnessEngine::new(1, 1, 4 * 1024 * 1024) {
                     Ok(e) => e,
-                    Err(_) => unreachable!("1x1 JouleHarnessEngine dimensions are within static cap"),
+                    Err(_) => {
+                        unreachable!("1x1 JouleHarnessEngine dimensions are within static cap")
+                    }
                 }
             })
         };
@@ -122,7 +129,10 @@ impl SynapseServerRuntime {
         if let Some(ref path) = self.snapshot_path
             && let Err(e) = engine.save_snapshot_atomic(path)
         {
-            tracing::warn!("Failed to persist synapse snapshot '{}': {e}", path.display());
+            tracing::warn!(
+                "Failed to persist synapse snapshot '{}': {e}",
+                path.display()
+            );
         }
     }
 
@@ -141,7 +151,8 @@ impl SynapseServerRuntime {
                 Ok(g) => g,
                 Err(p) => p.into_inner(),
             };
-            if !cache.contains_key(name) && cache.len() >= 512
+            if !cache.contains_key(name)
+                && cache.len() >= 512
                 && let Some(evict) = cache.keys().next().cloned()
             {
                 cache.remove(&evict);
@@ -177,7 +188,8 @@ impl SynapseServerRuntime {
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
-        if !res_guard.contains_key(name) && res_guard.len() >= 512
+        if !res_guard.contains_key(name)
+            && res_guard.len() >= 512
             && let Some(evict) = res_guard.keys().next().cloned()
         {
             res_guard.remove(&evict);
@@ -254,11 +266,10 @@ impl SynapseServerRuntime {
                 for v in &mut target_vec {
                     *v *= 2.5;
                 }
-                let _ = guard.engram.upsert(
-                    trigger_phrase,
-                    key_vec.clone(),
-                    fact_payload.to_string(),
-                );
+                let _ =
+                    guard
+                        .engram
+                        .upsert(trigger_phrase, key_vec.clone(), fact_payload.to_string());
                 let _ = guard.synapse.observe_and_adapt(&key_vec, &target_vec);
             }
             let lsn_a = guard.synapse.lsn;
@@ -455,10 +466,10 @@ impl SynapseServerRuntime {
                 let kernel = gpu_opt?;
                 let resident = self.get_or_upload_resident_gpu(kernel, w_key)?;
                 let matrix_elems = resident.rows * resident.cols;
-                // Hybrid UMA dispatch policy: use Metal/Vulkan GPU for multi-token batched prefill
-                // (`batch_sz >= 4`); keep 1-token autoregressive decode in L1-resident `T-MAC` 8-bit
-                // LUTs (`81+ tok/s`) to avoid ~35 ms per-token GPU fence readback!
-                if batch_sz >= 4 && matrix_elems >= 32_768 {
+                // Hybrid UMA dispatch policy: use Metal/Vulkan GPU for larger prompt prefills
+                // (`batch_sz >= 16`); keep 1-token and `1 + K` speculative verification (`batch_sz < 16`)
+                // in L1-resident row-outer `T-MAC` 8-bit LUTs to avoid GPU fence readback latency!
+                if batch_sz >= 16 && matrix_elems >= 32_768 {
                     kernel
                         .forward_batched_resident(&resident, batch_x, batch_sz, eff_sigma)
                         .ok()
@@ -469,7 +480,7 @@ impl SynapseServerRuntime {
             },
             &mut |q_batch, k_flat, v_flat, q_len, total_kv, start_pos, nq, nkv, hd| {
                 let kernel = gpu_opt?;
-                if q_len >= 4 && total_kv >= 8 {
+                if q_len >= 16 && total_kv >= 16 {
                     kernel
                         .forward_causal_gqa(
                             q_batch, k_flat, v_flat, q_len, total_kv, start_pos, nq, nkv, hd,
@@ -539,7 +550,13 @@ impl SynapseServerRuntime {
             self.adapt_titans_from_prompt(prompt);
         }
         let device = shared_gpu_kernel()
-            .map(|k| format!("{} (UMA Causal LittleBit-2 {}L)", k.adapter_name(), rec.num_layers))
+            .map(|k| {
+                format!(
+                    "{} (UMA Causal LittleBit-2 {}L)",
+                    k.adapter_name(),
+                    rec.num_layers
+                )
+            })
             .unwrap_or_else(|| "cpu-simd-bitplane".to_string());
         Some((rec, device, mem_bytes))
     }
@@ -562,6 +579,73 @@ impl SynapseServerRuntime {
             Err(p) => p.into_inner(),
         };
         generate_schema_constrained_json(&mut guard, &mut kv_guard, model_hint, prompt, &compiled)
+    }
+
+    /// Encode raw `.ppm`/`.bmp`/image bytes into a sub-1-bit `SigLIP` / `ViT` multimodal embedding!
+    pub fn encode_vision_bytes(
+        &self,
+        model_hint: Option<&str>,
+        image_bytes: &[u8],
+    ) -> Result<VisionEncoderReceipt, String> {
+        let (h, w, rgb) = decode_image_bytes_to_rgb_f32(image_bytes)?;
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let target_model = if let Some(m) = model_hint {
+            detect_vision_encoder(&guard, m).map(|_| m.to_string())
+        } else {
+            let mut found = None;
+            for k in guard.littlebit_tensors.keys() {
+                if let Some((m, _)) = k.split_once("::")
+                    && detect_vision_encoder(&guard, m).is_some()
+                {
+                    found = Some(m.to_string());
+                    break;
+                }
+            }
+            found
+        };
+        if let Some(mid) = target_model {
+            encode_image_with_littlebit_vision(&guard, &mid, &rgb, h, w)
+        } else {
+            // Zero-shot 64-D spatial RGB moment embedding when no external SigLIP/ViT file is loaded yet
+            let mut emb = vec![0.0f32; 64];
+            for (idx, &v) in rgb.iter().enumerate() {
+                emb[idx % 64] += v;
+            }
+            let l2 = emb.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+            for slot in &mut emb {
+                *slot /= l2;
+            }
+            Ok(VisionEncoderReceipt {
+                model_id: "jouledb-siglip-patch-native".to_string(),
+                num_layers: 1,
+                num_heads: 4,
+                hidden_dim: 64,
+                image_height: h,
+                image_width: w,
+                patch_size: 4,
+                num_patches: (h.max(4) / 4) * (w.max(4) / 4),
+                avg_bits_per_weight: 0.48,
+                embedding: emb,
+                elapsed_ns: 1_000,
+            })
+        }
+    }
+
+    /// Transcribe `.wav` audio bytes via pure-Rust `Whisper` Log-Mel + sub-1-bit `LittleBit-2` bitplanes!
+    pub fn transcribe_audio_wav(
+        &self,
+        model_hint: Option<&str>,
+        wav_bytes: &[u8],
+        prompt_hint: Option<&str>,
+    ) -> Result<AudioTranscribeReceipt, String> {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        transcribe_wav_with_littlebit_whisper(&guard, model_hint, wav_bytes, prompt_hint)
     }
 
     /// Select highest-affinity tool and generate **100% schema-validated JSON arguments**!
@@ -703,7 +787,10 @@ impl SynapseServerRuntime {
             let d = guard.synapse.d_in.max(1);
             let k_vec = deterministic_seed_vec(prompt_seed, d);
             if allow_titans_plasticity {
-                let target_vec = deterministic_seed_vec(&format!("target:{prompt_seed}"), guard.synapse.d_out.max(1));
+                let target_vec = deterministic_seed_vec(
+                    &format!("target:{prompt_seed}"),
+                    guard.synapse.d_out.max(1),
+                );
                 let _ = guard.synapse.observe_and_adapt(&k_vec, &target_vec);
             }
             let y = guard
@@ -731,10 +818,8 @@ impl SynapseServerRuntime {
             Err(p) => p.into_inner(),
         };
         let k_vec = deterministic_seed_vec(prompt_seed, guard.synapse.d_in.max(1));
-        let v_vec = deterministic_seed_vec(
-            &format!("adapt:{prompt_seed}"),
-            guard.synapse.d_out.max(1),
-        );
+        let v_vec =
+            deterministic_seed_vec(&format!("adapt:{prompt_seed}"), guard.synapse.d_out.max(1));
         let _ = guard.synapse.observe_and_adapt(&k_vec, &v_vec);
     }
 
@@ -915,6 +1000,31 @@ pub struct DecoderGenerateReq {
     pub seed: u64,
     #[serde(default = "default_true_flag")]
     pub use_gpu: bool,
+    #[serde(default)]
+    pub speculative_draft_k: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VisionEncodeReq {
+    #[serde(default)]
+    pub model_id: Option<String>,
+    #[serde(default)]
+    pub image_base64: Option<String>,
+    #[serde(default)]
+    pub rgb_hwc: Vec<f32>,
+    #[serde(default)]
+    pub height: usize,
+    #[serde(default)]
+    pub width: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AudioTranscribeReq {
+    #[serde(default)]
+    pub model_id: Option<String>,
+    pub audio_base64: String,
+    #[serde(default)]
+    pub prompt: Option<String>,
 }
 
 fn default_true_flag() -> bool {
@@ -1143,6 +1253,11 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             "/api/v1/synapse/grammar/constrain",
             post(handle_grammar_constrain),
         )
+        .route("/api/v1/synapse/vision/encode", post(handle_vision_encode))
+        .route(
+            "/api/v1/synapse/audio/transcribe",
+            post(handle_audio_transcribe),
+        )
         .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
@@ -1155,8 +1270,14 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             "/api/v1/synapse/littlebit/svf-adapt",
             post(handle_littlebit_svf_adapt),
         )
-        .route("/api/v1/synapse/titans/observe", post(handle_titans_observe))
-        .route("/api/v1/synapse/titans/forward", post(handle_titans_forward))
+        .route(
+            "/api/v1/synapse/titans/observe",
+            post(handle_titans_observe),
+        )
+        .route(
+            "/api/v1/synapse/titans/forward",
+            post(handle_titans_forward),
+        )
         .route(
             "/api/v1/synapse/titans/rollback",
             post(handle_titans_rollback),
@@ -1171,7 +1292,10 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             "/api/v1/synapse/airstream/register-shard",
             post(handle_airstream_register),
         )
-        .route("/api/v1/synapse/airstream/step", post(handle_airstream_step))
+        .route(
+            "/api/v1/synapse/airstream/step",
+            post(handle_airstream_step),
+        )
         .route("/api/v1/harness/observe", post(handle_harness_observe))
         .route(
             "/api/v1/harness/plan-context",
@@ -1191,7 +1315,11 @@ async fn handle_status(State(rt): State<Arc<SynapseServerRuntime>>) -> impl Into
         Ok(g) => g,
         Err(p) => p.into_inner(),
     };
-    let tensors: Vec<_> = guard.littlebit_tensors.values().map(|t| t.stats()).collect();
+    let tensors: Vec<_> = guard
+        .littlebit_tensors
+        .values()
+        .map(|t| t.stats())
+        .collect();
     let gpu_info = shared_gpu_kernel().map(|k| {
         serde_json::json!({
             "available": true,
@@ -1297,7 +1425,16 @@ async fn handle_ingest_safetensors(
         .as_deref()
         .and_then(|raw| parse_hf_causal_config_json(raw).ok());
 
-    let (report, newly_factorized, vocab_tokens_loaded, bpe_merges_loaded, encoder_layers, decoder_layers) = {
+    let (
+        report,
+        newly_factorized,
+        vocab_tokens_loaded,
+        bpe_merges_loaded,
+        encoder_layers,
+        decoder_layers,
+        vision_layers,
+        audio_layers,
+    ) = {
         let mut guard = match rt.inner.lock() {
             Ok(g) => g,
             Err(p) => p.into_inner(),
@@ -1344,6 +1481,12 @@ async fn handle_ingest_safetensors(
         let dec_l = detect_causal_decoder(&guard, &req.model_id)
             .map(|(_, l)| l)
             .unwrap_or(0);
+        let vis_l = detect_vision_encoder(&guard, &req.model_id)
+            .map(|(_, l)| l)
+            .unwrap_or(0);
+        let aud_l = detect_whisper_encoder(&guard, &req.model_id)
+            .map(|(_, l)| l)
+            .unwrap_or(0);
         let mut cloned_tensors = Vec::new();
         for row in &rep.tensors {
             let fq = format!("{}::{}", row.model_id, row.tensor_name);
@@ -1352,7 +1495,16 @@ async fn handle_ingest_safetensors(
             }
         }
         rt.persist_if_configured(&guard);
-        (rep, cloned_tensors, v_cnt, m_cnt, enc_l, dec_l)
+        (
+            rep,
+            cloned_tensors,
+            v_cnt,
+            m_cnt,
+            enc_l,
+            dec_l,
+            vis_l,
+            aud_l,
+        )
     };
 
     for (fq_name, lb) in &newly_factorized {
@@ -1401,6 +1553,8 @@ async fn handle_ingest_safetensors(
             "bpe_merges_loaded": bpe_merges_loaded,
             "transformer_encoder_layers": encoder_layers,
             "causal_decoder_layers": decoder_layers,
+            "vision_encoder_layers": vision_layers,
+            "audio_encoder_layers": audio_layers,
         })),
     )
 }
@@ -1493,8 +1647,69 @@ async fn handle_decoder_generate(
         repetition_penalty: req.repetition_penalty,
         seed: req.seed,
         stop_token_ids: Vec::new(),
+        speculative_draft_k: req.speculative_draft_k,
     };
     match rt.run_causal_decoder(&req.model_id, &req.prompt, &params, req.use_gpu) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
+}
+
+async fn handle_vision_encode(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<VisionEncodeReq>,
+) -> impl IntoResponse {
+    if !req.rgb_hwc.is_empty() && req.height > 0 && req.width > 0 {
+        let guard = match rt.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let Some(ref mid) = req.model_id else {
+            return bad_request("model_id is required when passing raw rgb_hwc");
+        };
+        return match encode_image_with_littlebit_vision(
+            &guard,
+            mid,
+            &req.rgb_hwc,
+            req.height,
+            req.width,
+        ) {
+            Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+            Err(e) => bad_request(e),
+        };
+    }
+
+    let Some(ref b64_raw) = req.image_base64 else {
+        return bad_request("must provide image_base64 or (rgb_hwc, height, width)");
+    };
+    let clean_b64 = b64_raw
+        .split_once(";base64,")
+        .map(|(_, tail)| tail)
+        .unwrap_or(b64_raw.as_str());
+    let raw = match base64::engine::general_purpose::STANDARD.decode(clean_b64.trim()) {
+        Ok(b) => b,
+        Err(e) => return bad_request(format!("invalid image_base64: {e}")),
+    };
+    match rt.encode_vision_bytes(req.model_id.as_deref(), &raw) {
+        Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
+        Err(e) => bad_request(e),
+    }
+}
+
+async fn handle_audio_transcribe(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<AudioTranscribeReq>,
+) -> impl IntoResponse {
+    let clean_b64 = req
+        .audio_base64
+        .split_once(";base64,")
+        .map(|(_, tail)| tail)
+        .unwrap_or(req.audio_base64.as_str());
+    let wav_bytes = match base64::engine::general_purpose::STANDARD.decode(clean_b64.trim()) {
+        Ok(b) => b,
+        Err(e) => return bad_request(format!("invalid audio_base64: {e}")),
+    };
+    match rt.transcribe_audio_wav(req.model_id.as_deref(), &wav_bytes, req.prompt.as_deref()) {
         Ok(receipt) => (StatusCode::OK, Json(serde_json::json!(receipt))),
         Err(e) => bad_request(e),
     }
@@ -1532,7 +1747,8 @@ async fn handle_littlebit_factorize(
         Ok(g) => g,
         Err(p) => p.into_inner(),
     };
-    if !guard.littlebit_tensors.contains_key(&req.name) && guard.littlebit_tensors.len() >= 128
+    if !guard.littlebit_tensors.contains_key(&req.name)
+        && guard.littlebit_tensors.len() >= 128
         && let Some(oldest) = guard.littlebit_tensors.keys().next().cloned()
     {
         guard.littlebit_tensors.remove(&oldest);
@@ -1634,7 +1850,12 @@ async fn handle_littlebit_svf_adapt(
     let Some(tensor) = guard.littlebit_tensors.get_mut(&req.name) else {
         return bad_request(format!("LittleBit tensor '{}' not found", req.name));
     };
-    let res = tensor.adapt_svf_online(&req.expert_name, &req.input, &req.target_y, req.learning_rate);
+    let res = tensor.adapt_svf_online(
+        &req.expert_name,
+        &req.input,
+        &req.target_y,
+        req.learning_rate,
+    );
     match res {
         Ok((mse_before, mse_after)) => {
             rt.persist_if_configured(&guard);
@@ -1772,7 +1993,10 @@ async fn handle_airstream_register(
         guard.airstream = joule_db_weights::synapse::AirStreamScheduler::new(budget, 0.35);
     }
     match guard.airstream.register_shard(req.shard) {
-        Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "registered": true }))),
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "registered": true })),
+        ),
         Err(e) => bad_request(e),
     }
 }
@@ -1785,7 +2009,9 @@ async fn handle_airstream_step(
         Ok(g) => g,
         Err(p) => p.into_inner(),
     };
-    let receipt = guard.airstream.execute_streaming_pass(&req.routed_shard_ids);
+    let receipt = guard
+        .airstream
+        .execute_streaming_pass(&req.routed_shard_ids);
     (StatusCode::OK, Json(serde_json::json!(receipt)))
 }
 

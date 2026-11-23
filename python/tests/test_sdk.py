@@ -149,3 +149,31 @@ def test_synapse_ward_embed_chat_and_messages_sdk(db):
     assert ag["steps"][0]["selected_tool"] == "jouledb.sql_query"
     assert ag["steps"][0]["output"]["row_count"] == 1
     db.query(f"DROP TABLE {tbl}")
+
+    import base64
+    import struct
+
+    ppm_b64 = base64.b64encode(b"P6\n4 4\n255\n" + bytes([200, 30, 30] * 16)).decode()
+    vis = db.vision_encode(ppm_b64)
+    assert len(vis["embedding"]) >= 16
+
+    pcm = b"".join(struct.pack("<h", 4000 if (i % 32) < 16 else -4000) for i in range(1600))
+    wav_hdr = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        36 + len(pcm),
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        1,
+        16000,
+        32000,
+        2,
+        16,
+        b"data",
+        len(pcm),
+    )
+    tr = db.audio_transcribe(base64.b64encode(wav_hdr + pcm).decode())
+    assert tr["mel_bins"] == 80
+    assert len(tr["text"]) > 0

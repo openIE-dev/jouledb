@@ -140,8 +140,11 @@ impl LittleBitSVFTensor {
         let mut row_scale = vec![0.0f32; rows];
         for (i, r_scale) in row_scale.iter_mut().enumerate() {
             let row_slice = &weights[i * cols..(i + 1) * cols];
-            let mean_sq =
-                row_slice.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>() / (cols as f64);
+            let mean_sq = row_slice
+                .iter()
+                .map(|&v| (v as f64) * (v as f64))
+                .sum::<f64>()
+                / (cols as f64);
             *r_scale = mean_sq.sqrt().max(1e-6) as f32;
         }
 
@@ -163,7 +166,8 @@ impl LittleBitSVFTensor {
             let r_s = row_scale[i];
             let w_row = &weights[i * cols..(i + 1) * cols];
             let res_row = &mut residual[i * cols..(i + 1) * cols];
-            for ((dst, &w_val), &c_s) in res_row.iter_mut().zip(w_row.iter()).zip(col_scale.iter()) {
+            for ((dst, &w_val), &c_s) in res_row.iter_mut().zip(w_row.iter()).zip(col_scale.iter())
+            {
                 *dst = w_val / (r_s * c_s);
             }
         }
@@ -273,7 +277,11 @@ impl LittleBitSVFTensor {
                 }
             }
             for &(_, r, c, delta) in &top_k {
-                outliers.push(ResidualOutlier { row: r, col: c, delta });
+                outliers.push(ResidualOutlier {
+                    row: r,
+                    col: c,
+                    delta,
+                });
             }
         }
 
@@ -314,7 +322,11 @@ impl LittleBitSVFTensor {
 
     /// Register or update a Sakana `Transformer²` Singular Value Fine-Tuning (`SVF`) expert
     /// vector $z \in \mathbb{R}^{\text{rank}}$ (`1.0` = neutral identity scaling).
-    pub fn register_svf_expert(&mut self, expert_name: impl Into<String>, z_scales: Vec<f32>) -> Result<(), String> {
+    pub fn register_svf_expert(
+        &mut self,
+        expert_name: impl Into<String>,
+        z_scales: Vec<f32>,
+    ) -> Result<(), String> {
         if z_scales.len() != self.rank {
             return Err(format!(
                 "SVF expert length {} must match latent rank {}",
@@ -323,7 +335,8 @@ impl LittleBitSVFTensor {
             ));
         }
         let name = expert_name.into();
-        if !self.svf_experts.contains_key(&name) && self.svf_experts.len() >= MAX_SVF_EXPERTS
+        if !self.svf_experts.contains_key(&name)
+            && self.svf_experts.len() >= MAX_SVF_EXPERTS
             && let Some(oldest) = self.svf_experts.keys().next().cloned()
         {
             self.svf_experts.remove(&oldest);
@@ -354,7 +367,11 @@ impl LittleBitSVFTensor {
     /// Matrix-vector forward pass $y = W_{\text{eff}} x$ using packed binary bitplanes + Sakana `SVF`,
     /// accelerated via Four-Russians / `T-MAC` 256-entry 8-bit lookup tables (`O(rank / 8)` branchless
     /// L1 table reads, bit-exact to scalar bipolar accumulation).
-    pub fn forward_vec(&self, input: &[f32], expert_mix: &[(String, f32)]) -> Result<Vec<f32>, String> {
+    pub fn forward_vec(
+        &self,
+        input: &[f32],
+        expert_mix: &[(String, f32)],
+    ) -> Result<Vec<f32>, String> {
         if input.len() != self.cols {
             return Err(format!(
                 "input length {} does not match tensor cols {}",
@@ -504,11 +521,13 @@ impl LittleBitSVFTensor {
 
         let num_bytes = self.rank.div_ceil(8);
         let mut out = vec![0.0f32; batch_size * self.rows];
-        for b in 0..batch_size {
-            let lat_b = &batch_latents[b * self.rank..(b + 1) * self.rank];
-            let out_b = &mut out[b * self.rows..(b + 1) * self.rows];
-            if self.rows >= 32 && num_bytes > 0 {
-                let mut luts = vec![[0.0f32; 256]; num_bytes];
+        if self.rows >= 32 && num_bytes > 0 {
+            // Prebuild flat L1-resident `T-MAC` byte LUTs (`[batch_size * num_bytes][256]`), then scan
+            // `u_bits` row-outer / batch-inner so `u_bits` is loaded from memory ONCE across the batch!
+            let mut flat_luts = vec![[0.0f32; 256]; batch_size * num_bytes];
+            for b in 0..batch_size {
+                let lat_b = &batch_latents[b * self.rank..(b + 1) * self.rank];
+                let luts = &mut flat_luts[b * num_bytes..(b + 1) * num_bytes];
                 for (b_idx, lut) in luts.iter_mut().enumerate() {
                     let k_start = b_idx * 8;
                     let k_lim = (self.rank - k_start).min(8);
@@ -525,8 +544,12 @@ impl LittleBitSVFTensor {
                         *slot = s;
                     }
                 }
-                for (i, out_i) in out_b.iter_mut().enumerate() {
-                    let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+            }
+            for i in 0..self.rows {
+                let rs = self.row_scale[i];
+                let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                for b in 0..batch_size {
+                    let luts = &flat_luts[b * num_bytes..(b + 1) * num_bytes];
                     let mut acc = 0.0f32;
                     for (w_idx, &word) in u_row.iter().enumerate() {
                         let bytes = word.to_le_bytes();
@@ -536,9 +559,13 @@ impl LittleBitSVFTensor {
                             acc += luts[b_base + bi][bytes[bi] as usize];
                         }
                     }
-                    *out_i = acc * self.row_scale[i];
+                    out[b * self.rows + i] = acc * rs;
                 }
-            } else {
+            }
+        } else {
+            for b in 0..batch_size {
+                let lat_b = &batch_latents[b * self.rank..(b + 1) * self.rank];
+                let out_b = &mut out[b * self.rows..(b + 1) * self.rows];
                 for (i, out_i) in out_b.iter_mut().enumerate() {
                     let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
                     let mut acc = 0.0f32;
@@ -552,8 +579,11 @@ impl LittleBitSVFTensor {
                     *out_i = acc * self.row_scale[i];
                 }
             }
+        }
 
+        for b in 0..batch_size {
             let xb = &batch_inputs[b * self.cols..(b + 1) * self.cols];
+            let out_b = &mut out[b * self.rows..(b + 1) * self.rows];
             for o in &self.outliers {
                 let r = o.row as usize;
                 let c = o.col as usize;
@@ -565,9 +595,101 @@ impl LittleBitSVFTensor {
         Ok(out)
     }
 
+    /// Ultra-fast low-rank prefix projection (`draft_rank <= self.rank`, e.g. `draft_rank = 8` -> `0.04` BPW
+    /// single-byte `T-MAC` LUT!) over the highest-energy singular bitplane channels for self-speculative drafting!
+    pub fn forward_vec_truncated_rank(
+        &self,
+        input: &[f32],
+        draft_rank: usize,
+    ) -> Result<Vec<f32>, String> {
+        if input.len() != self.cols {
+            return Err(format!(
+                "input length {} does not match tensor cols {}",
+                input.len(),
+                self.cols
+            ));
+        }
+        let r_eff = draft_rank.clamp(1, self.rank);
+        if r_eff == self.rank {
+            return self.forward_vec(input, &[]);
+        }
+
+        let eff_sigma = self.effective_latent_scales(&[]);
+        let mut latent = vec![0.0f32; r_eff];
+        for (j, &xj) in input.iter().enumerate() {
+            let x_scaled = xj * self.col_scale[j];
+            let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
+            for (w_idx, &word) in v_row.iter().enumerate() {
+                let k_base = w_idx * 64;
+                if k_base >= r_eff {
+                    break;
+                }
+                let rem = (r_eff - k_base).min(64);
+                let mut bits = word;
+                for dk in 0..rem {
+                    let sgn = ((bits & 1) as f32) * 2.0 - 1.0;
+                    latent[k_base + dk] += sgn * x_scaled;
+                    bits >>= 1;
+                }
+            }
+        }
+        for (k, slot) in latent.iter_mut().enumerate() {
+            *slot *= eff_sigma[k];
+        }
+
+        let num_bytes = r_eff.div_ceil(8);
+        let mut luts = vec![[0.0f32; 256]; num_bytes];
+        for (b_idx, lut) in luts.iter_mut().enumerate() {
+            let k_start = b_idx * 8;
+            let k_lim = (r_eff - k_start).min(8);
+            for (mask, slot) in lut.iter_mut().enumerate() {
+                let mut s = 0.0f32;
+                for bit in 0..k_lim {
+                    let lk = latent[k_start + bit];
+                    if ((mask >> bit) & 1) == 1 {
+                        s += lk;
+                    } else {
+                        s -= lk;
+                    }
+                }
+                *slot = s;
+            }
+        }
+
+        let mut out = vec![0.0f32; self.rows];
+        for (i, out_i) in out.iter_mut().enumerate() {
+            let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+            let mut acc = 0.0f32;
+            for (w_idx, &word) in u_row.iter().enumerate() {
+                let bytes = word.to_le_bytes();
+                let b_base = w_idx * 8;
+                if b_base >= num_bytes {
+                    break;
+                }
+                let b_end = (num_bytes - b_base).min(8);
+                for bi in 0..b_end {
+                    acc += luts[b_base + bi][bytes[bi] as usize];
+                }
+            }
+            *out_i = acc * self.row_scale[i];
+        }
+        for o in &self.outliers {
+            let r = o.row as usize;
+            let c = o.col as usize;
+            if r < self.rows && c < self.cols {
+                out[r] += o.delta * input[c];
+            }
+        }
+        Ok(out)
+    }
+
     /// Pure hardware bitwise `XNOR + POPCNT` latent inner-product kernel over binarized input
     /// activations ($\text{sign}(x) \in \{-1, +1\}$). Demonstrates zero-FP-multiply binary matvec.
-    pub fn forward_binary_xnor_popcnt(&self, input: &[f32], expert_mix: &[(String, f32)]) -> Result<Vec<f32>, String> {
+    pub fn forward_binary_xnor_popcnt(
+        &self,
+        input: &[f32],
+        expert_mix: &[(String, f32)],
+    ) -> Result<Vec<f32>, String> {
         if input.len() != self.cols {
             return Err(format!(
                 "input length {} does not match tensor cols {}",
@@ -612,7 +734,11 @@ impl LittleBitSVFTensor {
                         v_word |= 1u64 << bit_j;
                     }
                 }
-                let mask = if cw + 1 == col_words { tail_mask } else { u64::MAX };
+                let mask = if cw + 1 == col_words {
+                    tail_mask
+                } else {
+                    u64::MAX
+                };
                 let xnor = (!(x_bits[cw] ^ v_word)) & mask;
                 matches += xnor.count_ones();
             }
@@ -633,6 +759,13 @@ impl LittleBitSVFTensor {
                 }
             }
             *out_i = acc * self.row_scale[i];
+        }
+        for o in &self.outliers {
+            let r = o.row as usize;
+            let c = o.col as usize;
+            if r < self.rows && c < self.cols {
+                out[r] += o.delta * input[c];
+            }
         }
         Ok(out)
     }
@@ -737,12 +870,17 @@ impl LittleBitSVFTensor {
         let mut probes: Vec<Vec<f32>> = Vec::with_capacity(p_cnt);
         for p in 0..p_cnt {
             let mut x = Vec::with_capacity(self.cols);
-            let mut st = (0x9E37_79B9_7F4A_7C15u64)
-                .wrapping_mul((p as u64) + 1)
-                ^ 0xD1B5_4A32_D192_ED03;
+            let mut st =
+                (0x9E37_79B9_7F4A_7C15u64).wrapping_mul((p as u64) + 1) ^ 0xD1B5_4A32_D192_ED03;
             for j in 0..self.cols {
-                st = st.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407 ^ (j as u64));
-                let sign = if ((st >> 63) & 1) == 0 { 1.0f32 } else { -1.0f32 };
+                st = st
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407 ^ (j as u64));
+                let sign = if ((st >> 63) & 1) == 0 {
+                    1.0f32
+                } else {
+                    -1.0f32
+                };
                 let mod_gain = 0.75 + 0.5 * (((st >> 32) & 0xFF) as f32 / 255.0);
                 x.push(sign * mod_gain * inv_sqrt_c);
             }
@@ -798,7 +936,11 @@ impl LittleBitSVFTensor {
             }
         }
 
-        let compute_probe_mse = |yh: &[Vec<f32>], yt: &[Vec<f32>], outliers: &[ResidualOutlier], pr: &[Vec<f32>]| -> f64 {
+        let compute_probe_mse = |yh: &[Vec<f32>],
+                                 yt: &[Vec<f32>],
+                                 outliers: &[ResidualOutlier],
+                                 pr: &[Vec<f32>]|
+         -> f64 {
             let mut sq = 0.0f64;
             let mut cnt = 0usize;
             for p in 0..yh.len() {
@@ -945,7 +1087,11 @@ impl LittleBitSVFTensor {
             }
             self.outliers = top_k
                 .into_iter()
-                .map(|(_, r, c, delta)| ResidualOutlier { row: r, col: c, delta })
+                .map(|(_, r, c, delta)| ResidualOutlier {
+                    row: r,
+                    col: c,
+                    delta,
+                })
                 .collect();
         }
 
@@ -1033,7 +1179,8 @@ impl LittleBitSVFTensor {
 
     fn compute_cosine_similarity(&self, target: &[f32]) -> f64 {
         // Streaming row-by-row cosine check (allocates only 1 row instead of rows*cols)
-        let mut outlier_map: HashMap<(usize, usize), f32> = HashMap::with_capacity(self.outliers.len());
+        let mut outlier_map: HashMap<(usize, usize), f32> =
+            HashMap::with_capacity(self.outliers.len());
         for o in &self.outliers {
             outlier_map.insert((o.row as usize, o.col as usize), o.delta);
         }
@@ -1201,7 +1348,9 @@ impl ContinuumSynapse {
         target: &[f32],
     ) -> Result<SynapticUpdateOutcome, String> {
         if key.len() != self.d_in || target.len() != self.d_out {
-            return Err("key/target dimension mismatch in ContinuumSynapse::observe_and_adapt".to_string());
+            return Err(
+                "key/target dimension mismatch in ContinuumSynapse::observe_and_adapt".to_string(),
+            );
         }
         let pred = self.forward(key)?;
         let pre_mse = mse(&pred, target);
@@ -1384,10 +1533,16 @@ impl EngramMemoryTable {
     }
 
     /// Upsert a factual/embedding memory in $O(1)$ without touching frozen neural weights.
-    pub fn upsert(&mut self, phrase: &str, embedding: Vec<f32>, fact_payload: impl Into<String>) -> EngramRecord {
+    pub fn upsert(
+        &mut self,
+        phrase: &str,
+        embedding: Vec<f32>,
+        fact_payload: impl Into<String>,
+    ) -> EngramRecord {
         let canonical_key = Self::canonicalize(phrase);
         let head_slots = Self::multi_head_hashes(&canonical_key);
-        if !self.records.contains_key(&canonical_key) && self.records.len() >= MAX_ENGRAM_ENTRIES
+        if !self.records.contains_key(&canonical_key)
+            && self.records.len() >= MAX_ENGRAM_ENTRIES
             && let Some(evict_key) = self.records.keys().next().cloned()
             && let Some(old) = self.records.remove(&evict_key)
         {
@@ -1439,7 +1594,13 @@ impl EngramMemoryTable {
         let stale_keys: Vec<String> = self
             .records
             .iter()
-            .filter_map(|(k, v)| if v.lsn > target_lsn { Some(k.clone()) } else { None })
+            .filter_map(|(k, v)| {
+                if v.lsn > target_lsn {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
             .collect();
         let removed = stale_keys.len();
         for k in stale_keys {
@@ -1685,7 +1846,11 @@ impl RadixKvCachePool {
     }
 
     /// Match longest cached causal prefix for `tokens` and populate missing tail blocks into `tier`.
-    pub fn match_and_populate(&mut self, tokens: &[u32], tier: KvStorageTier) -> KvPrefixMatchReceipt {
+    pub fn match_and_populate(
+        &mut self,
+        tokens: &[u32],
+        tier: KvStorageTier,
+    ) -> KvPrefixMatchReceipt {
         let mut parent_hash = 0u64;
         let mut matched_tokens = 0usize;
         let mut prefix_broken = false;
@@ -1910,7 +2075,11 @@ impl JouleHarnessEngine {
     /// Ingest noisy raw tool/sensor output: scrubs credentials, deduplicates full text in CAS,
     /// and distills only unique high-salience lines (errors, warnings, metrics, head/tail) so
     /// 50 KB of repetitive terminal spam never pollutes the model's context window.
-    pub fn ingest_observation(&mut self, source: impl Into<String>, raw_output: &str) -> HarnessObservation {
+    pub fn ingest_observation(
+        &mut self,
+        source: impl Into<String>,
+        raw_output: &str,
+    ) -> HarnessObservation {
         let (scrubbed, redacted_secrets) = scrub_credentials(raw_output);
         let mut hasher = Sha256::new();
         hasher.update(scrubbed.as_bytes());
@@ -1998,8 +2167,10 @@ impl JouleHarnessEngine {
         // Rank: pinned first, then utility density = relevance * (1 + surprise) / tokens
         candidates.sort_by(|a, b| {
             b.pinned.cmp(&a.pinned).then_with(|| {
-                let ua = (a.relevance.max(0.0) * (1.0 + a.surprise.max(0.0))) / (a.tokens.max(1) as f64);
-                let ub = (b.relevance.max(0.0) * (1.0 + b.surprise.max(0.0))) / (b.tokens.max(1) as f64);
+                let ua =
+                    (a.relevance.max(0.0) * (1.0 + a.surprise.max(0.0))) / (a.tokens.max(1) as f64);
+                let ub =
+                    (b.relevance.max(0.0) * (1.0 + b.surprise.max(0.0))) / (b.tokens.max(1) as f64);
                 ub.total_cmp(&ua)
             })
         });
@@ -2011,7 +2182,8 @@ impl JouleHarnessEngine {
         for cand in candidates {
             let marginal_uj = (cand.tokens as f64) * if cand.prefix_stable { 15.0 } else { 120.0 };
             let current_uj = (used_tokens as f64) * 60.0;
-            if used_tokens + cand.tokens <= max_tokens && current_uj + marginal_uj <= max_joules_uj {
+            if used_tokens + cand.tokens <= max_tokens && current_uj + marginal_uj <= max_joules_uj
+            {
                 used_tokens += cand.tokens;
                 chosen.push(cand);
             } else {
@@ -2021,7 +2193,11 @@ impl JouleHarnessEngine {
 
         // Order `prefix_stable` items deterministically at the front of the assembled context so
         // `RadixKvCachePool` achieves maximum causal prefix reuse across turns!
-        chosen.sort_by(|a, b| b.prefix_stable.cmp(&a.prefix_stable).then_with(|| a.id.cmp(&b.id)));
+        chosen.sort_by(|a, b| {
+            b.prefix_stable
+                .cmp(&a.prefix_stable)
+                .then_with(|| a.id.cmp(&b.id))
+        });
 
         let mut token_stream: Vec<u32> = Vec::with_capacity(used_tokens);
         let mut selected_ids = Vec::with_capacity(chosen.len());
@@ -2361,8 +2537,14 @@ mod tests {
             mse_last < mse_first,
             "Sakana SVF online adaptation must reduce target MSE ({mse_first} -> {mse_last})"
         );
-        assert_eq!(lb.u_bits, orig_u_bits, "Base binary U bitplanes must remain immutable");
-        assert_eq!(lb.v_bits, orig_v_bits, "Base binary V bitplanes must remain immutable");
+        assert_eq!(
+            lb.u_bits, orig_u_bits,
+            "Base binary U bitplanes must remain immutable"
+        );
+        assert_eq!(
+            lb.v_bits, orig_v_bits,
+            "Base binary V bitplanes must remain immutable"
+        );
     }
 
     #[test]
@@ -2382,7 +2564,10 @@ mod tests {
             syn.observe_and_adapt(&k, &v).expect("converge");
         }
         let hab = syn.observe_and_adapt(&k, &v).expect("habituate");
-        assert!(!hab.adapted, "Predictable observation must habituate with 0 weight writes!");
+        assert!(
+            !hab.adapted,
+            "Predictable observation must habituate with 0 weight writes!"
+        );
 
         // 2. Simulate adversarial weight poisoning at test time, then roll back via MVCC LSN!
         let pre_poison_pred = syn.forward(&k).expect("pre poison");
@@ -2471,7 +2656,9 @@ mod tests {
                 tokens: 32,
                 relevance: 1.0,
                 surprise: 0.0,
-                content: "You are JouleDB native harness operating under strict microjoule budgets.".into(),
+                content:
+                    "You are JouleDB native harness operating under strict microjoule budgets."
+                        .into(),
             },
             ContextCandidate {
                 id: "tool_defs".into(),

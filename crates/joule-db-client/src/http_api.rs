@@ -102,9 +102,10 @@ impl HttpFabricClient {
             .and_then(|s| s.parse().ok())
             .ok_or_else(|| ClientError::invalid_response("missing HTTP status code"))?;
 
-        let is_chunked = head_str
-            .lines()
-            .any(|l| l.to_ascii_lowercase().contains("transfer-encoding: chunked"));
+        let is_chunked = head_str.lines().any(|l| {
+            l.to_ascii_lowercase()
+                .contains("transfer-encoding: chunked")
+        });
         let decoded_body = if is_chunked {
             decode_chunked_body(body_bytes)?
         } else {
@@ -284,9 +285,10 @@ impl HttpFabricClient {
             .ok_or_else(|| ClientError::invalid_response("malformed SSE HTTP headers"))?;
         let head_str = String::from_utf8_lossy(&raw[..split_pos]);
         let body_bytes = &raw[split_pos + 4..];
-        let is_chunked = head_str
-            .lines()
-            .any(|l| l.to_ascii_lowercase().contains("transfer-encoding: chunked"));
+        let is_chunked = head_str.lines().any(|l| {
+            l.to_ascii_lowercase()
+                .contains("transfer-encoding: chunked")
+        });
         let decoded = if is_chunked {
             decode_chunked_body(body_bytes)?
         } else {
@@ -348,6 +350,53 @@ impl HttpFabricClient {
             "commit_to_titans": true,
         });
         self.request_json("POST", "/api/v1/agent/run", Some(&body))
+            .await
+    }
+
+    /// Encode an image (`image_base64`) via sub-1-bit `SigLIP` / `ViT` (`POST /api/v1/synapse/vision/encode`).
+    pub async fn vision_encode(
+        &self,
+        model_id: Option<&str>,
+        image_base64: &str,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "image_base64": image_base64,
+        });
+        self.request_json("POST", "/api/v1/synapse/vision/encode", Some(&body))
+            .await
+    }
+
+    /// Transcribe base64 `.wav` audio via OpenAI-compatible `POST /v1/audio/transcriptions`.
+    pub async fn audio_transcribe(
+        &self,
+        model_id: Option<&str>,
+        audio_base64: &str,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model": model_id.unwrap_or("whisper-1"),
+            "audio_base64": audio_base64,
+        });
+        self.request_json("POST", "/v1/audio/transcriptions", Some(&body))
+            .await
+    }
+
+    /// Run self-speculative `LayerSkip` + Rank-8 draft-and-verify causal generation (`speculative_draft_k`).
+    pub async fn decoder_generate_speculative(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        max_new_tokens: usize,
+        speculative_draft_k: usize,
+    ) -> Result<JsonValue> {
+        let body = json!({
+            "model_id": model_id,
+            "prompt": prompt,
+            "max_new_tokens": max_new_tokens,
+            "temperature": 0.0,
+            "speculative_draft_k": speculative_draft_k,
+        });
+        self.request_json("POST", "/api/v1/synapse/decoder/generate", Some(&body))
             .await
     }
 }

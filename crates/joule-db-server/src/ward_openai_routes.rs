@@ -230,9 +230,31 @@ pub struct VerifyJcapReq {
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageUrlRef {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatContentPart {
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub text: Option<String>,
+    #[serde(default)]
+    pub image_url: Option<ImageUrlRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ChatContent {
+    Text(String),
+    Parts(Vec<ChatContentPart>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
-    pub content: String,
+    pub content: ChatContent,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -315,7 +337,10 @@ pub fn ward_openai_router(rt: Arc<WardOpenAiRuntime>) -> Router {
     Router::new()
         // JouleWard Capability, Confinement, .jcap & Fabric Energy Ledger Routes
         .route("/api/v1/ward/tokens/mint", post(handle_mint_token))
-        .route("/api/v1/ward/tokens/attenuate", post(handle_attenuate_token))
+        .route(
+            "/api/v1/ward/tokens/attenuate",
+            post(handle_attenuate_token),
+        )
         .route(
             "/api/v1/ward/confinement/compile",
             post(handle_compile_confinement),
@@ -332,6 +357,10 @@ pub fn ward_openai_router(rt: Arc<WardOpenAiRuntime>) -> Router {
         .route("/v1/models", get(handle_openai_models))
         .route("/v1/embeddings", post(handle_openai_embeddings))
         .route("/v1/chat/completions", post(handle_openai_chat_completions))
+        .route(
+            "/v1/audio/transcriptions",
+            post(handle_openai_audio_transcriptions),
+        )
         // Drop-in Ollama Wire Compatibility (`/api/*`)
         .route("/api/tags", get(handle_ollama_tags))
         .route("/api/generate", post(handle_ollama_generate))
@@ -370,9 +399,7 @@ async fn handle_mint_token(
     }
 }
 
-async fn handle_attenuate_token(
-    Json(req): Json<AttenuateTokenReq>,
-) -> impl IntoResponse {
+async fn handle_attenuate_token(Json(req): Json<AttenuateTokenReq>) -> impl IntoResponse {
     let mut current = req.token;
     for c in req.caveats {
         match current.attenuate(c) {
@@ -430,7 +457,9 @@ async fn handle_ward_exec(
 
         if let Some((peer_id, peer_class, peer_url)) = chosen_peer {
             // Verify token permits both the target node's FabricComputeClass AND a wire hop BEFORE sending!
-            let req_bytes_est = serde_json::to_vec(&req).map(|v| v.len() as u64).unwrap_or(512);
+            let req_bytes_est = serde_json::to_vec(&req)
+                .map(|v| v.len() as u64)
+                .unwrap_or(512);
             let wire_est = HeterogeneousRailSample {
                 cpu_nj: 120,
                 gpu_nj: 0,
@@ -458,12 +487,8 @@ async fn handle_ward_exec(
                 hitl_approved: req.exec.hitl_approved,
             };
             let spent = rt.ward.ledger.token_spent_nj(&req.exec.token.root_token_id);
-            let pre_dec = authorize_ward_action(
-                rt.ward.root_secret(),
-                &req.exec.token,
-                &hop_ctx,
-                spent,
-            );
+            let pre_dec =
+                authorize_ward_action(rt.ward.root_secret(), &req.exec.token, &hop_ctx, spent);
             if !matches!(pre_dec, WardDecision::Permit { .. }) {
                 let policy = req.exec.token.effective_policy();
                 let confinement = compile_confinement(&policy, &rt.workspace_dir);
@@ -498,9 +523,16 @@ async fn handle_ward_exec(
             fwd_req.route_across_fabric = false;
             let url = format!("{}/api/v1/ward/exec", peer_url.trim_end_matches('/'));
             let t_wire = Instant::now();
-            if let Ok(http_resp) = rt.fabric_rt.http_client.post(&url).json(&fwd_req).send().await
+            if let Ok(http_resp) = rt
+                .fabric_rt
+                .http_client
+                .post(&url)
+                .json(&fwd_req)
+                .send()
+                .await
                 && let Ok(raw_bytes) = http_resp.bytes().await
-                && let Ok(mut remote_resp) = serde_json::from_slice::<WardFabricExecResp>(&raw_bytes)
+                && let Ok(mut remote_resp) =
+                    serde_json::from_slice::<WardFabricExecResp>(&raw_bytes)
             {
                 let wire_ns = (t_wire.elapsed().as_nanos() as u64).max(1);
                 let total_wire_bytes = req_bytes_est.saturating_add(raw_bytes.len() as u64);
@@ -803,7 +835,10 @@ async fn handle_ollama_tags(State(rt): State<Arc<WardOpenAiRuntime>>) -> impl In
             })
         })
         .collect();
-    (StatusCode::OK, Json(serde_json::json!({ "models": models })))
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "models": models })),
+    )
 }
 
 async fn handle_openai_embeddings(
@@ -1033,7 +1068,8 @@ async fn handle_openai_chat_completions(
                     .get("x_jouledb_energy")
                     .and_then(|x| x.get("trace"))
                     .cloned()
-                    && let Ok(rem_trace) = serde_json::from_value::<FabricTraceReceipt>(rem_trace_val)
+                    && let Ok(rem_trace) =
+                        serde_json::from_value::<FabricTraceReceipt>(rem_trace_val)
                 {
                     combined.merge_remote_trace(wire_hop, &rem_trace);
                 } else {
@@ -1066,7 +1102,7 @@ async fn handle_openai_chat_completions(
         }
     }
 
-    let prompt_str = extract_prompt(&req.messages);
+    let prompt_str = extract_multimodal_prompt(&rt, &req.messages);
     let hint = if req.model == "jouledb-cascade-v1" {
         None
     } else {
@@ -1082,7 +1118,9 @@ async fn handle_openai_chat_completions(
         .and_then(|v| v.as_str())
         .is_some_and(|s| s == "none");
     if !req.tools.is_empty() && !tools_disabled {
-        if let Err((st, et, msg)) = check_chat_capability(&rt, req.x_ward_token.as_ref(), req.x_hitl_approved) {
+        if let Err((st, et, msg)) =
+            check_chat_capability(&rt, req.x_ward_token.as_ref(), req.x_hitl_approved)
+        {
             return (
                 st,
                 Json(serde_json::json!({ "error": { "type": et, "message": msg } })),
@@ -1097,7 +1135,10 @@ async fn handle_openai_chat_completions(
             .and_then(|f| f.get("name"))
             .and_then(|n| n.as_str());
 
-        match rt.synapse_rt.constrain_tool_call(hint, &prompt_str, &specs, forced) {
+        match rt
+            .synapse_rt
+            .constrain_tool_call(hint, &prompt_str, &specs, forced)
+        {
             Ok(tc) => {
                 let (mut rails, cal_src, hw_fused) = rt.estimate_rails_fused(
                     "xgrammar_jump_forward_dfa",
@@ -1131,7 +1172,10 @@ async fn handle_openai_chat_completions(
 
                 if req.stream {
                     let mut hdrs = energy_headers(&trace, "tier4_xgrammar_constrained_tool_call");
-                    hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                    hdrs.insert(
+                        "content-type",
+                        HeaderValue::from_static("text/event-stream"),
+                    );
                     hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
                     let sse = build_openai_tool_sse_stream(
                         &format!("chatcmpl-jdb-{created}"),
@@ -1194,7 +1238,9 @@ async fn handle_openai_chat_completions(
     if let Some(ref rf) = req.response_format
         && let Some(schema_val) = rf.get("json_schema").or_else(|| rf.get("schema"))
     {
-        if let Err((st, et, msg)) = check_chat_capability(&rt, req.x_ward_token.as_ref(), req.x_hitl_approved) {
+        if let Err((st, et, msg)) =
+            check_chat_capability(&rt, req.x_ward_token.as_ref(), req.x_hitl_approved)
+        {
             return (
                 st,
                 Json(serde_json::json!({ "error": { "type": et, "message": msg } })),
@@ -1235,7 +1281,10 @@ async fn handle_openai_chat_completions(
 
                 if req.stream {
                     let mut hdrs = energy_headers(&trace, "tier4_xgrammar_constrained_json");
-                    hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                    hdrs.insert(
+                        "content-type",
+                        HeaderValue::from_static("text/event-stream"),
+                    );
                     hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
                     let sse = build_openai_text_sse_stream(
                         &format!("chatcmpl-jdb-{created}"),
@@ -1306,7 +1355,10 @@ async fn handle_openai_chat_completions(
 
             if req.stream {
                 let mut hdrs = energy_headers(&outcome.trace, &outcome.cascade_tier);
-                hdrs.insert("content-type", HeaderValue::from_static("text/event-stream"));
+                hdrs.insert(
+                    "content-type",
+                    HeaderValue::from_static("text/event-stream"),
+                );
                 hdrs.insert("cache-control", HeaderValue::from_static("no-cache"));
                 let sse = build_openai_text_sse_stream(
                     &format!("chatcmpl-jdb-{created}"),
@@ -1426,7 +1478,11 @@ fn check_chat_capability(
         match authorize_ward_action(rt.ward.root_secret(), cap, &ctx, spent) {
             WardDecision::Permit { .. } => {}
             WardDecision::RequiresHumanApproval { reason, .. } => {
-                return Err((StatusCode::PRECONDITION_REQUIRED, "hitl_gate_required", reason));
+                return Err((
+                    StatusCode::PRECONDITION_REQUIRED,
+                    "hitl_gate_required",
+                    reason,
+                ));
             }
             WardDecision::Deny { reason } => {
                 return Err((StatusCode::FORBIDDEN, "capability_denied", reason));
@@ -1659,7 +1715,11 @@ pub(crate) fn run_thermodynamic_cascade(
         match authorize_ward_action(rt.ward.root_secret(), cap, &ctx, spent) {
             WardDecision::Permit { .. } => {}
             WardDecision::RequiresHumanApproval { reason, .. } => {
-                return Err((StatusCode::PRECONDITION_REQUIRED, "hitl_gate_required", reason));
+                return Err((
+                    StatusCode::PRECONDITION_REQUIRED,
+                    "hitl_gate_required",
+                    reason,
+                ));
             }
             WardDecision::Deny { reason } => {
                 return Err((StatusCode::FORBIDDEN, "capability_denied", reason));
@@ -1961,14 +2021,237 @@ fn select_fabric_peer(
     None
 }
 
-fn extract_prompt(messages: &[ChatMessage]) -> String {
-    messages
+#[derive(Debug, Deserialize)]
+struct OpenAiAudioJsonReq {
+    #[serde(default)]
+    model: Option<String>,
+    audio_base64: String,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    x_ward_token: Option<WardCapabilityToken>,
+    #[serde(default)]
+    x_hitl_approved: bool,
+}
+
+fn parse_multipart_wav_and_fields(
+    boundary: &str,
+    raw: &[u8],
+) -> (Option<Vec<u8>>, Option<String>, Option<String>) {
+    let delim = format!("--{boundary}").into_bytes();
+    let mut wav_data: Option<Vec<u8>> = None;
+    let mut model_val: Option<String> = None;
+    let mut prompt_val: Option<String> = None;
+
+    let mut pos = 0usize;
+    while pos + delim.len() <= raw.len() {
+        let Some(rel) = raw[pos..].windows(delim.len()).position(|w| w == delim) else {
+            break;
+        };
+        let part_start = pos + rel + delim.len();
+        if raw[part_start..].starts_with(b"--") {
+            break;
+        }
+        let body_search = if raw[part_start..].starts_with(b"\r\n") {
+            part_start + 2
+        } else {
+            part_start
+        };
+        let Some(hdr_end_rel) = raw[body_search..].windows(4).position(|w| w == b"\r\n\r\n") else {
+            break;
+        };
+        let hdr_str = String::from_utf8_lossy(&raw[body_search..body_search + hdr_end_rel]);
+        let content_start = body_search + hdr_end_rel + 4;
+        let next_rel = raw[content_start..]
+            .windows(delim.len())
+            .position(|w| w == delim)
+            .unwrap_or(raw.len() - content_start);
+        let content_end = (content_start + next_rel)
+            .saturating_sub(2)
+            .max(content_start);
+        let payload = &raw[content_start..content_end];
+
+        if hdr_str.contains("name=\"file\"") {
+            wav_data = Some(payload.to_vec());
+        } else if hdr_str.contains("name=\"model\"") {
+            model_val = Some(String::from_utf8_lossy(payload).trim().to_string());
+        } else if hdr_str.contains("name=\"prompt\"") {
+            prompt_val = Some(String::from_utf8_lossy(payload).trim().to_string());
+        }
+        pos = content_start + next_rel;
+    }
+    (wav_data, model_val, prompt_val)
+}
+
+async fn handle_openai_audio_transcriptions(
+    State(rt): State<Arc<WardOpenAiRuntime>>,
+    headers: HeaderMap,
+    body_bytes: axum::body::Bytes,
+) -> impl IntoResponse {
+    let ctype = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    let (wav_bytes, model_hint, prompt_hint, cap_tok, hitl_ok) = if let Some((_, b_part)) =
+        ctype.split_once("boundary=")
+    {
+        let boundary = b_part
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .trim_matches('"');
+        let (wav_opt, m_opt, p_opt) = parse_multipart_wav_and_fields(boundary, &body_bytes);
+        let Some(w) = wav_opt else {
+            return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": { "type": "invalid_request_error", "message": "multipart missing 'file' field" } })),
+                )
+                    .into_response();
+        };
+        (w, m_opt, p_opt, None, false)
+    } else {
+        let parsed: OpenAiAudioJsonReq = match serde_json::from_slice(&body_bytes) {
+            Ok(p) => p,
+            Err(e) => {
+                return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({ "error": { "type": "invalid_request_error", "message": format!("invalid audio JSON body: {e}") } })),
+                    )
+                        .into_response();
+            }
+        };
+        let clean = parsed
+            .audio_base64
+            .split_once(";base64,")
+            .map(|(_, t)| t)
+            .unwrap_or(parsed.audio_base64.as_str());
+        let Ok(w) = base64::engine::general_purpose::STANDARD.decode(clean.trim()) else {
+            return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": { "type": "invalid_request_error", "message": "invalid audio_base64" } })),
+                )
+                    .into_response();
+        };
+        (
+            w,
+            parsed.model,
+            parsed.prompt,
+            parsed.x_ward_token,
+            parsed.x_hitl_approved,
+        )
+    };
+
+    if let Err((status, err_type, msg)) = check_chat_capability(&rt, cap_tok.as_ref(), hitl_ok) {
+        return (
+            status,
+            Json(serde_json::json!({ "error": { "type": err_type, "message": msg } })),
+        )
+            .into_response();
+    }
+
+    let hint_ref = model_hint
+        .as_deref()
+        .filter(|m| *m != "whisper-1" && *m != "jouledb-cascade-v1");
+    match rt
+        .synapse_rt
+        .transcribe_audio_wav(hint_ref, &wav_bytes, prompt_hint.as_deref())
+    {
+        Ok(rec) => {
+            let (rails, cal_src, hw_fused) = rt.estimate_rails_fused(
+                "whisper_fft_logmel_littlebit",
+                rec.elapsed_ns,
+                (wav_bytes.len() as u64).max(8192),
+                0,
+                0,
+            );
+            let mut trace = FabricTraceReceipt::default();
+            trace.push_hop(FabricHopEnergyReceipt {
+                node_id: rt.ward.node_id().to_string(),
+                fabric_class: rt.ward.fabric_class(),
+                silicon_lane: "whisper_fft_logmel_littlebit".to_string(),
+                calibration_source: cal_src,
+                grid_carbon_g_per_kwh: rt.ward.grid_carbon_g_per_kwh(),
+                rails,
+            });
+            let root_tid = cap_tok.as_ref().map(|t| t.root_token_id.as_str());
+            rt.ward.ledger.record_trace(root_tid, &trace);
+
+            (
+                StatusCode::OK,
+                energy_headers(&trace, "tier4_whisper_littlebit_audio"),
+                Json(serde_json::json!({
+                    "text": rec.text,
+                    "model": rec.model_id,
+                    "duration": rec.duration_sec,
+                    "mel_frames": rec.mel_frames,
+                    "mel_bins": rec.mel_bins,
+                    "x_jouledb_energy": {
+                        "cascade_tier": "tier4_whisper_littlebit_audio",
+                        "bits_per_weight": rec.avg_bits_per_weight,
+                        "hardware_sensor_fused": hw_fused,
+                        "aggregate_rails": trace.aggregate_rails,
+                        "trace": trace,
+                    }
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": { "type": "audio_decode_error", "message": e } })),
+        )
+            .into_response(),
+    }
+}
+
+fn extract_multimodal_prompt(rt: &WardOpenAiRuntime, messages: &[ChatMessage]) -> String {
+    let Some(msg) = messages
         .iter()
         .rev()
         .find(|m| m.role == "user")
         .or_else(|| messages.last())
-        .map(|m| m.content.clone())
-        .unwrap_or_default()
+    else {
+        return String::new();
+    };
+    match &msg.content {
+        ChatContent::Text(s) => s.clone(),
+        ChatContent::Parts(parts) => {
+            let mut pieces = Vec::new();
+            for p in parts {
+                if let Some(ref t) = p.text {
+                    pieces.push(t.clone());
+                }
+                if let Some(ref img) = p.image_url {
+                    let b64 = img
+                        .url
+                        .split_once(";base64,")
+                        .map(|(_, tail)| tail)
+                        .unwrap_or(img.url.as_str());
+                    if let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(b64.trim())
+                        && let Ok(vrec) = rt.synapse_rt.encode_vision_bytes(None, &raw)
+                    {
+                        let preview: Vec<String> = vrec
+                            .embedding
+                            .iter()
+                            .take(4)
+                            .map(|v| format!("{v:.3}"))
+                            .collect();
+                        pieces.push(format!(
+                            "[vision:{} {}x{} patches={} emb=[{}]]",
+                            vrec.model_id,
+                            vrec.image_width,
+                            vrec.image_height,
+                            vrec.num_patches,
+                            preview.join(",")
+                        ));
+                    }
+                }
+            }
+            pieces.join(" ")
+        }
+    }
 }
 
 pub(crate) fn energy_headers(trace: &FabricTraceReceipt, tier: &str) -> HeaderMap {
