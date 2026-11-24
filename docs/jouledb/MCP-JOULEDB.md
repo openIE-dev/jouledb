@@ -2,7 +2,7 @@
 
 **Version 1.0 — 2026-05-18**
 **Source:** [`crates/joule-db-server/src/mcp_bridge.rs`](../../crates/joule-db-server/src/mcp_bridge.rs), [`crates/joule-db-server/src/mcp_transport.rs`](../../crates/joule-db-server/src/mcp_transport.rs)
-**Distinct from:** [`MGAI-MCP-REFERENCE.md`](../MGAI-MCP-REFERENCE.md) — that doc covers the `ask-mcp` (askdavidc.ai) MCP server. This doc covers the **JouleDB-side MCP bridge** built into `joule-db-server`.
+**Distinct from:** [`MGAI-MCP-REFERENCE.md`](MCP-JOULEDB.md) — that doc covers the `ask-mcp` (askdavidc.ai) MCP server. This doc covers the **JouleDB-side MCP bridge** built into `joule-db-server`.
 
 `joule-db-server` exposes Model Context Protocol tools so AI agents (Claude Code, Cursor, Xcode 26.3, OpenAI Agents, etc.) can talk to a JouleDB instance directly. Transport: stdio JSON-RPC or HTTP SSE.
 
@@ -155,7 +155,7 @@ Every tool result includes `energy_uwh` in its top-level fields. Wrapping client
 
 | Surface | Purpose | Tools |
 |---|---|---|
-| **`ask-mcp`** ([MGAI-MCP-REFERENCE.md](../MGAI-MCP-REFERENCE.md)) | askdavidc.ai user-facing | `askdavidc_search`, `joule_web_compute`, `joule_web_list` |
+| **`ask-mcp`** ([MGAI-MCP-REFERENCE.md](MCP-JOULEDB.md)) | askdavidc.ai user-facing | `askdavidc_search`, `joule_web_compute`, `joule_web_list` |
 | **`db.*` MCP** (this doc) | JouleDB direct access | `db.query`, `db.get`, `db.put`, `db.delete`, `db.semantic_search`, `db.energy` |
 
 `ask-mcp` is the consumer-facing surface (search the joule-search graph, run joule-web compute modules). This `db.*` MCP is the database-direct surface (raw SQL access, KV ops, vector search). Either an agent uses one or the other; sometimes both.
@@ -179,11 +179,11 @@ Every tool result includes `energy_uwh` in its top-level fields. Wrapping client
 
 ## 8. See also
 
-- [`MGAI-MCP-REFERENCE.md`](../MGAI-MCP-REFERENCE.md) — the askdavidc.ai MCP surface (different tools)
+- [`MGAI-MCP-REFERENCE.md`](MCP-JOULEDB.md) — the askdavidc.ai MCP surface (different tools)
 - [`MGAI-JWP-PROTOCOL.md`](../MGAI-JWP-PROTOCOL.md) — JouleDB's native wire protocol (alternative to MCP)
 - [`crates/joule-db-server/src/mcp_bridge.rs`](../../crates/joule-db-server/src/mcp_bridge.rs)
 - [`crates/joule-db-server/src/mcp_transport.rs`](../../crates/joule-db-server/src/mcp_transport.rs)
-- [Anthropic MCP spec](https://spec.modelcontextprotocol.io/)
+- [Model Context Protocol Specification](https://modelcontextprotocol.io)
 
 ---
 

@@ -84,7 +84,7 @@ ORDER BY headcount DESC;
 - **Same storage as SQL** — no separate graph engine. Vertices and edges are rows; the executor uses [`graph.rs`](../../crates/joule-db-query/src/graph.rs) operators.
 - **Energy receipts** — every query returns joule cost via the JWP `Done` frame.
 - **APOC procedures** — not implemented. Use SQL functions or wasm-trigger procedures instead.
-- **GDS (Graph Data Science) library** — not implemented. The [`mgai-vla`](../../crates/mgai-vla/) and [`joule-db-features`](../../crates/joule-db-features/) graph operators are the equivalent.
+- **GDS (Graph Data Science) library** — not implemented. The `mgai-vla` and [`joule-db-features`](../../crates/joule-db-features/) graph operators are the equivalent.
 
 ## 5. See also
 

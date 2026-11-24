@@ -2,7 +2,7 @@
 
 **Version 1.0 — 2026-05-18**
 **Binaries:** `joule` (`joule-cli`), `jouledb` (`joule-db-server` daemon), `joule-db-recover` (forensic), `scholar-recover` (Scholar-specific forensic)
-**Sister docs:** [`MGAI-CLI-REFERENCE.md`](../MGAI-CLI-REFERENCE.md), [`MGAI-JWP-PROTOCOL.md`](../MGAI-JWP-PROTOCOL.md), [`MGAI-ACP-REFERENCE.md`](../MGAI-ACP-REFERENCE.md)
+**Sister docs:** [`MGAI-CLI-REFERENCE.md`](CLI-REFERENCE.md), [`MGAI-JWP-PROTOCOL.md`](../MGAI-JWP-PROTOCOL.md), `MGAI-ACP-REFERENCE.md`
 
 This is the JouleDB-specific CLI reference — separate from `MGAI-CLI-REFERENCE.md` which covers the user-facing `askdavidc` / `jmax` / `ask-server` binaries. The two are linked; this one is database-side.
 
@@ -11,7 +11,7 @@ This is the JouleDB-specific CLI reference — separate from `MGAI-CLI-REFERENCE
 ## 1. `joule` — the universal CLI (`crates/bin/joule-cli`)
 
 **Binary:** `joule`
-**Crate:** [`crates/bin/joule-cli/`](../../crates/bin/joule-cli/)
+**Crate:** `crates/bin/joule-cli/`
 
 One CLI across all five IDE brands (Lux, Joule, Arc, Data, DevOps). Every operation is metered in joules. JouleDB subcommands are under `joule db …`.
 
@@ -188,7 +188,7 @@ This binary was the tool that recovered Scholar's 594GB database in May 2026 aft
 ## 4. `scholar-recover` — Scholar-specific forensic recovery (`crates/bin/scholar-recover`)
 
 **Binary:** `scholar-recover`
-**Crate:** [`crates/bin/scholar-recover/`](../../crates/bin/scholar-recover/)
+**Crate:** `crates/bin/scholar-recover/`
 
 A higher-level forensic tool layered on top of `joule-db-recover`. While `joule-db-recover` rebuilds the JouleDB internal-node tree, `scholar-recover` extracts row data from leaf pages and re-ingests it into a fresh JouleDB. Used when the corruption is severe enough that even synthetic-recovery can't reconstruct a consistent index.
 
@@ -250,7 +250,7 @@ When in doubt, run the read-only `scan` mode of both tools first and compare rep
 
 ## 5. ACP context — JouleDB binaries as agent processes
 
-The OpenIE ACP (Agent CLI / Container Protocol) contract from [`MGAI-ACP-REFERENCE.md`](../MGAI-ACP-REFERENCE.md) applies to JouleDB binaries with the following specifics:
+The OpenIE ACP (Agent CLI / Container Protocol) contract from `MGAI-ACP-REFERENCE.md` applies to JouleDB binaries with the following specifics:
 
 ### 5.1 Invocation class
 
@@ -296,11 +296,11 @@ kubectl exec -it my-cluster-0 -n jouledb -- \
 
 ## 6. See also
 
-- [`MGAI-CLI-REFERENCE.md`](../MGAI-CLI-REFERENCE.md) — `askdavidc` / `jmax` / `ask-server` / `ask-mcp` (user-facing surface)
-- [`MGAI-ACP-REFERENCE.md`](../MGAI-ACP-REFERENCE.md) — process contract for all OpenIE agent binaries
+- [`MGAI-CLI-REFERENCE.md`](CLI-REFERENCE.md) — `askdavidc` / `jmax` / `ask-server` / `ask-mcp` (user-facing surface)
+- `MGAI-ACP-REFERENCE.md` — process contract for all OpenIE agent binaries
 - [`MGAI-JWP-PROTOCOL.md`](../MGAI-JWP-PROTOCOL.md) — wire protocol the `jouledb` daemon speaks
 - [`crates/joule-db-server/README.md`](../../crates/joule-db-server/README.md) — daemon module map
-- [`the-fix-1.md`](../../the-fix-1.md), [`the-fix-2.md`](../../the-fix-2.md) — Scholar recovery incident narratives
+- `the-fix-1.md`, `the-fix-2.md` — Scholar recovery incident narratives
 
 ---
 

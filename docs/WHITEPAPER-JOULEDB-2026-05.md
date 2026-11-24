@@ -188,7 +188,7 @@ A user-facing reference enumerating each primitive's signature, energy class, an
 
 ### 2.4 JouleDB AI — Knowledge System (Layer 3)
 
-*(unchanged from v0.1 — but [`jouledb-ai-runtime`](../crates/jouledb-ai-runtime/) is now the public API on top of the `verity-*` cascade engine; see its [README](../crates/jouledb-ai-runtime/README.md) for the three operations `ask` / `learn` / `remember` and the energy-receipt contract)*
+*(unchanged from v0.1 — but `jouledb-ai-runtime` is now the public API on top of the `verity-*` cascade engine; see its `README` for the three operations `ask` / `learn` / `remember` and the energy-receipt contract)*
 
 #### 2.4.1 Core Architecture
 

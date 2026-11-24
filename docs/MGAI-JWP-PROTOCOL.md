@@ -3,7 +3,7 @@
 **Version 1.0 — 2026-05-18**
 **Protocol:** Joule Wire Protocol (JWP)
 **Reference implementation:** [`jwp/`](../crates/jwp/) (frame layer), [`joule-db-server/src/jwp_server.rs`](../crates/joule-db-server/src/jwp_server.rs) (server)
-**Sister docs:** [`MGAI-ACP-REFERENCE.md`](MGAI-ACP-REFERENCE.md), [`MGAI-MCP-REFERENCE.md`](MGAI-MCP-REFERENCE.md), [`MGAI-CLI-REFERENCE.md`](MGAI-CLI-REFERENCE.md)
+**Sister docs:** `MGAI-ACP-REFERENCE.md`, [`MGAI-MCP-REFERENCE.md`](jouledb/MCP-JOULEDB.md), [`MGAI-CLI-REFERENCE.md`](jouledb/CLI-REFERENCE.md)
 
 ---
 
@@ -343,9 +343,9 @@ The server only reports projected-energy-exceeds-budget errors *before* executio
 
 ## 12. See also
 
-- [`MGAI-ACP-REFERENCE.md`](MGAI-ACP-REFERENCE.md) — process-level invocation contract (when JWP runs as a daemon)
-- [`MGAI-MCP-REFERENCE.md`](MGAI-MCP-REFERENCE.md) — the MCP (Model Context Protocol) alternative for LLM-client integration
-- [`MGAI-CLI-REFERENCE.md`](MGAI-CLI-REFERENCE.md) — the CLI surface for `ask-server`, `askdavidc`, etc.
+- `MGAI-ACP-REFERENCE.md` — process-level invocation contract (when JWP runs as a daemon)
+- [`MGAI-MCP-REFERENCE.md`](jouledb/MCP-JOULEDB.md) — the MCP (Model Context Protocol) alternative for LLM-client integration
+- [`MGAI-CLI-REFERENCE.md`](jouledb/CLI-REFERENCE.md) — the CLI surface for `ask-server`, `askdavidc`, etc.
 - [`MGAI-SPEC-DOMAIN-JOULEDB.md`](MGAI-SPEC-DOMAIN-JOULEDB.md) — JouleDB domain spec
 - [`WHITEPAPER-JOULEDB-2026-05.md`](WHITEPAPER-JOULEDB-2026-05.md) — v0.2 whitepaper
 

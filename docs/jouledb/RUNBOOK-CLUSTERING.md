@@ -181,7 +181,7 @@ curl -X POST http://replica:8080/admin/replica/promote
 
 ## 7. Health and observability
 
-Per [`MGAI-ACP-REFERENCE.md`](../MGAI-ACP-REFERENCE.md):
+Per `MGAI-ACP-REFERENCE.md`:
 
 - `/health` — liveness probe (always returns 200 if the process is running)
 - `/ready` — readiness probe (returns 503 if catching up Raft, restoring snapshot, etc.)

@@ -31,7 +31,7 @@ curl -X POST http://localhost:8080/admin/backup \
      -d '{"type": "full", "dest": "/backups/jouledb-2026-05-18.wdb"}'
 ```
 
-The backup is taken **online** — the engine takes a CoW snapshot (Phase 5/6 atomic publish, see [`docs/joule-db/cow-mvcc-design.md`](../joule-db/cow-mvcc-design.md)) and streams it to the destination. Writes during the backup are versioned against the snapshot id; the backup itself is a consistent point-in-time view.
+The backup is taken **online** — the engine takes a CoW snapshot (Phase 5/6 atomic publish, see `docs/joule-db/cow-mvcc-design.md`) and streams it to the destination. Writes during the backup are versioned against the snapshot id; the backup itself is a consistent point-in-time view.
 
 ### Incremental
 
@@ -143,7 +143,7 @@ Untested backups aren't backups. Schedule a weekly restore-validation job.
 
 ## 7. Backup storage location
 
-In-tree backup snapshots used for tests live in [`crates/joule-db-server/backups/`](../../crates/joule-db-server/backups/) — these are NOT a substitute for real backup. Production backups should live on:
+In-tree backup snapshots used for tests live in `crates/joule-db-server/backups/` — these are NOT a substitute for real backup. Production backups should live on:
 
 - A different host than the database
 - A different storage class (S3 / GCS / on-prem object store)

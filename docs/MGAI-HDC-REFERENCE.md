@@ -295,7 +295,7 @@ let self_model = apples.reflect();
 - [`joule-db-hdc/README.md`](../crates/joule-db-hdc/README.md) — crate-level overview
 - [`joule-db-hdc/PRIMITIVES.md`](../crates/joule-db-hdc/PRIMITIVES.md) — primitive-level design notes
 - [`WHITEPAPER-JOULEDB-2026-05.md`](WHITEPAPER-JOULEDB-2026-05.md) §2.3 — primitives in the architectural narrative
-- [`jouledb-ai-runtime`](../crates/jouledb-ai-runtime/) — the Awareness Engine cascade built on these primitives
+- `jouledb-ai-runtime` — the Awareness Engine cascade built on these primitives
 - [`joule-db-domains`](../crates/joule-db-domains/) — 22 domain-specific encoders that target these primitives
 - [`joule-db-ternary`](../crates/joule-db-ternary/) — packed ternary encoding for some hypervector representations
 

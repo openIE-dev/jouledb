@@ -134,7 +134,7 @@ joule db wal replay /var/lib/jouledb/wal.wdb --from 2026-05-17T02:00:00 --to 202
 systemctl start jouledb
 ```
 
-In-tree backup snapshots live in [`crates/joule-db-server/backups/`](../../crates/joule-db-server/backups/) for testing; production backup location is per your deployment. See [`RUNBOOK-BACKUP.md`](RUNBOOK-BACKUP.md).
+In-tree backup snapshots live in `crates/joule-db-server/backups/` for testing; production backup location is per your deployment. See [`RUNBOOK-BACKUP.md`](RUNBOOK-BACKUP.md).
 
 ---
 
@@ -177,7 +177,7 @@ joule-db-recover /data/joule.db --write-recovery-meta
 If after Mode 5 you still can't recover what you need, the data is genuinely lost from this database. Check:
 
 - Other JouleDB replicas (if running Raft)
-- Source-of-record systems (especially relevant for Scholar — the publishing graph is rebuildable from CC0/OA upstream sources; see [`project_scholar_reingest_repair_2026_05_03`](../../../.claude/projects/-Users-dcharlot-data-share-vibe-coding-joulesperbit/memory/project_scholar_reingest_repair_2026_05_03.md))
+- Source-of-record systems (especially relevant for Scholar — the publishing graph is rebuildable from CC0/OA upstream sources)
 - Recent backups (you have a backup, right?)
 
 ---
@@ -188,7 +188,7 @@ After any of recovery modes 1–5 above, the JouleDB row set is smaller than it 
 
 ### How it works
 
-`scholar-server` runs a background **index health monitor** ([`crates/scholar-server/src/main.rs`](../../crates/scholar-server/src/main.rs), `spawn_index_health_monitor`):
+`scholar-server` runs a background **index health monitor** (`crates/scholar-server/src/main.rs`, `spawn_index_health_monitor`):
 
 1. It reuses the existing row-count cache (the `spawn_row_count_refresher` task) — **no extra scan, zero added I/O on the hot path**.
 2. Every `SCHOLAR_INDEX_HEALTH_REFRESH_S` (default 120 s) it compares the live tantivy doc count against the cached `scholar_works` row count.
@@ -241,5 +241,5 @@ journalctl -u scholar-server | grep -E "sparse-fill|auto-recovery"
 - [`RUNBOOK-BACKUP.md`](RUNBOOK-BACKUP.md) — backup procedures
 - [`RUNBOOK-CLUSTERING.md`](RUNBOOK-CLUSTERING.md) — multi-replica deployment
 - [`crates/joule-db-local/src/bin/joule_db_recover.rs`](../../crates/joule-db-local/src/bin/joule_db_recover.rs) — source of truth for the binary
-- [`crates/scholar-server/src/main.rs`](../../crates/scholar-server/src/main.rs) — `spawn_index_health_monitor`, `spawn_throttled_rebuild`, `is_sparse_fill`
-- [`the-fix-1.md`](../../the-fix-1.md), [`the-fix-2.md`](../../the-fix-2.md) — Scholar incident narratives
+- `crates/scholar-server/src/main.rs` — `spawn_index_health_monitor`, `spawn_throttled_rebuild`, `is_sparse_fill`
+- `the-fix-1.md`, `the-fix-2.md` — Scholar incident narratives
